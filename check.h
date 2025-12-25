@@ -1,6 +1,28 @@
 #pragma once
 
+#include <cstdlib>
 #include <exception>
+
+#ifdef PDP_ENABLE_ASSERT
+#define pdp_assert(x)                     \
+  do {                                    \
+    bool value = (x);                     \
+    if (!value) {                         \
+      pdp_error("Assert failed: {}", #x); \
+      abort();                            \
+    }                                     \
+  } while (0)
+#define pdp_silent_assert(x) \
+  do {                       \
+    bool value = (x);        \
+    if (!value) {            \
+      abort();               \
+    }                        \
+  } while (0)
+#else
+#define pdp_assert(x) (void)0
+#define pdp_silent_assert(x) (void)0
+#endif
 
 namespace pdp {
 

@@ -10,7 +10,7 @@ namespace pdp {
 struct GdbSession {
   using Callback = std::function<void(const StringView &)>;
 
-  GdbSession();
+  GdbSession(Callback async_callback, Callback stream_callback);
   ~GdbSession();
 
   void Start();
@@ -29,6 +29,8 @@ struct GdbSession {
   unsigned token_counter;
 
   std::vector<Callback> callbacks;
+  Callback async_callback;
+  Callback stream_callback;
 
   bool disconnected;
   RollingBuffer buffer;

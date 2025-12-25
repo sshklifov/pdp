@@ -1,34 +1,38 @@
 #pragma once
 
 #include "string_view.h"
+#include "tracing_counter.h"
 
 namespace pdp {
 
 struct RollingBuffer {
-  static constexpr const size_t default_buffer_capacity = 16384;
+  static constexpr const size_t min_read_size = 4'000;
+  static constexpr const size_t default_buffer_size = min_read_size * 2;
 
   RollingBuffer();
   ~RollingBuffer();
 
   size_t ReadFull(int fd);
-  size_t ReadOnce(int fd);
 
   StringView ConsumeLine();
 
   StringView ViewOnly() const;
 
   bool Empty() const;
+  size_t Size() const;
 
  private:
-  StringView ConsumeChars(size_t n);
-
-  void Relocate();  // TODO rename
-  void GrowExtra();
+  void ReserveForRead();
 
   char *ptr;
-  size_t num_skipped;
-  size_t num_read;
-  size_t num_free;
+  size_t begin;
+  size_t end;
+  size_t capacity;
+
+  enum Counters { kEmptyOptimization, kNotNeeded, kMoved, kAllocation, kTotal };
+  static constexpr std::array<const char *, kTotal> names{"Empty optimization", "Not needed",
+                                                          "Moved", "Allocation"};
+  TracingCounter<kTotal> provide_bytes;
 };
 
 }  // namespace pdp

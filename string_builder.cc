@@ -1,4 +1,6 @@
 #include "string_builder.h"
+#include "check.h"
+#include "likely.h"
 
 #include <cstdlib>
 #include <cstring>
@@ -17,7 +19,7 @@ size_t EstimateSize(void *p) {
 
 Buffer::Buffer(size_t cap) noexcept
     : ptr(static_cast<char *>(malloc(cap))), size(0), capacity(cap) {
-  assert(cap > 0);
+  pdp_silent_assert(cap > 0);
 }
 
 Buffer::Buffer(Buffer &&other) : ptr(other.ptr), size(other.size), capacity(other.capacity) {
@@ -97,17 +99,17 @@ void Buffer::Append(char c, size_t n) {
 }
 
 char &Buffer::operator[](size_t index) {
-  assert(index < Size());
+  pdp_silent_assert(index < Size());
   return ptr[index];
 }
 
 const char &Buffer::operator[](size_t index) const {
-  assert(index < Size());
+  pdp_silent_assert(index < Size());
   return ptr[index];
 }
 
 void Buffer::AppendfUnchecked(const StringView &fmt) {
-#ifndef NDEBUG
+#ifdef PDP_ENABLE_ASSERT
   // TODO
 #endif
 
@@ -118,12 +120,12 @@ void Buffer::AppendfUnchecked(const StringView &fmt) {
 }
 
 void Buffer::AppendUnchecked(char c) {
-  assert(size + 1 <= capacity);
+  pdp_silent_assert(size + 1 <= capacity);
   ptr[size++] = c;
 }
 
 void Buffer::AppendUnchecked(const StringView &s) {
-  assert(size + s.Size() <= capacity);
+  pdp_silent_assert(size + s.Size() <= capacity);
   memcpy(ptr + size, s.Begin(), s.Size());
   size += s.Size();
 }
@@ -139,16 +141,16 @@ void Buffer::GrowExtra(const size_t req_capacity) {
   size_t grow_capacity = half_capacity > req_capacity ? half_capacity : req_capacity;
   const size_t max_capacity = std::numeric_limits<size_t>::max();
   bool no_overflow = max_capacity - grow_capacity >= capacity;
-  if (__builtin_expect(no_overflow, true)) {
+  if (PDP_LIKELY(no_overflow)) {
     capacity += grow_capacity;
     ptr = static_cast<char *>(realloc(ptr, capacity));
-    assert(ptr);
+    pdp_silent_assert(ptr);
   } else {
     no_overflow = max_capacity - req_capacity >= capacity;
     if (no_overflow) {
       capacity += req_capacity;
       ptr = static_cast<char *>(realloc(ptr, capacity));
-      assert(ptr);
+      pdp_silent_assert(ptr);
     } else {
       std::terminate();
     }

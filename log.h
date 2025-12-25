@@ -8,7 +8,7 @@
 namespace pdp {
 
 /// @brief Log message severity
-enum class Level { kTrace, kDebug, kInfo, kWarn, kError, kCrit, kOff };
+enum class Level { kTrace, kInfo, kWarn, kError, kCrit, kOff };
 
 /// @brief Changes the log level process wide of console messages
 void SetConsoleLogLevel(Level level);
@@ -74,15 +74,13 @@ void Log(const char *filename, unsigned line, Level lvl, const StringView &fmt, 
 /// without logging anything (hopefully, as we don't want debug prints in production). A simple
 /// optimization is to remove the calls on macro level. This reduces code size and avoids the
 /// dynamic calls. As a downside, enabling 'atrace' is more complicated. See also 'SetConsoleLevel'.
-#ifdef PDP_ENABLE_ATRACE
-#define trace(...) PDP_LOG(pdp::Level::kTrace, __VA_ARGS__)
-#define trace_every(...) PDP_LOG_RATE_LIMITED(pdp::Level::kTrace, __VA_ARGS__)
+#ifdef PDP_ENABLE_TRACE
+#define pdp_trace(...) PDP_LOG(pdp::Level::kTrace, __VA_ARGS__)
+#define pdp_trace_every(...) PDP_LOG_RATE_LIMITED(pdp::Level::kTrace, __VA_ARGS__)
 #else
-#define trace(...) (void)0
-#define trace_every(...) (void)0
+#define pdp_trace(...) (void)0
+#define pdp_trace_every(...) (void)0
 #endif
-
-#define pdp_debug(...) PDP_LOG(pdp::Level::kDebug, __VA_ARGS__)
 
 #define pdp_info(...) PDP_LOG(pdp::Level::kInfo, __VA_ARGS__)
 
@@ -91,8 +89,6 @@ void Log(const char *filename, unsigned line, Level lvl, const StringView &fmt, 
 #define pdp_error(...) PDP_LOG(pdp::Level::kError, __VA_ARGS__)
 
 #define pdp_critical(...) PDP_LOG(pdp::Level::kCrit, __VA_ARGS__)
-
-#define pdp_debug_every(...) PDP_LOG_RATE_LIMITED(pdp::Level::kDebug, __VA_ARGS__)
 
 #define pdp_info_every(...) PDP_LOG_RATE_LIMITED(pdp::Level::kInfo, __VA_ARGS__)
 

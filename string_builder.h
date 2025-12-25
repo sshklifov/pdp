@@ -1,8 +1,8 @@
 #pragma once
 
+#include "check.h"
 #include "string_view.h"
 
-#include <cassert>
 #include <limits>
 #include <type_traits>
 #include <utility>
@@ -99,7 +99,7 @@ struct Buffer {
     fmt.DropPrefix(it);
 
     const bool more_fmt_data = !fmt.Empty();
-    assert(more_fmt_data);
+    pdp_silent_assert(more_fmt_data);
     // XXX: This is very intentionally not using PDP_LIKELY.
     if (__builtin_expect(more_fmt_data, true)) {
       fmt.DropPrefix(1);
@@ -138,7 +138,7 @@ struct Buffer {
   void AppendUnchecked(U unsigned_value) {
     char *write_head = ptr + size;
     do {
-      assert(write_head < ptr + capacity);
+      pdp_silent_assert(write_head < ptr + capacity);
       *write_head = '0' + (unsigned_value % 10);
       ++write_head;
       unsigned_value /= 10;

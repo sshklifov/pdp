@@ -1,6 +1,6 @@
 #include "string_view.h"
+#include "check.h"
 
-#include <cassert>
 #include <cstring>
 
 namespace pdp {
@@ -8,7 +8,7 @@ namespace pdp {
 StringView::StringView(const char *p, size_t sz) : ptr(p), size(sz) {}
 
 StringView::StringView(const char *begin, const char *end) : ptr(begin), size(end - begin) {
-  assert(begin <= end);
+  pdp_silent_assert(begin <= end);
 }
 
 StringView::StringView(const char *s) : ptr(s), size(strlen(s)) {}
@@ -29,13 +29,13 @@ const char *StringView::Find(char c) const {
 }
 
 void StringView::DropPrefix(const char *it) {
-  assert(it >= Begin() && it <= End());
+  pdp_silent_assert(it >= Begin() && it <= End());
   size -= it - ptr;
   ptr = it;
 }
 
 void StringView::DropPrefix(size_t n) {
-  assert(n <= Size());
+  pdp_silent_assert(n <= Size());
   ptr += n;
   size -= n;
 }

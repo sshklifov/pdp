@@ -1,4 +1,5 @@
 #include "log.h"
+#include "check.h"
 
 #include <cstdio>
 #include <cstring>
@@ -11,8 +12,6 @@ static const char *LogLevelToString(pdp::Level lvl) {
   switch (lvl) {
     case pdp::Level::kTrace:
       return "\e[37mtrace\e[0m";
-    case pdp::Level::kDebug:
-      return "\e[36mdebug\e[0m";
     case pdp::Level::kInfo:
       return "\e[32minfo\e[0m";
     case pdp::Level::kWarn:
@@ -22,7 +21,7 @@ static const char *LogLevelToString(pdp::Level lvl) {
     case pdp::Level::kCrit:
       return "\e[1m\e[41mcritical\e[0m";
     default:
-      assert(false);
+      pdp_silent_assert(false);
       return "???";
   }
 }
@@ -38,7 +37,7 @@ void Log(const char *file, unsigned line, Level lvl, const StringView &msg) {
   const size_t max_msg_length = 65535;
   auto length = msg.Size() > max_msg_length ? max_msg_length : msg.Size();
 
-  assert(console_level.load() <= static_cast<int>(lvl));
+  pdp_silent_assert(console_level.load() <= static_cast<int>(lvl));
 
   auto now = std::chrono::system_clock::now();
   time_t epoch = std::chrono::system_clock::to_time_t(now);

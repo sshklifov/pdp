@@ -5,11 +5,11 @@
 #include <fcntl.h>
 #include <poll.h>
 #include <unistd.h>
-#include <cerrno>
 
 namespace pdp {
 
-GdbSession::GdbSession() : in{0, 0}, out{0, 0}, err{0, 0}, token_counter(0), disconnected(false) {}
+GdbSession::GdbSession(Callback async_callback, Callback stream_callback)
+    : in{0, 0}, out{0, 0}, err{0, 0}, token_counter(0), disconnected(false) {}
 
 GdbSession::~GdbSession() {
   if (in[1] > 0) {
@@ -105,8 +105,11 @@ void GdbSession::Process() {
     return;
   }
 
-  auto s = buffer.ViewOnly();
-  pdp_info("Read: {}", s);
+  auto s = buffer.ConsumeLine();
+  while (!s.Empty()) {
+    pdp_info("Read: {}", s);
+    s = buffer.ConsumeLine();
+  }
 }
 
 };  // namespace pdp

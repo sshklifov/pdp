@@ -1,8 +1,8 @@
 #include "rolling_buffer.h"
 #include "check.h"
+#include "likely.h"
 
 #include <unistd.h>
-#include <cassert>
 #include <cerrno>
 #include <cstdlib>
 #include <cstring>
@@ -11,95 +11,94 @@
 namespace pdp {
 
 RollingBuffer::RollingBuffer()
-    : ptr(static_cast<char *>(malloc(default_buffer_capacity))),
-      num_skipped(0),
-      num_read(0),
-      num_free(default_buffer_capacity) {}
+    : ptr(static_cast<char *>(malloc(default_buffer_size))),
+      begin(0),
+      end(0),
+      capacity(default_buffer_size),
+      provide_bytes(names) {}
 
-RollingBuffer::~RollingBuffer() { free(ptr - num_skipped); }
+RollingBuffer::~RollingBuffer() { free(ptr); }
 
 size_t RollingBuffer::ReadFull(int fd) {
-  size_t old_size = num_read;
-  while (ReadOnce(fd) > 0);
+  size_t old_size = Size();
+  for (;;) {
+    ReserveForRead();
+    pdp_assert(capacity - end >= min_read_size);
+    ssize_t ret = read(fd, ptr + end, capacity - end);
 
-  assert(num_read >= old_size);
-  return num_read - old_size;
-}
-
-size_t RollingBuffer::ReadOnce(int fd) {
-  Relocate();
-  ssize_t ret = read(fd, ptr + num_read, num_free);
-
-  if (ret <= 0) {
-    if (errno != EAGAIN && errno != EWOULDBLOCK) {
-      Check(ret, "read");
+    if (ret <= 0) {
+      if (errno != EAGAIN && errno != EWOULDBLOCK) {
+        Check(ret, "read");
+      }
+      pdp_assert(Size() > old_size);
+      return Size() - old_size;
     }
-    return 0;
-  }
 
-  size_t n = static_cast<size_t>(ret);
-  num_read += n;
-  assert(n < num_free);
-  num_free -= n;
-  return n;
+    end += static_cast<size_t>(ret);
+    pdp_assert(end <= capacity);
+  }
 }
 
 StringView RollingBuffer::ConsumeLine() {
-  size_t pos = 0;
-  while (pos < num_read) {
+  size_t pos = begin;
+  while (pos < end) {
     if (ptr[pos] == '\n') {
-      return ConsumeChars(pos + 1);
+      StringView res(ptr + begin, ptr + pos + 1);
+      begin = pos + 1;
+      return res;
     }
     ++pos;
   }
   return StringView(ptr, ptr);
 }
 
-StringView RollingBuffer::ViewOnly() const { return StringView(ptr, ptr + num_read); }
+StringView RollingBuffer::ViewOnly() const { return StringView(ptr + begin, ptr + end); }
 
-bool RollingBuffer::Empty() const { return num_read == 0; }
+bool RollingBuffer::Empty() const { return begin == end; }
 
-void RollingBuffer::Relocate() {
+size_t RollingBuffer::Size() const {
+  pdp_assert(end >= begin);
+  return end - begin;
+}
+
+void RollingBuffer::ReserveForRead() {
   const bool empty = Empty();
-  if (__builtin_expect(empty, true)) {
-    num_free += num_skipped;
-    ptr -= num_skipped;
-    num_skipped = 0;
+  if (empty) {
+    begin = 0;
+    end = 0;
+    provide_bytes.Count(kEmptyOptimization);
     return;
   }
 
-  // TODO change (re)allocation strategy
-  if (num_free < 4096) {
-    GrowExtra();
-    assert(num_free > 4096);
+  const size_t curr_free = capacity - end;
+  if (curr_free >= min_read_size) {
+    provide_bytes.Count(kNotNeeded);
+    return;
   }
-}
 
-StringView RollingBuffer::ConsumeChars(size_t n) {
-  assert(n <= num_read);
+  const size_t fragmented_size = begin;
+  const size_t used_size = Size();
+  if (fragmented_size >= used_size) {
+    memcpy(ptr, ptr + begin, used_size);
+    begin = 0;
+    end = used_size;
+    provide_bytes.Count(kMoved);
+    return;
+  }
 
-  StringView res(ptr, n);
-  num_skipped += n;
-  ptr += n;
-  num_read -= n;
-  return res;
-}
-
-void RollingBuffer::GrowExtra() {
-  size_t capacity = num_skipped + num_read + num_free;
   size_t grow_capacity = capacity / 2;
   const size_t max_capacity = std::numeric_limits<size_t>::max();
   bool no_overflow = max_capacity - grow_capacity >= capacity;
-  if (__builtin_expect(no_overflow, true)) {
+  if (PDP_LIKELY(no_overflow)) {
     capacity += grow_capacity;
     char *new_ptr = static_cast<char *>(malloc(capacity));
-    assert(new_ptr);
-    memcpy(new_ptr, ptr + num_skipped, num_read);
+    pdp_assert(new_ptr);
+    memcpy(new_ptr, ptr + begin, used_size);
     free(ptr);
     ptr = new_ptr;
-    num_skipped = 0;
-    assert(capacity > num_read);
-    num_free = capacity - num_read;
+    begin = 0;
+    end = used_size;
+    provide_bytes.Count(kAllocation);
   } else {
     std::terminate();
   }
