@@ -10,9 +10,19 @@ set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -Wall")
 
 option(BUILD_TESTS "Build unit tests" ON)
 
+add_library(pdp_core
+  check.cc
+  log.cc
+  rolling_buffer.cc
+  string_builder.cc
+  string_view.cc
+)
+
 if(BUILD_TESTS)
   find_package(doctest REQUIRED)
   add_executable(test test.cc)
+  target_link_libraries(test PRIVATE pdp_core)
 endif()
 
-add_executable(pdp main.cc log.cc)
+add_executable(pdp main.cc gdb_session.cc)
+target_link_libraries(pdp PRIVATE pdp_core)

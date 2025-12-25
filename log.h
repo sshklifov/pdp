@@ -52,7 +52,7 @@ void Log(const char *filename, unsigned line, Level lvl, const StringView &fmt, 
 
 /// The `log_at` check is forced inside the macro in order to avoid evaluation of __VA_ARGS__,
 /// when possible. The cost is 2 additional instructions for each log (negligible) and the overhead
-/// of an additional virtual function call.
+/// of an additional dynamic function call.
 #define PDP_LOG(level, ...)                             \
   do {                                                  \
     if (pdp::ShouldLogAt(level)) {                      \
@@ -82,22 +82,22 @@ void Log(const char *filename, unsigned line, Level lvl, const StringView &fmt, 
 #define trace_every(...) (void)0
 #endif
 
-#define debug(...) PDP_LOG(pdp::Level::kDebug, __VA_ARGS__)
+#define pdp_debug(...) PDP_LOG(pdp::Level::kDebug, __VA_ARGS__)
 
-#define info(...) PDP_LOG(pdp::Level::kInfo, __VA_ARGS__)
+#define pdp_info(...) PDP_LOG(pdp::Level::kInfo, __VA_ARGS__)
 
-#define warning(...) PDP_LOG(pdp::Level::kWarn, __VA_ARGS__)
+#define pdp_warning(...) PDP_LOG(pdp::Level::kWarn, __VA_ARGS__)
 
-#define error(...) PDP_LOG(pdp::Level::kError, __VA_ARGS__)
+#define pdp_error(...) PDP_LOG(pdp::Level::kError, __VA_ARGS__)
 
-#define critical(...) PDP_LOG(pdp::Level::kCrit, __VA_ARGS__)
+#define pdp_critical(...) PDP_LOG(pdp::Level::kCrit, __VA_ARGS__)
 
-#define debug_every(...) PDP_LOG_RATE_LIMITED(pdp::Level::kDebug, __VA_ARGS__)
+#define pdp_debug_every(...) PDP_LOG_RATE_LIMITED(pdp::Level::kDebug, __VA_ARGS__)
 
-#define info_every(...) PDP_LOG_RATE_LIMITED(pdp::Level::kInfo, __VA_ARGS__)
+#define pdp_info_every(...) PDP_LOG_RATE_LIMITED(pdp::Level::kInfo, __VA_ARGS__)
 
-#define warning_every(...) PDP_LOG_RATE_LIMITED(pdp::Level::kWarn, __VA_ARGS__)
+#define pdp_warning_every(...) PDP_LOG_RATE_LIMITED(pdp::Level::kWarn, __VA_ARGS__)
 
-#define error_every(...) PDP_LOG_RATE_LIMITED(pdp::Level::kError, __VA_ARGS__)
+#define pdp_error_every(...) PDP_LOG_RATE_LIMITED(pdp::Level::kError, __VA_ARGS__)
 
-#define critical_every(...) PDP_LOG_RATE_LIMITED(pdp::Level::kCrit, __VA_ARGS__)
+#define pdp_critical_every(...) PDP_LOG_RATE_LIMITED(pdp::Level::kCrit, __VA_ARGS__)

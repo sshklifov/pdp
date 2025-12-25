@@ -1,6 +1,7 @@
 #include "log.h"
 
 #include <cstdio>
+#include <cstring>
 
 /// @brief Holds the active log level for console messages
 /// @note Each process will get a different copy of this variable.
@@ -51,7 +52,7 @@ void Log(const char *file, unsigned line, Level lvl, const StringView &msg) {
   // NOTE: It's important to be in one function call to avoid race conditions!
   printf("[%d-%02d-%02d %02d:%02d:%02d.%03ld] [%s] [%s:%d] %.*s\n", tm.tm_year + 1900,
          tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, milli, LogLevelToString(lvl),
-         GetBasename(file), line, static_cast<int>(length), msg.Begin());
+         GetBasename(file), line, static_cast<int>(length), msg.Data());
   fflush(stdout);
 }
 
