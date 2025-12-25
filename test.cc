@@ -1,0 +1,106 @@
+#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#include <doctest/doctest.h>
+
+#include "string_builder.h"
+
+TEST_CASE("StringView") {
+  SUBCASE("Constructor") {
+    pdp::StringView test("test");
+    CHECK(test.Size() == 4);
+    auto it = test.Begin();
+    CHECK(*it == 't');
+    ++it;
+    CHECK(*it == 'e');
+    ++it;
+    CHECK(*it == 's');
+    ++it;
+    CHECK(*it == 't');
+    ++it;
+    CHECK(it == test.End());
+  }
+
+  SUBCASE("Fixed-length construction") {
+    pdp::StringView test("test", 2);
+    CHECK(test.Size() == 2);
+    auto it = test.Begin();
+    CHECK(*it == 't');
+    ++it;
+    CHECK(*it == 'e');
+    ++it;
+    CHECK(it == test.End());
+  }
+
+  SUBCASE("operator[]") {
+    const char *sentance = "This is something I want to verify.";
+    pdp::StringView s(sentance);
+
+    size_t len = strlen(sentance);
+    bool equal = true;
+    for (size_t i = 0; i < len; ++i) {
+      if (sentance[i] != s[i]) {
+        equal = false;
+      }
+    }
+    CHECK(equal);
+  }
+}
+
+TEST_CASE("EstimateSize") {
+  CHECK(pdp::EstimateSize('d') >= 1);
+  CHECK(pdp::EstimateSize(13) >= 2);
+  CHECK(pdp::EstimateSize(-500) >= 4);
+  CHECK(pdp::EstimateSize("Test") >= 4);
+  CHECK(pdp::EstimateSize(0) >= 1);
+  CHECK(pdp::EstimateSize(-2147483648) >= 11);
+  CHECK(pdp::EstimateSize(9223372036854775807ll) >= 19);
+  CHECK(pdp::EstimateSize(std::numeric_limits<long long>::min()) >= 20);
+  CHECK(pdp::EstimateSize(18446744073709551615ull) >= 20);
+}
+
+TEST_CASE("StringBuilder") {
+  SUBCASE("Append") {
+    pdp::StringBuilder builder;
+    builder.Append("What is the ");
+    const char *meaning = "meaning";
+    builder.Append(meaning, meaning + 7);
+    builder.Append(' ');
+    builder.Append(-124);
+    builder.Append(" or ");
+    builder.Append(112);
+    builder.Append('?');
+
+    CHECK(builder == "What is the meaning -124 or 112?");
+  }
+
+  SUBCASE("Relocation") {
+    pdp::StringBuilder builder;
+    const char *what = "what";
+    for (size_t i = 0; i < 1024; ++i) {
+      builder.Append(what);
+    }
+    builder.Append('?', 1024);
+
+    CHECK(builder.Size() == 1024 * 5);
+    bool equal = true;
+    size_t pos = 0;
+    while (pos < 4096) {
+      if (builder.Substr(pos, 4) != "what") {
+        equal = false;
+      }
+      pos += 4;
+    }
+    while (pos < builder.Size()) {
+      if (builder[pos] != '?') {
+        equal = false;
+      }
+      ++pos;
+    }
+    CHECK(equal);
+  }
+
+  SUBCASE("Format") {
+    pdp::StringBuilder builder;
+    builder.Appendf("What is {} onn in here {} or {}{}", "going", 0, -101, '?');
+    CHECK(builder == "What is going onn in here 0 or -101?");
+  }
+}
