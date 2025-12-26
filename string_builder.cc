@@ -1,29 +1,25 @@
 #include "string_builder.h"
-// #include "check.h"
-
-// #include <cstdlib>
-// #include <cstring>
 
 namespace pdp {
 
 size_t StringBuilder::Length() const { return size; }
 
 StringSlice StringBuilder::Substr(size_t pos) const {
-  pdp_silent_assert(pos < Size());
+  pdp_assert(pos < Size());
   return StringSlice(ptr + pos, size - pos);
 }
 
 StringSlice StringBuilder::Substr(size_t pos, size_t n) const {
-  pdp_silent_assert(pos < Size() && pos + n <= size);
+  pdp_assert(pos < Size() && pos + n <= size);
   return StringSlice(ptr + pos, n);
 }
 
 StringSlice StringBuilder::Substr(const char *it) const {
-  pdp_silent_assert(it >= ptr && it <= End());
+  pdp_assert(it >= ptr && it <= End());
   return StringSlice(it, End());
 }
 
-StringSlice StringBuilder::ViewOnly() const { return StringSlice(ptr, size); }
+StringSlice StringBuilder::GetSlice() const { return StringSlice(ptr, size); }
 
 bool StringBuilder::operator==(const StringSlice &other) const {
   if (Size() != other.Size()) {
@@ -41,7 +37,7 @@ void StringBuilder::AppendfUnchecked(const StringSlice &fmt) {
   while (it < copy.End()) {
     copy.DropLeft(it + 1);
     if (copy.StartsWith('}')) {
-      OnSilentAssertFailed("Extra {} in format string", fmt.Begin(), fmt.Size());
+      OnAssertFailed("Extra {} in format string", fmt.Begin(), fmt.Size());
     }
     it = fmt.Find('{');
   }
@@ -54,12 +50,12 @@ void StringBuilder::AppendfUnchecked(const StringSlice &fmt) {
 }
 
 void StringBuilder::AppendUnchecked(char c) {
-  pdp_silent_assert(size + 1 <= capacity);
+  pdp_assert(size + 1 <= capacity);
   ptr[size++] = c;
 }
 
 void StringBuilder::AppendUnchecked(const StringSlice &s) {
-  pdp_silent_assert(size + s.Size() <= capacity);
+  pdp_assert(size + s.Size() <= capacity);
   memcpy(ptr + size, s.Begin(), s.Size());
   size += s.Size();
 }

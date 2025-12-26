@@ -8,9 +8,9 @@
 
 namespace pdp {
 
-void OnSilentAssertFailed(const char *file, unsigned line, const char *what) {
-  const char *pdp_error = "[*** PDP ERROR ***] Assertion '";
-  write(STDERR_FILENO, pdp_error, strlen(pdp_error));
+void OnAssertFailed(const char *file, unsigned line, const char *what) {
+  const char *head = "[*** PDP ERROR ***] Assertion '";
+  write(STDERR_FILENO, head, strlen(head));
   write(STDERR_FILENO, what, strlen(what));
 
   const char *failed_in = "' failed in ";
@@ -32,7 +32,7 @@ void OnSilentAssertFailed(const char *file, unsigned line, const char *what) {
   std::terminate();
 }
 
-void OnSilentAssertFailed(const char *what, const char *context, size_t n) {
+void OnAssertFailed(const char *what, const char *context, size_t n) {
   const char *pdp_error = "[*** PDP ERROR ***] ";
   write(STDERR_FILENO, pdp_error, strlen(pdp_error));
   write(STDERR_FILENO, what, strlen(what));

@@ -31,8 +31,7 @@ struct StringBuilder : public LinearArray<char> {
   StringSlice Substr(size_t pos, size_t n) const;
   StringSlice Substr(const char *it) const;
 
-  // TODO rename
-  StringSlice ViewOnly() const;
+  StringSlice GetSlice() const;
 
   bool operator==(const StringSlice &other) const;
   bool operator!=(const StringSlice &other) const;
@@ -83,7 +82,7 @@ struct StringBuilder : public LinearArray<char> {
       }
     } else {
 #ifdef PDP_ENABLE_ASSERT
-      OnSilentAssertFailed("Extra arguments for format", original_fmt.Begin(), original_fmt.Size());
+      OnAssertFailed("Extra arguments for format", original_fmt.Begin(), original_fmt.Size());
 #endif
     }
   }
@@ -112,7 +111,7 @@ struct StringBuilder : public LinearArray<char> {
   void AppendUnchecked(U unsigned_value) {
     char *write_head = ptr + size;
     do {
-      pdp_silent_assert(write_head < ptr + capacity);
+      pdp_assert(write_head < ptr + capacity);
       *write_head = '0' + (unsigned_value % 10);
       ++write_head;
       unsigned_value /= 10;

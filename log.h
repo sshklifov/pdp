@@ -45,7 +45,7 @@ template <typename... Args>
 void Log(const char *filename, unsigned line, Level lvl, const StringSlice &fmt, Args &&...args) {
   StringBuilder builder;
   builder.Appendf(fmt, std::forward<Args>(args)...);
-  Log(filename, line, lvl, builder.ViewOnly());
+  Log(filename, line, lvl, builder.GetSlice());
 }
 
 }  // namespace pdp
@@ -66,14 +66,14 @@ void Log(const char *filename, unsigned line, Level lvl, const StringSlice &fmt,
 /// without logging anything (hopefully, as we don't want debug prints in production). A simple
 /// optimization is to remove the calls on macro level. This reduces code size and avoids the
 /// dynamic calls. As a downside, enabling 'atrace' is more complicated. See also 'SetConsoleLevel'.
-#ifdef PDP_ENABLE_TRACE
+#ifdef PDP_TRACE_MESSAGES
 #define pdp_trace(...) pdp::Log(__FILE__, __LINE__, pdp::Level::kTrace, __VA_ARGS__)
-#define pdp_trace_once(...)                             \
-  do {                                                  \
-    static std::atomic_bool once = false;               \
-    if (once.exchange(true) == false) {                 \
-      pdp::Log(__FILE__, __LINE__, level, __VA_ARGS__); \
-    }                                                   \
+#define pdp_trace_once(...)                                          \
+  do {                                                               \
+    static std::atomic_bool once = false;                            \
+    if (once.exchange(true) == false) {                              \
+      pdp::Log(__FILE__, __LINE__, pdp::Level::kTrace, __VA_ARGS__); \
+    }                                                                \
   } while (0)
 #else
 #define pdp_trace(...) (void)0

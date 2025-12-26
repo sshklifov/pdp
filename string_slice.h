@@ -14,6 +14,7 @@ struct StringSlice {
   const char *End() const;
 
   const char *Find(char c) const;
+  const char *Find(const char *it, char c) const;
 
   StringSlice Substr(size_t pos) const;
   StringSlice Substr(size_t pos, size_t n) const;

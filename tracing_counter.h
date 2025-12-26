@@ -12,7 +12,6 @@ struct TracingCounter {
       : names(names), counters{}, next_print(print_every) {}
 
   void Count(size_t i) {
-#ifdef PDP_ENABLE_TRACE
     pdp_assert(i < N);
     counters[i] += 1;
     --next_print;
@@ -27,13 +26,12 @@ struct TracingCounter {
         pdp_trace("Counter '{}': {}/{}", names[i], counters[i], total);
       }
     }
-#endif
   }
 
  private:
   static constexpr const unsigned print_every = 100;
 
-  std::array<const char *, N> names;
+  const std::array<const char *, N> &names;
   std::array<unsigned, N> counters;
   unsigned next_print;
 };

@@ -3,24 +3,15 @@
 #include <exception>
 
 #ifdef PDP_ENABLE_ASSERT
-#define pdp_assert(x)                     \
-  do {                                    \
-    bool value = (x);                     \
-    if (!value) {                         \
-      pdp_error("Assert failed: {}", #x); \
-      std::terminate();                   \
-    }                                     \
-  } while (0)
-#define pdp_silent_assert(x)                             \
-  do {                                                   \
-    bool value = (x);                                    \
-    if (!value) {                                        \
-      pdp::OnSilentAssertFailed(__FILE__, __LINE__, #x); \
-    }                                                    \
+#define pdp_assert(x)                              \
+  do {                                             \
+    bool value = (x);                              \
+    if (__builtin_expect(!value, false)) {         \
+      pdp::OnAssertFailed(__FILE__, __LINE__, #x); \
+    }                                              \
   } while (0)
 #else
 #define pdp_assert(x) (void)0
-#define pdp_silent_assert(x) (void)0
 #endif
 
 namespace pdp {
@@ -30,7 +21,7 @@ namespace pdp {
 /// the regular logger may recurse, allocate, or otherwise be unsafe (e.g. during
 /// allocator failure, shutdown, or other fatal paths).
 [[noreturn]]
-void OnSilentAssertFailed(const char *file, unsigned line, const char *what);
+void OnAssertFailed(const char *file, unsigned line, const char *what);
 
 /// @brief Unconditionally terminates execution with a custom assertion message.
 ///
@@ -41,7 +32,7 @@ void OnSilentAssertFailed(const char *file, unsigned line, const char *what);
 /// This is functionally equivalent to:
 ///   assert(false && message);
 [[noreturn]]
-void OnSilentAssertFailed(const char *what, const char *context, size_t context_size);
+void OnAssertFailed(const char *what, const char *context, size_t context_size);
 
 /// @brief Checks the outcome of a C-style function returning a negative status on failure.
 /// If the result is negative reports an `errno` style error code.

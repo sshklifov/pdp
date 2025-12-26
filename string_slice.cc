@@ -8,7 +8,7 @@ namespace pdp {
 StringSlice::StringSlice(const char *p, size_t sz) : ptr(p), size(sz) {}
 
 StringSlice::StringSlice(const char *begin, const char *end) : ptr(begin), size(end - begin) {
-  pdp_silent_assert(begin <= end);
+  pdp_assert(begin <= end);
 }
 
 StringSlice::StringSlice(const char *s) : ptr(s), size(strlen(s)) {}
@@ -22,31 +22,37 @@ const char *StringSlice::Find(char c) const {
   return it != nullptr ? it : End();
 }
 
+const char *StringSlice::Find(const char *it, char c) const {
+  pdp_assert(it >= Begin() && it <= End());
+  const char *ret = (const char *)memchr(it, c, End() - it);
+  return ret != nullptr ? ret : End();
+}
+
 StringSlice StringSlice::Substr(size_t pos) const {
-  pdp_silent_assert(pos < Size());
+  pdp_assert(pos < Size());
   return StringSlice(ptr + pos, size - pos);
 }
 
 StringSlice StringSlice::Substr(size_t pos, size_t n) const {
-  pdp_silent_assert(pos < Size() && pos + n <= size);
+  pdp_assert(pos < Size() && pos + n <= size);
   return StringSlice(ptr + pos, size - pos);
 }
 
 StringSlice StringSlice::TakeLeft(const char *it) {
-  pdp_silent_assert(it >= ptr && it <= End());
+  pdp_assert(it >= ptr && it <= End());
   StringSlice res(ptr, it);
   ptr = it;
   return res;
 }
 
 void StringSlice::DropLeft(const char *it) {
-  pdp_silent_assert(it >= Begin() && it <= End());
+  pdp_assert(it >= Begin() && it <= End());
   size -= it - ptr;
   ptr = it;
 }
 
 void StringSlice::DropLeft(size_t n) {
-  pdp_silent_assert(n <= Size());
+  pdp_assert(n <= Size());
   ptr += n;
   size -= n;
 }

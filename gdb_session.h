@@ -28,6 +28,7 @@ struct GdbSession {
 
   unsigned token_counter;
 
+  // TODO replace with LinearArray
   std::vector<Callback> callbacks;
   Callback async_callback;
   Callback stream_callback;

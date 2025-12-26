@@ -21,7 +21,7 @@ static const char *LogLevelToString(pdp::Level lvl) {
     case pdp::Level::kCrit:
       return "\e[1m\e[41mcritical\e[0m";
     default:
-      pdp_silent_assert(false);
+      pdp_assert(false);
       return "???";
   }
 }
@@ -37,7 +37,7 @@ void Log(const char *file, unsigned line, Level lvl, const StringSlice &msg) {
   const size_t max_msg_length = 65535;
   auto length = msg.Size() > max_msg_length ? max_msg_length : msg.Size();
 
-  pdp_silent_assert(lvl == Level::kTrace || console_level.load() <= static_cast<int>(lvl));
+  pdp_assert(lvl == Level::kTrace || console_level.load() <= static_cast<int>(lvl));
 
   auto now = std::chrono::system_clock::now();
   time_t epoch = std::chrono::system_clock::to_time_t(now);
@@ -47,6 +47,8 @@ void Log(const char *file, unsigned line, Level lvl, const StringSlice &msg) {
   struct tm tm;
   memset(&tm, 0, sizeof(tm));
   localtime_r(&epoch, &tm);
+
+  // TODO remove printf dependency?
 
   // NOTE: It's important to be in one function call to avoid race conditions!
   printf("[%d-%02d-%02d %02d:%02d:%02d.%03ld] [%s] [%s:%d] %.*s\n", tm.tm_year + 1900,
@@ -58,7 +60,7 @@ void Log(const char *file, unsigned line, Level lvl, const StringSlice &msg) {
 /// @brief Changes the log level process wide of console messages
 void SetConsoleLogLevel(Level level) {
   // XXX: Trace level logging is controlled only via macros!
-  pdp_silent_assert(level != Level::kTrace);
+  pdp_assert(level != Level::kTrace);
   console_level.store(static_cast<int>(level));
 }
 

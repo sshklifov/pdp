@@ -1,23 +1,23 @@
 #include "rolling_buffer.h"
 #include "check.h"
-#include "likely.h"
 
 #include <unistd.h>
 #include <cerrno>
 #include <cstdlib>
 #include <cstring>
-#include <limits>
 
 namespace pdp {
 
 RollingBuffer::RollingBuffer()
-    : ptr(static_cast<char *>(malloc(default_buffer_size))),
-      begin(0),
-      end(0),
-      capacity(default_buffer_size),
-      provide_bytes(names) {}
+#ifdef PDP_TRACE_ROLLING_BUFFER
+    : begin(0), end(0), capacity(default_buffer_size), provide_bytes(names) {
+#else
+    : begin(0), end(0), capacity(default_buffer_size) {
+#endif
+  ptr = Allocate<char>(allocator, default_buffer_size);
+}
 
-RollingBuffer::~RollingBuffer() { free(ptr); }
+RollingBuffer::~RollingBuffer() { Deallocate<char>(allocator, ptr, capacity); }
 
 size_t RollingBuffer::ReadFull(int fd) {
   size_t old_size = Size();
@@ -66,13 +66,17 @@ void RollingBuffer::ReserveForRead() {
   if (empty) {
     begin = 0;
     end = 0;
+#ifdef PDP_ROLLING_BUFFER
     provide_bytes.Count(kEmptyOptimization);
+#endif
     return;
   }
 
   const size_t curr_free = capacity - end;
   if (curr_free >= min_read_size) {
+#ifdef PDP_ROLLING_BUFFER
     provide_bytes.Count(kNotNeeded);
+#endif
     return;
   }
 
@@ -82,26 +86,28 @@ void RollingBuffer::ReserveForRead() {
     memcpy(ptr, ptr + begin, used_size);
     begin = 0;
     end = used_size;
+#ifdef PDP_ROLLING_BUFFER
     provide_bytes.Count(kMoved);
+#endif
     return;
   }
 
   size_t grow_capacity = capacity / 2;
-  const size_t max_capacity = std::numeric_limits<size_t>::max();
-  bool no_overflow = max_capacity - grow_capacity >= capacity;
-  if (PDP_LIKELY(no_overflow)) {
-    capacity += grow_capacity;
-    char *new_ptr = static_cast<char *>(malloc(capacity));
-    pdp_assert(new_ptr);
-    memcpy(new_ptr, ptr + begin, used_size);
-    free(ptr);
-    ptr = new_ptr;
-    begin = 0;
-    end = used_size;
-    provide_bytes.Count(kAllocation);
-  } else {
-    std::terminate();
-  }
+  const bool within_limits = max_capacity - grow_capacity >= capacity;
+  pdp_assert(within_limits);
+
+  char *new_ptr = Allocate<char>(allocator, capacity + grow_capacity);
+  pdp_assert(new_ptr);
+  memcpy(new_ptr, ptr + begin, used_size);
+  Deallocate<char>(allocator, ptr, capacity);
+
+  ptr = new_ptr;
+  begin = 0;
+  end = used_size;
+  capacity += grow_capacity;
+#ifdef PDP_ROLLING_BUFFER
+  provide_bytes.Count(kAllocation);
+#endif
 }
 
 }  // namespace pdp
