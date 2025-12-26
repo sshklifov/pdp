@@ -15,7 +15,7 @@ add_library(pdp_core
   log.cc
   rolling_buffer.cc
   string_builder.cc
-  string_view.cc
+  string_slice.cc
 )
 
 if(BUILD_TESTS)

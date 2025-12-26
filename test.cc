@@ -6,7 +6,7 @@
 
 TEST_CASE("StringView") {
   SUBCASE("Constructor") {
-    pdp::StringView test("test");
+    pdp::StringSlice test("test");
     CHECK(test.Size() == 4);
     auto it = test.Begin();
     CHECK(*it == 't');
@@ -21,7 +21,7 @@ TEST_CASE("StringView") {
   }
 
   SUBCASE("Fixed-length construction") {
-    pdp::StringView test("test", 2);
+    pdp::StringSlice test("test", 2);
     CHECK(test.Size() == 2);
     auto it = test.Begin();
     CHECK(*it == 't');
@@ -33,7 +33,7 @@ TEST_CASE("StringView") {
 
   SUBCASE("operator[]") {
     const char *sentance = "This is something I want to verify.";
-    pdp::StringView s(sentance);
+    pdp::StringSlice s(sentance);
 
     size_t len = strlen(sentance);
     bool equal = true;
@@ -47,23 +47,22 @@ TEST_CASE("StringView") {
 }
 
 TEST_CASE("EstimateSize") {
-  CHECK(pdp::EstimateSize('d') >= 1);
-  CHECK(pdp::EstimateSize(13) >= 2);
-  CHECK(pdp::EstimateSize(-500) >= 4);
-  CHECK(pdp::EstimateSize("Test") >= 4);
-  CHECK(pdp::EstimateSize(0) >= 1);
-  CHECK(pdp::EstimateSize(-2147483648) >= 11);
-  CHECK(pdp::EstimateSize(9223372036854775807ll) >= 19);
-  CHECK(pdp::EstimateSize(std::numeric_limits<long long>::min()) >= 20);
-  CHECK(pdp::EstimateSize(18446744073709551615ull) >= 20);
+  pdp::EstimateSize estimator;
+  CHECK(estimator('d') >= 1);
+  CHECK(estimator(13) >= 2);
+  CHECK(estimator(-500) >= 4);
+  CHECK(estimator("Test") >= 4);
+  CHECK(estimator(0) >= 1);
+  CHECK(estimator(-2147483648) >= 11);
+  CHECK(estimator(9223372036854775807ll) >= 19);
+  CHECK(estimator(std::numeric_limits<long long>::min()) >= 20);
+  CHECK(estimator(18446744073709551615ull) >= 20);
 }
 
 TEST_CASE("StringBuilder") {
   SUBCASE("Append") {
     pdp::StringBuilder builder;
-    builder.Append("What is the ");
-    const char *meaning = "meaning";
-    builder.Append(meaning, meaning + 7);
+    builder.Append("What is the meaning");
     builder.Append(' ');
     builder.Append(-124);
     builder.Append(" or ");
@@ -79,9 +78,8 @@ TEST_CASE("StringBuilder") {
     for (size_t i = 0; i < 1024; ++i) {
       builder.Append(what);
     }
-    builder.Append('?', 1024);
 
-    CHECK(builder.Size() == 1024 * 5);
+    CHECK(builder.Size() == 1024 * 4);
     bool equal = true;
     size_t pos = 0;
     while (pos < 4096) {
@@ -89,12 +87,6 @@ TEST_CASE("StringBuilder") {
         equal = false;
       }
       pos += 4;
-    }
-    while (pos < builder.Size()) {
-      if (builder[pos] != '?') {
-        equal = false;
-      }
-      ++pos;
     }
     CHECK(equal);
   }

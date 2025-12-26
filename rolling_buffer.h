@@ -1,6 +1,6 @@
 #pragma once
 
-#include "string_view.h"
+#include "string_slice.h"
 #include "tracing_counter.h"
 
 namespace pdp {
@@ -14,9 +14,9 @@ struct RollingBuffer {
 
   size_t ReadFull(int fd);
 
-  StringView ConsumeLine();
+  StringSlice ConsumeLine();
 
-  StringView ViewOnly() const;
+  StringSlice ViewOnly() const;
 
   bool Empty() const;
   size_t Size() const;

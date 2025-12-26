@@ -54,7 +54,7 @@ void GdbSession::Start() {
   CheckAndTerminate(ret, "fcntl");
 }
 
-void GdbSession::SendCommand(const StringView &command, Callback cb) {
+void GdbSession::SendCommand(const StringSlice &command, Callback cb) {
   StringBuilder builder;
   builder.Append(token_counter);
   builder.Append(command);

@@ -29,7 +29,7 @@ void OnSilentAssertFailed(const char *file, unsigned line, const char *what) {
   write(STDERR_FILENO, dig + i + 1, 7 - i);
   write(STDERR_FILENO, "\n", 1);
 
-  abort();
+  std::terminate();
 }
 
 void OnSilentAssertFailed(const char *what, const char *context, size_t n) {
@@ -42,7 +42,7 @@ void OnSilentAssertFailed(const char *what, const char *context, size_t n) {
   write(STDERR_FILENO, context, n);
   write(STDERR_FILENO, "\n", 1);
 
-  abort();
+  std::terminate();
 }
 
 bool Check(int result, const char *operation) {

@@ -33,11 +33,11 @@ static const char *GetBasename(const char *name) {
 
 namespace pdp {
 
-void Log(const char *file, unsigned line, Level lvl, const StringView &msg) {
+void Log(const char *file, unsigned line, Level lvl, const StringSlice &msg) {
   const size_t max_msg_length = 65535;
   auto length = msg.Size() > max_msg_length ? max_msg_length : msg.Size();
 
-  pdp_silent_assert(console_level.load() <= static_cast<int>(lvl));
+  pdp_silent_assert(lvl == Level::kTrace || console_level.load() <= static_cast<int>(lvl));
 
   auto now = std::chrono::system_clock::now();
   time_t epoch = std::chrono::system_clock::to_time_t(now);
@@ -56,7 +56,11 @@ void Log(const char *file, unsigned line, Level lvl, const StringView &msg) {
 }
 
 /// @brief Changes the log level process wide of console messages
-void SetConsoleLogLevel(Level level) { console_level.store(static_cast<int>(level)); }
+void SetConsoleLogLevel(Level level) {
+  // XXX: Trace level logging is controlled only via macros!
+  pdp_silent_assert(level != Level::kTrace);
+  console_level.store(static_cast<int>(level));
+}
 
 bool ShouldLogAt(Level level) {
   return console_level.load(std::memory_order_relaxed) <= static_cast<int>(level);

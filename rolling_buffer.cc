@@ -39,20 +39,20 @@ size_t RollingBuffer::ReadFull(int fd) {
   }
 }
 
-StringView RollingBuffer::ConsumeLine() {
+StringSlice RollingBuffer::ConsumeLine() {
   size_t pos = begin;
   while (pos < end) {
     if (ptr[pos] == '\n') {
-      StringView res(ptr + begin, ptr + pos + 1);
+      StringSlice res(ptr + begin, ptr + pos + 1);
       begin = pos + 1;
       return res;
     }
     ++pos;
   }
-  return StringView(ptr, ptr);
+  return StringSlice(ptr, ptr);
 }
 
-StringView RollingBuffer::ViewOnly() const { return StringView(ptr + begin, ptr + end); }
+StringSlice RollingBuffer::ViewOnly() const { return StringSlice(ptr + begin, ptr + end); }
 
 bool RollingBuffer::Empty() const { return begin == end; }
 

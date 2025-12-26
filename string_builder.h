@@ -1,105 +1,71 @@
 #pragma once
 
-#include "check.h"
-#include "string_view.h"
-
-#include <limits>
-#include <type_traits>
-#include <utility>
+#include "linear_array.h"
+#include "string_slice.h"
 
 namespace pdp {
 
-size_t EstimateSize(const StringView &s);
+struct EstimateSize {
+  size_t operator()(const StringSlice &s) { return s.Size(); }
 
-size_t EstimateSize(char c);
+  size_t operator()(char c) { return 1; }
 
-size_t EstimateSize(void *p);
+  size_t operator()(void *p) {
+    // Max decimal digits for 64-bit + "0x" prefix
+    return std::numeric_limits<size_t>::digits10 + 3;
+  }
 
-template <typename T>
-std::enable_if_t<std::is_integral_v<T>, size_t> EstimateSize(T) {
-  // Max decimal digits for 64-bit + sign
-  return std::numeric_limits<T>::digits10 + 2;
-}
+  template <typename T>
+  std::enable_if_t<std::is_integral_v<T>, size_t> operator()(T) {
+    // Max decimal digits + sign
+    return std::numeric_limits<T>::digits10 + 2;
+  }
+};
 
-struct Buffer {
-  Buffer(size_t cap) noexcept;
-  Buffer(Buffer &&other);
+struct StringBuilder : public LinearArray<char> {
+  explicit StringBuilder();
 
-  Buffer(const Buffer &) = delete;
-
-  Buffer &operator=(Buffer &&other);
-
-  void operator=(const Buffer &) = delete;
-
-  ~Buffer();
-
-  const char *Data() const;
-  char *Data();
-
-  const char *Begin() const;
-  const char *End() const;
-
-  char *Begin();
-  char *End();
-
-  StringView Substr(size_t pos) const;
-  StringView Substr(size_t pos, size_t n) const;
-  StringView Substr(const char *it) const;
-
-  StringView ViewOnly() const;
-
-  bool Empty() const;
-  size_t Size() const;
   size_t Length() const;
-  size_t Capacity() const;
 
-  bool operator==(const StringView &other) const;
-  bool operator!=(const StringView &other) const;
+  StringSlice Substr(size_t pos) const;
+  StringSlice Substr(size_t pos, size_t n) const;
+  StringSlice Substr(const char *it) const;
 
-  /// Clears this buffer.
-  void Clear();
+  // TODO rename
+  StringSlice ViewOnly() const;
 
-  // Tries increasing the buffer capacity to `new_capacity`. It can increase the
-  // capacity by a smaller amount than requested but guarantees there is space
-  // for at least one additional element either by increasing the capacity or by
-  // flushing the buffer if it is full.
-  void Reserve(size_t new_capacity);
-  void Grow();
-
-  Buffer &operator+=(char c);
-
-  /// Appends data to the end of the buffer.
-  void Append(const char *begin, const char *end);
-  void Append(char c, size_t n);
+  bool operator==(const StringSlice &other) const;
+  bool operator!=(const StringSlice &other) const;
 
   template <typename T>
   void Append(T value) {
-    Reserve(size + EstimateSize(value));
+    EstimateSize estimator;
+    ReserveFor(estimator(value));
     AppendUnchecked(value);
   }
 
   // Similar to printf but supports only %s and %d.
   template <typename... Args>
-  void Appendf(const StringView &fmt, Args... args) {
+  void Appendf(const StringSlice &fmt, Args... args) {
     size_t req_size = fmt.Size();
-    ((req_size += EstimateSize(args)), ...);
-    Reserve(size + req_size);
+    EstimateSize estimator;
+    ((req_size += estimator(args)), ...);
+    ReserveFor(req_size);
     AppendfUnchecked(fmt, std::forward<Args>(args)...);
   }
 
-  char &operator[](size_t index);
-
-  const char &operator[](size_t index) const;
-
  private:
+  // Stays within glibc tcache small-bin range. Does that matter? Probably less than I think.
+  static constexpr const size_t default_buffer_capacity = 500;
+
   template <typename Arg, typename... Args>
-  void AppendfUnchecked(StringView fmt, Arg arg, Args... rest) {
+  void AppendfUnchecked(StringSlice fmt, Arg arg, Args... rest) {
 #ifdef PDP_ENABLE_ASSERT
-    StringView original_fmt = fmt;
+    StringSlice original_fmt = fmt;
 #endif
 
     auto it = fmt.Find('{');
-    AppendUnchecked(StringView(fmt.Begin(), it));
+    AppendUnchecked(StringSlice(fmt.Begin(), it));
     fmt.DropLeft(it);
 
     const bool more_fmt_data = !fmt.Empty();
@@ -122,9 +88,10 @@ struct Buffer {
     }
   }
 
-  void AppendfUnchecked(const StringView &fmt);
+  void AppendfUnchecked(const StringSlice &fmt);
+
   void AppendUnchecked(char c);
-  void AppendUnchecked(const StringView &s);
+  void AppendUnchecked(const StringSlice &s);
   void AppendUnchecked(void *p);
 
   template <typename T, std::enable_if_t<std::is_signed_v<T> && !std::is_same_v<T, char>, int> = 0>
@@ -161,20 +128,6 @@ struct Buffer {
       --right;
     }
   }
-
-  void GrowExtra(const size_t req_capacity);
-
-  char *ptr;
-  size_t size;
-  size_t capacity;
-};
-
-struct StringBuilder : public Buffer {
-  explicit StringBuilder();
-
- private:
-  // Stays within glibc tcache small-bin range. Does that matter? Probably less than I think.
-  static constexpr const size_t default_buffer_capacity = 500;
 };
 
 };  // namespace pdp

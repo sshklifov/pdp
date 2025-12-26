@@ -8,14 +8,14 @@
 namespace pdp {
 
 struct GdbSession {
-  using Callback = std::function<void(const StringView &)>;
+  using Callback = std::function<void(const StringSlice &)>;
 
   GdbSession(Callback async_callback, Callback stream_callback);
   ~GdbSession();
 
   void Start();
 
-  void SendCommand(const StringView &command, Callback cb);
+  void SendCommand(const StringSlice &command, Callback cb);
 
   void Poll(std::chrono::milliseconds ms);
 

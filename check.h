@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cstdlib>
 #include <exception>
 
 #ifdef PDP_ENABLE_ASSERT
@@ -9,7 +8,7 @@
     bool value = (x);                     \
     if (!value) {                         \
       pdp_error("Assert failed: {}", #x); \
-      abort();                            \
+      std::terminate();                   \
     }                                     \
   } while (0)
 #define pdp_silent_assert(x)                             \

@@ -4,10 +4,10 @@
 
 namespace pdp {
 
-struct StringView {
-  StringView(const char *p, size_t sz);
-  StringView(const char *begin, const char *end);
-  StringView(const char *s);
+struct StringSlice {
+  StringSlice(const char *p, size_t sz);
+  StringSlice(const char *begin, const char *end);
+  StringSlice(const char *s);
 
   const char *Data() const;
   const char *Begin() const;
@@ -15,10 +15,10 @@ struct StringView {
 
   const char *Find(char c) const;
 
-  StringView Substr(size_t pos) const;
-  StringView Substr(size_t pos, size_t n) const;
+  StringSlice Substr(size_t pos) const;
+  StringSlice Substr(size_t pos, size_t n) const;
 
-  StringView TakeLeft(const char *it);
+  StringSlice TakeLeft(const char *it);
 
   void DropLeft(const char *it);
   void DropLeft(size_t n);
@@ -29,8 +29,8 @@ struct StringView {
   size_t Size() const;
   size_t Length() const;
 
-  bool operator==(const StringView &other) const;
-  bool operator!=(const StringView &other) const;
+  bool operator==(const StringSlice &other) const;
+  bool operator!=(const StringSlice &other) const;
 
   const char &operator[](size_t index) const;
 
