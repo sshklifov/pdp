@@ -94,24 +94,31 @@ struct Buffer {
  private:
   template <typename Arg, typename... Args>
   void AppendfUnchecked(StringView fmt, Arg arg, Args... rest) {
+#ifdef PDP_ENABLE_ASSERT
+    StringView original_fmt = fmt;
+#endif
+
     auto it = fmt.Find('{');
     AppendUnchecked(StringView(fmt.Begin(), it));
-    fmt.DropPrefix(it);
+    fmt.DropLeft(it);
 
     const bool more_fmt_data = !fmt.Empty();
-    pdp_silent_assert(more_fmt_data);
     // XXX: This is very intentionally not using PDP_LIKELY.
     if (__builtin_expect(more_fmt_data, true)) {
-      fmt.DropPrefix(1);
+      fmt.DropLeft(1);
       if (fmt.StartsWith('}')) {
         AppendUnchecked(arg);
-        fmt.DropPrefix(1);
+        fmt.DropLeft(1);
         return AppendfUnchecked(fmt, std::forward<Args>(rest)...);
       } else {
         AppendUnchecked('{');
-        fmt.DropPrefix(1);
+        fmt.DropLeft(1);
         return AppendfUnchecked(fmt, arg, std::forward<Args>(rest)...);
       }
+    } else {
+#ifdef PDP_ENABLE_ASSERT
+      OnSilentAssertFailed("Extra arguments for format", original_fmt.Begin(), original_fmt.Size());
+#endif
     }
   }
 

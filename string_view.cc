@@ -18,30 +18,37 @@ const char *StringView::Begin() const { return ptr; }
 const char *StringView::End() const { return ptr + size; }
 
 const char *StringView::Find(char c) const {
-  size_t pos = 0;
-  while (pos < Size()) {
-    if (ptr[pos] == c) {
-      return ptr + pos;
-    }
-    ++pos;
-  }
-  return ptr + pos;
+  const char *it = (const char *)memchr(ptr, c, size);
+  return it != nullptr ? it : End();
 }
 
-void StringView::DropPrefix(const char *it) {
+StringView StringView::Substr(size_t pos) const {
+  pdp_silent_assert(pos < Size());
+  return StringView(ptr + pos, size - pos);
+}
+
+StringView StringView::Substr(size_t pos, size_t n) const {
+  pdp_silent_assert(pos < Size() && pos + n <= size);
+  return StringView(ptr + pos, size - pos);
+}
+
+StringView StringView::TakeLeft(const char *it) {
+  pdp_silent_assert(it >= ptr && it <= End());
+  StringView res(ptr, it);
+  ptr = it;
+  return res;
+}
+
+void StringView::DropLeft(const char *it) {
   pdp_silent_assert(it >= Begin() && it <= End());
   size -= it - ptr;
   ptr = it;
 }
 
-void StringView::DropPrefix(size_t n) {
+void StringView::DropLeft(size_t n) {
   pdp_silent_assert(n <= Size());
   ptr += n;
   size -= n;
-}
-
-bool StringView::StartsWith(const StringView &other) const {
-  return Size() >= other.Size() && strncmp(Begin(), other.Begin(), other.Size()) == 0;
 }
 
 bool StringView::StartsWith(char c) const { return !Empty() && *ptr == c; }

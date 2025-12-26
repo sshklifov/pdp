@@ -50,11 +50,20 @@ char *Buffer::Begin() { return ptr; }
 
 char *Buffer::End() { return ptr + size; }
 
-StringView Buffer::Substr(size_t pos) const { return StringView(ptr + pos, size - pos); }
+StringView Buffer::Substr(size_t pos) const {
+  pdp_silent_assert(pos < Size());
+  return StringView(ptr + pos, size - pos);
+}
 
-StringView Buffer::Substr(size_t pos, size_t n) const { return StringView(ptr + pos, n); }
+StringView Buffer::Substr(size_t pos, size_t n) const {
+  pdp_silent_assert(pos < Size() && pos + n <= size);
+  return StringView(ptr + pos, n);
+}
 
-StringView Buffer::Substr(const char *it) const { return StringView(it, End()); }
+StringView Buffer::Substr(const char *it) const {
+  pdp_silent_assert(it >= ptr && it <= End());
+  return StringView(it, End());
+}
 
 StringView Buffer::ViewOnly() const { return StringView(ptr, size); }
 
@@ -110,7 +119,15 @@ const char &Buffer::operator[](size_t index) const {
 
 void Buffer::AppendfUnchecked(const StringView &fmt) {
 #ifdef PDP_ENABLE_ASSERT
-  // TODO
+  StringView copy = fmt;
+  auto it = copy.Find('{');
+  while (it < copy.End()) {
+    copy.DropLeft(it + 1);
+    if (copy.StartsWith('}')) {
+      OnSilentAssertFailed("Extra {} in format string", fmt.Begin(), fmt.Size());
+    }
+    it = fmt.Find('{');
+  }
 #endif
 
   const bool more_work = !fmt.Empty();

@@ -15,10 +15,14 @@ struct StringView {
 
   const char *Find(char c) const;
 
-  void DropPrefix(const char *it);
-  void DropPrefix(size_t n);
+  StringView Substr(size_t pos) const;
+  StringView Substr(size_t pos, size_t n) const;
 
-  bool StartsWith(const StringView &other) const;
+  StringView TakeLeft(const char *it);
+
+  void DropLeft(const char *it);
+  void DropLeft(size_t n);
+
   bool StartsWith(char c) const;
 
   bool Empty() const;
