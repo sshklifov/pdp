@@ -8,31 +8,29 @@
 
 namespace pdp {
 
-// TODO Rename to Vector PLEASE
-
 template <typename T, typename Alloc = DefaultAllocator>
-struct LinearArray {
+struct Vector {
   static_assert(std::is_nothrow_move_constructible_v<T>, "T must be noexcept move constructible");
   static_assert(std::is_nothrow_copy_constructible_v<T>, "T must be noexcept copy constructible");
   static_assert(std::is_nothrow_destructible_v<T>, "T must be noexcept destructible");
 
-  LinearArray() noexcept : ptr(nullptr), size(0), capacity(0) {}
+  Vector() noexcept : ptr(nullptr), size(0), capacity(0) {}
 
-  LinearArray(size_t cap, Alloc alloc = DefaultAllocator()) noexcept
+  Vector(size_t cap, Alloc alloc = DefaultAllocator()) noexcept
       : size(0), capacity(cap), allocator(alloc) {
     pdp_assert(cap > 0);
     ptr = Allocate<T>(allocator, cap);
     pdp_assert(ptr);
   }
 
-  LinearArray(LinearArray &&other)
+  Vector(Vector &&other)
       : ptr(other.ptr), size(other.size), capacity(other.capacity), allocator(other.allocator) {
     other.ptr = nullptr;
   }
 
-  LinearArray(const LinearArray &) = delete;
+  Vector(const Vector &) = delete;
 
-  LinearArray &operator=(LinearArray &&other) {
+  Vector &operator=(Vector &&other) {
     pdp_assert(this != &other);
     if (this != &other) {
       ptr = other.ptr;
@@ -45,9 +43,9 @@ struct LinearArray {
     return (*this);
   }
 
-  void operator=(const LinearArray &) = delete;
+  void operator=(const Vector &) = delete;
 
-  ~LinearArray() {
+  ~Vector() {
     // TODO check disassembly here
     Destroy();
     // static_assert(std::is_trivially_destructible_v<T>);
@@ -104,14 +102,14 @@ struct LinearArray {
     }
   }
 
-  LinearArray &operator+=(T &&elem) {
+  Vector &operator+=(T &&elem) {
     ReserveFor(1);
     new (ptr + size) T(std::move(elem));
     ++size;
     return (*this);
   }
 
-  LinearArray &operator+=(const T &elem) {
+  Vector &operator+=(const T &elem) {
     ReserveFor(1);
     new (ptr + size) T(elem);
     ++size;

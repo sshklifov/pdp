@@ -1,12 +1,12 @@
 #pragma once
 
-#include "linear_array.h"
+#include "vector.h"
 
 namespace pdp {
 
 template <typename T, typename Alloc = DefaultAllocator>
-struct Stack : public LinearArray<T, Alloc> {
-  using LinearArray<T, Alloc>::LinearArray;
+struct Stack : public Vector<T, Alloc> {
+  using Vector<T, Alloc>::Vector;
 
   void Push(T &&value) { (*this) += std::move(value); }
 

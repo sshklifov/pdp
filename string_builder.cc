@@ -66,6 +66,6 @@ void StringBuilder::AppendUnchecked(void *p) {
   AppendUnchecked(reinterpret_cast<size_t>(p));
 }
 
-StringBuilder::StringBuilder() : LinearArray<char>(default_buffer_capacity) {}
+StringBuilder::StringBuilder() : Vector<char>(default_buffer_capacity) {}
 
 };  // namespace pdp

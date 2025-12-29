@@ -1,6 +1,6 @@
 #pragma once
 
-#include "linear_array.h"
+#include "vector.h"
 #include "string_slice.h"
 
 namespace pdp {
@@ -22,7 +22,7 @@ struct EstimateSize {
   }
 };
 
-struct StringBuilder : public LinearArray<char> {
+struct StringBuilder : public Vector<char> {
   explicit StringBuilder();
 
   size_t Length() const;
