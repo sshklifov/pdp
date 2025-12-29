@@ -36,6 +36,7 @@ struct StringSlice {
   constexpr const char *Find(char c) const { return Find(Begin(), c); }
 
   constexpr const char *Find(const char *it, char c) const {
+    pdp_assert_non_constexpr(it >= Begin() && it < End());
     if (PDP_CONSTEXPR_EVALUATED()) {
       while (it < End() && *it != c) {
         ++it;
@@ -44,6 +45,18 @@ struct StringSlice {
     } else {
       const char *ret = (const char *)memchr(it, c, size);
       return ret != nullptr ? ret : End();
+    }
+  }
+
+  constexpr const char *MemReverseChar(char c) const {
+    if (PDP_CONSTEXPR_EVALUATED()) {
+      const char *it = End() - 1;
+      while (it >= Begin() && *it != c) {
+        --it;
+      }
+      return it >= Begin() ? it : nullptr;
+    } else {
+      return (const char *)memrchr(Begin(), c, Size());
     }
   }
 

@@ -2,11 +2,15 @@ cmake_minimum_required(VERSION 3.12)
 
 project(pdp VERSION 1.0.0 DESCRIPTION "GDB/MI parsing and command processing library")
 
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+  set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
+endif()
+
 set(CMAKE_CXX_STANDARD 17)
 
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wall -O0 -ggdb")
-set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -g -O2 -Wall")
-set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -Wall")
+# TODO: Future: Remove debugging information
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -g1 -fno-omit-frame-pointer -O3 -Wall")
 
 # Build unit tests
 option(BUILD_TESTS "Build unit tests" ON)
@@ -28,6 +32,9 @@ set(_FEATURES
   TRACE_ROLLING_BUFFER
 )
 
+# TODO Feature: ENABLE_BACKTRACE
+
+# TODO: Experiment with LTO and add_library stuff
 
 set(_DEBUG_ENABLED_FEATURES
   CHECK_MUTEX
@@ -58,7 +65,6 @@ endforeach()
 
 
 add_subdirectory(core)
-add_subdirectory(data)
 add_subdirectory(strings)
 add_subdirectory(parser)
 
@@ -70,7 +76,6 @@ endif()
 
 add_executable(pdp main.cc gdb_session.cc
   $<TARGET_OBJECTS:pdp_core>
-  $<TARGET_OBJECTS:pdp_data>
   $<TARGET_OBJECTS:pdp_strings>
   $<TARGET_OBJECTS:pdp_parser>
 )

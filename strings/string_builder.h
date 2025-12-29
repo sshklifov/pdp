@@ -6,40 +6,60 @@
 namespace pdp {
 
 struct EstimateSize {
-  size_t operator()(const StringSlice &s) { return s.Size(); }
+  constexpr size_t operator()(const StringSlice &s) { return s.Size(); }
 
-  size_t operator()(char c) { return 1; }
+  constexpr size_t operator()(char c) { return 1; }
 
-  size_t operator()(void *p) {
+  constexpr size_t operator()(void *p) {
     // Max decimal digits for 64-bit + "0x" prefix
     return std::numeric_limits<size_t>::digits10 + 3;
   }
 
   template <typename T>
-  std::enable_if_t<std::is_integral_v<T>, size_t> operator()(T) {
+  constexpr std::enable_if_t<std::is_integral_v<T>, size_t> operator()(T) {
     // Max decimal digits + sign
     return std::numeric_limits<T>::digits10 + 2;
   }
 };
 
-struct StringBuilder : public Vector<char> {
-  explicit StringBuilder();
+template <typename Alloc = DefaultAllocator>
+struct StringBuilder : public Vector<char, Alloc> {
+  StringBuilder() = default;
 
-  size_t Length() const;
+  StringBuilder(size_t cap) : Vector<char, Alloc>(cap) {}
 
-  StringSlice Substr(size_t pos) const;
-  StringSlice Substr(size_t pos, size_t n) const;
-  StringSlice Substr(const char *it) const;
+  size_t Length() const { return this->Size(); }
 
-  StringSlice GetSlice() const;
+  StringSlice Substr(size_t pos) const {
+    pdp_assert(pos < this->Size());
+    return StringSlice(this->ptr + pos, this->Size() - pos);
+  }
 
-  bool operator==(const StringSlice &other) const;
-  bool operator!=(const StringSlice &other) const;
+  StringSlice Substr(size_t pos, size_t n) const {
+    pdp_assert(pos < this->Size() && pos + n <= this->size);
+    return StringSlice(this->ptr + pos, n);
+  }
+
+  StringSlice Substr(const char *it) const {
+    pdp_assert(it >= this->ptr && it <= this->End());
+    return StringSlice(it, this->End());
+  }
+
+  StringSlice GetSlice() const { return StringSlice(this->ptr, this->Size()); }
+
+  bool operator==(const StringSlice &other) const {
+    if (this->Size() != other.Size()) {
+      return false;
+    }
+    return memcmp(this->Begin(), other.Begin(), this->Size()) == 0;
+  }
+
+  bool operator!=(const StringSlice &other) const { return !(*this == other); }
 
   template <typename T>
   void Append(T value) {
     EstimateSize estimator;
-    ReserveFor(estimator(value));
+    this->ReserveFor(estimator(value));
     AppendUnchecked(value);
   }
 
@@ -49,13 +69,9 @@ struct StringBuilder : public Vector<char> {
     size_t req_size = fmt.Size();
     EstimateSize estimator;
     ((req_size += estimator(args)), ...);
-    ReserveFor(req_size);
+    this->ReserveFor(req_size);
     AppendfUnchecked(fmt, std::forward<Args>(args)...);
   }
-
- private:
-  // Stays within glibc tcache small-bin range. Does that matter? Probably less than I think.
-  static constexpr const size_t default_buffer_capacity = 500;
 
   template <typename Arg, typename... Args>
   void AppendfUnchecked(StringSlice fmt, Arg arg, Args... rest) {
@@ -86,11 +102,41 @@ struct StringBuilder : public Vector<char> {
     }
   }
 
-  void AppendfUnchecked(const StringSlice &fmt);
+  void AppendfUnchecked(const StringSlice &fmt) {
+#ifdef PDP_ENABLE_ASSERT
+    StringSlice copy = fmt;
+    auto it = copy.Find('{');
+    while (it < copy.End()) {
+      copy.DropLeft(it + 1);
+      if (copy.StartsWith('}')) {
+        OnAssertFailed("Extra {} in format string", fmt.Begin(), fmt.Size());
+      }
+      it = fmt.Find('{');
+    }
+#endif
 
-  void AppendUnchecked(char c);
-  void AppendUnchecked(const StringSlice &s);
-  void AppendUnchecked(void *p);
+    const bool more_work = !fmt.Empty();
+    if (more_work) {
+      Append(fmt);
+    }
+  }
+
+  void AppendUnchecked(char c) {
+    pdp_assert(this->size + 1 <= this->capacity);
+    this->ptr[this->size++] = c;
+  }
+
+  void AppendUnchecked(const StringSlice &s) {
+    pdp_assert(this->size + s.Size() <= this->capacity);
+    memcpy(this->End(), s.Begin(), s.Size());
+    this->size += s.Size();
+  }
+
+  void AppendUnchecked(void *p) {
+    AppendUnchecked('0');
+    AppendUnchecked('x');
+    AppendUnchecked(reinterpret_cast<size_t>(p));
+  }
 
   template <typename T, std::enable_if_t<std::is_signed_v<T> && !std::is_same_v<T, char>, int> = 0>
   void AppendUnchecked(T signed_value) {
@@ -108,17 +154,17 @@ struct StringBuilder : public Vector<char> {
   template <typename U,
             std::enable_if_t<std::is_unsigned_v<U> && !std::is_same_v<U, char>, int> = 0>
   void AppendUnchecked(U unsigned_value) {
-    char *write_head = ptr + size;
+    char *write_head = this->End();
     do {
-      pdp_assert(write_head < ptr + capacity);
+      pdp_assert(write_head < this->ptr + this->capacity);
       *write_head = '0' + (unsigned_value % 10);
       ++write_head;
       unsigned_value /= 10;
     } while (unsigned_value != 0);
 
-    char *left = ptr + size;
+    char *left = this->End();
     char *right = write_head - 1;
-    size += write_head - left;
+    this->size += write_head - left;
 
     while (left < right) {
       std::swap(*left, *right);

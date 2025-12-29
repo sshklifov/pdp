@@ -16,8 +16,7 @@ struct Vector {
 
   Vector() noexcept : ptr(nullptr), size(0), capacity(0) {}
 
-  Vector(size_t cap, Alloc alloc = DefaultAllocator()) noexcept
-      : size(0), capacity(cap), allocator(alloc) {
+  Vector(size_t cap, Alloc alloc = Alloc()) noexcept : size(0), capacity(cap), allocator(alloc) {
     pdp_assert(cap > 0);
     ptr = Allocate<T>(allocator, cap);
     pdp_assert(ptr);
@@ -140,6 +139,7 @@ struct Vector {
     size_t half_capacity = capacity / 2;
     size_t grow_capacity = half_capacity > req_capacity ? half_capacity : req_capacity;
 
+    [[maybe_unused]]
     const bool within_limits = max_capacity - grow_capacity >= capacity;
     pdp_assert(within_limits);
     capacity += grow_capacity;

@@ -101,6 +101,7 @@ void RollingBuffer::ReserveForRead() {
   }
 
   size_t grow_capacity = capacity / 2;
+  [[maybe_unused]]
   const bool within_limits = max_capacity - grow_capacity >= capacity;
   pdp_assert(within_limits);
 

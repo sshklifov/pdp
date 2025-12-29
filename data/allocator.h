@@ -13,26 +13,53 @@
 #include "core/check.h"
 
 #include <cstddef>
+#include <cstdlib>
 #include <limits>
 
 namespace pdp {
 
-struct BasicAllocator {
-  void *AllocateRaw(size_t bytes);
-  void DeallocateRaw(void *ptr);
-  void *ReallocateRaw(void *ptr, size_t new_bytes);
+struct MallocAllocator {
+  void *AllocateRaw(size_t bytes) { return malloc(bytes); }
+
+  void DeallocateRaw(void *ptr) { free(ptr); }
+
+  void *ReallocateRaw(void *ptr, size_t new_bytes) { return realloc(ptr, new_bytes); }
 };
 
-struct TracingAllocator {
-  void *AllocateRaw(size_t bytes);
-  void DeallocateRaw(void *ptr);
-  void *ReallocateRaw(void *ptr, size_t new_bytes);
+namespace impl {
+struct _OnceAllocator {
+  _OnceAllocator() : entered(false) {}
+
+  void *AllocateRaw(size_t bytes) {
+    pdp_assert(!entered);
+    entered = true;
+    return helper_alloc.AllocateRaw(bytes);
+  }
+
+  void DeallocateRaw(void *ptr) { return helper_alloc.DeallocateRaw(ptr); }
+
+  void *ReallocateRaw(void *ptr, size_t new_bytes) {
+    pdp_assert(!ptr);
+    return realloc(ptr, new_bytes);
+  }
+
+ private:
+  MallocAllocator helper_alloc;
+  bool entered;
 };
+}  // namespace impl
+
+#ifdef PDP_ENABLE_ASSERT
+using OneShotAllocator = impl::_OnceAllocator;
+#else
+using OneShotAllocator = MallocAllocator;
+#endif
 
 template <typename T>
 void CheckAllocation(size_t n) {
   pdp_assert(n > 0);
   if constexpr (sizeof(T) > 1) {
+    [[maybe_unused]]
     const bool no_overflow = std::numeric_limits<size_t>::max() / sizeof(T) >= n;
     pdp_assert(no_overflow);
   }
@@ -59,7 +86,7 @@ void Deallocate(Alloc &allocator, void *ptr) {
 #ifdef PDP_TRACE_ALLOCATIONS
 using DefaultAllocator = TracingAllocator;
 #else
-using DefaultAllocator = BasicAllocator;
+using DefaultAllocator = MallocAllocator;
 #endif
 
 };  // namespace pdp

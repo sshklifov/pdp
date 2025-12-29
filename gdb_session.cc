@@ -12,7 +12,7 @@
 namespace pdp {
 
 // TODO testing
-void DebugFormatExpr(ExprBase *expr, StringBuilder &builder) {
+void DebugFormatExpr(ExprBase *expr, StringBuilder<> &builder) {
   if (expr->kind == ExprBase::kString) {
     StringSlice s((char *)expr + sizeof(ExprString), expr->size);
     builder.Append(s);

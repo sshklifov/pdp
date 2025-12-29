@@ -5,8 +5,7 @@
 #ifdef PDP_ENABLE_ASSERT
 #define pdp_assert(x)                              \
   do {                                             \
-    bool value = (x);                              \
-    if (__builtin_expect(!value, false)) {         \
+    if (__builtin_expect(!((x)), false)) {         \
       pdp::OnAssertFailed(__FILE__, __LINE__, #x); \
     }                                              \
   } while (0)
