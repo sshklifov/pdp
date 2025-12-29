@@ -1,39 +1,105 @@
 #pragma once
 
+#include "core/internals.h"
+#include "core/check.h"
+
 #include <cstddef>
+#include <cstring>
 
 namespace pdp {
 
+inline constexpr size_t ConstexprLength(const char *s) {
+  if (PDP_CONSTEXPR_EVALUATED()) {
+    size_t size = 0;
+    while (s[size] != '\0') {
+      ++size;
+    }
+    return size;
+  } else {
+    return strlen(s);
+  }
+}
+
 struct StringSlice {
-  StringSlice(const char *p, size_t sz);
-  StringSlice(const char *begin, const char *end);
-  StringSlice(const char *s);
+  constexpr StringSlice(const char *p, size_t sz) : ptr(p), size(sz) {}
 
-  const char *Data() const;
-  const char *Begin() const;
-  const char *End() const;
+  constexpr StringSlice(const char *begin, const char *end) : ptr(begin), size(end - begin) {
+    pdp_assert_non_constexpr(begin <= end);
+  }
 
-  const char *Find(char c) const;
-  const char *Find(const char *it, char c) const;
+  constexpr StringSlice(const char *s) : ptr(s), size(ConstexprLength(s)) {}
 
-  StringSlice Substr(size_t pos) const;
-  StringSlice Substr(size_t pos, size_t n) const;
+  constexpr const char *Data() const { return ptr; }
+  constexpr const char *Begin() const { return ptr; }
+  constexpr const char *End() const { return ptr + size; }
 
-  StringSlice TakeLeft(const char *it);
+  constexpr const char *Find(char c) const { return Find(Begin(), c); }
 
-  void DropLeft(const char *it);
-  void DropLeft(size_t n);
+  constexpr const char *Find(const char *it, char c) const {
+    if (PDP_CONSTEXPR_EVALUATED()) {
+      while (it < End() && *it != c) {
+        ++it;
+      }
+      return it;
+    } else {
+      const char *ret = (const char *)memchr(it, c, size);
+      return ret != nullptr ? ret : End();
+    }
+  }
 
-  bool StartsWith(char c) const;
+  constexpr StringSlice Substr(size_t pos) const {
+    pdp_assert_non_constexpr(pos < Size());
+    return StringSlice(ptr + pos, size - pos);
+  }
 
-  bool Empty() const;
-  size_t Size() const;
-  size_t Length() const;
+  constexpr StringSlice Substr(size_t pos, size_t n) const {
+    pdp_assert_non_constexpr(pos < Size() && pos + n <= size);
+    return StringSlice(ptr + pos, size - pos);
+  }
 
-  bool operator==(const StringSlice &other) const;
-  bool operator!=(const StringSlice &other) const;
+  constexpr StringSlice TakeLeft(const char *it) {
+    pdp_assert_non_constexpr(it >= ptr && it <= End());
+    StringSlice res(ptr, it);
+    ptr = it;
+    return res;
+  }
 
-  const char &operator[](size_t index) const;
+  constexpr void DropLeft(const char *it) {
+    pdp_assert_non_constexpr(it >= Begin() && it <= End());
+    size -= it - ptr;
+    ptr = it;
+  }
+
+  constexpr void DropLeft(size_t n) {
+    pdp_assert_non_constexpr(n <= Size());
+    ptr += n;
+    size -= n;
+  }
+
+  constexpr bool StartsWith(char c) const { return !Empty() && *ptr == c; }
+
+  constexpr bool Empty() const { return size == 0; }
+  constexpr size_t Size() const { return size; }
+  constexpr size_t Length() const { return size; }
+
+  constexpr bool operator==(const StringSlice &other) const {
+    // TODO
+    return false;
+#if 0
+    if (Size() != other.Size()) {
+      return false;
+    }
+    if (PDP_CONSTEXPR_EVALUATED()) {
+      return true;  // TODO
+    } else {
+      return memcmp(Begin(), other.Begin(), Size()) == 0;
+    }
+#endif
+  }
+
+  constexpr bool operator!=(const StringSlice &other) const { return !(*this == other); }
+
+  constexpr const char &operator[](size_t index) const { return ptr[index]; }
 
  private:
   const char *ptr;

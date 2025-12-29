@@ -1,6 +1,5 @@
 add_library(pdp_strings OBJECT
     string_builder.cc
-    string_slice.cc
     rolling_buffer.cc
 )
 

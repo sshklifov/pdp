@@ -10,8 +10,15 @@
       pdp::OnAssertFailed(__FILE__, __LINE__, #x); \
     }                                              \
   } while (0)
+#define pdp_assert_non_constexpr(x)   \
+  do {                                \
+    if (!PDP_CONSTEXPR_EVALUATED()) { \
+      pdp_assert(x);                  \
+    }                                 \
+  } while (0)
 #else
 #define pdp_assert(x) (void)0
+#define pdp_assert_non_constexpr(x) (void)0
 #endif
 
 namespace pdp {
