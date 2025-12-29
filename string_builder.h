@@ -77,7 +77,6 @@ struct StringBuilder : public LinearArray<char> {
         return AppendfUnchecked(fmt, std::forward<Args>(rest)...);
       } else {
         AppendUnchecked('{');
-        fmt.DropLeft(1);
         return AppendfUnchecked(fmt, arg, std::forward<Args>(rest)...);
       }
     } else {

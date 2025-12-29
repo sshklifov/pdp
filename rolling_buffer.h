@@ -26,15 +26,15 @@ struct RollingBuffer {
   void ReserveForRead();
 
   char *ptr;
-  size_t begin;
-  size_t end;
+  char *begin;
+  char *end;
   size_t capacity;
 
   DefaultAllocator allocator;
 
 #ifdef PDP_TRACE_ROLLING_BUFFER
-  enum Counters { kEmptyOptimization, kNotNeeded, kMoved, kAllocation, kTotal };
-  static constexpr std::array<const char *, kTotal> names{"Empty optimization", "Not needed",
+  enum Counters { kEmptyOptimization, kMinSize, kMoved, kAllocation, kTotal };
+  static constexpr std::array<const char *, kTotal> names{"Empty optimization", "Have min size",
                                                           "Moved", "Allocation"};
   TracingCounter<kTotal> provide_bytes;
 #endif

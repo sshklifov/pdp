@@ -46,16 +46,6 @@
 
 namespace pdp {
 
-template <typename Key, typename Val>
-struct Pair {
-  template <typename Arg, typename... Args>
-  explicit Pair(Arg &&key, Args &&...args)
-      : key(std::forward<Arg>(key)), value(std::forward<Args>(args)...) {}
-
-  Key key;
-  Val value;
-};
-
 template <typename T>
 struct Hash;
 
@@ -70,7 +60,14 @@ class Map {
     uint32_t slot;
   };
 
-  using Entry = pdp::Pair<K, V>;
+  struct Entry {
+    template <typename Arg, typename... Args>
+    explicit Entry(Arg &&key, Args &&...args)
+        : key(std::forward<Arg>(key)), value(std::forward<Args>(args)...) {}
+
+    K key;
+    V value;
+  };
 
   static_assert(std::is_nothrow_destructible_v<Entry>, "K and V must be noexcept destructible");
   static_assert(std::is_trivially_move_constructible_v<Entry>,

@@ -1,5 +1,15 @@
 #pragma once
 
+// TODO: idea
+// allocator which holds memory and has a threshold for memory usage
+// if it rises too much it starts freeing memory.
+
+// TODO: idea
+// tagging an Allocator<size_t> and providing statistics for a specific allocation.
+// BIG
+// BRAIN
+// POWER
+
 #include "check.h"
 
 #include <cstddef>
@@ -21,8 +31,6 @@ struct TracingAllocator {
 
 template <typename T>
 void CheckAllocation(size_t n) {
-  static_assert(alignof(T) <= alignof(std::max_align_t), "Allocator does not support type");
-
   pdp_assert(n > 0);
   if constexpr (sizeof(T) > 1) {
     const bool no_overflow = std::numeric_limits<size_t>::max() / sizeof(T) >= n;

@@ -73,5 +73,5 @@ if(BUILD_TESTS)
   target_link_libraries(test PRIVATE pdp_core)
 endif()
 
-add_executable(pdp main.cc gdb_session.cc)
+add_executable(pdp main.cc gdb_session.cc parser.cc)
 target_link_libraries(pdp PRIVATE pdp_core)

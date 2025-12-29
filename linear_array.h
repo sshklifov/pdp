@@ -8,10 +8,22 @@
 
 namespace pdp {
 
+// TODO Rename to Vector PLEASE
+
 template <typename T, typename Alloc = DefaultAllocator>
 struct LinearArray {
   static_assert(std::is_nothrow_move_constructible_v<T>, "T must be noexcept move constructible");
+  static_assert(std::is_nothrow_copy_constructible_v<T>, "T must be noexcept copy constructible");
   static_assert(std::is_nothrow_destructible_v<T>, "T must be noexcept destructible");
+
+  LinearArray() noexcept : ptr(nullptr), size(0), capacity(0) {}
+
+  LinearArray(size_t cap, Alloc alloc = DefaultAllocator()) noexcept
+      : size(0), capacity(cap), allocator(alloc) {
+    pdp_assert(cap > 0);
+    ptr = Allocate<T>(allocator, cap);
+    pdp_assert(ptr);
+  }
 
   LinearArray(LinearArray &&other)
       : ptr(other.ptr), size(other.size), capacity(other.capacity), allocator(other.allocator) {
@@ -36,8 +48,10 @@ struct LinearArray {
   void operator=(const LinearArray &) = delete;
 
   ~LinearArray() {
-    static_assert(std::is_trivially_destructible_v<T>);
-    Deallocate<T>(allocator, ptr, size);
+    // TODO check disassembly here
+    Destroy();
+    // static_assert(std::is_trivially_destructible_v<T>);
+    // Deallocate<T>(allocator, ptr, size);
   }
 
   const T *Data() const { return ptr; }
@@ -49,9 +63,38 @@ struct LinearArray {
   T *Begin() { return ptr; }
   T *End() { return ptr + size; }
 
+  T &First() {
+    pdp_assert(!Empty());
+    return *ptr;
+  }
+
+  T &Last() {
+    pdp_assert(!Empty());
+    return ptr[size - 1];
+  }
+
+  const T &First() const {
+    pdp_assert(!Empty());
+    return *ptr;
+  }
+
+  const T &Last() const {
+    pdp_assert(!Empty());
+    return ptr[size - 1];
+  }
+
   bool Empty() const { return size == 0; }
   size_t Size() const { return size; }
   size_t Capacity() const { return capacity; }
+
+  void Destroy() {
+    static_assert(std::is_trivially_destructible_v<T>);
+    Deallocate<T>(allocator, ptr, size);
+
+    ptr = nullptr;
+    size = 0;
+    capacity = 0;
+  }
 
   void ReserveFor(size_t new_elems) {
     pdp_assert(max_capacity - new_elems >= size);
@@ -64,6 +107,13 @@ struct LinearArray {
   LinearArray &operator+=(T &&elem) {
     ReserveFor(1);
     new (ptr + size) T(std::move(elem));
+    ++size;
+    return (*this);
+  }
+
+  LinearArray &operator+=(const T &elem) {
+    ReserveFor(1);
+    new (ptr + size) T(elem);
     ++size;
     return (*this);
   }
@@ -88,13 +138,6 @@ struct LinearArray {
   }
 
  protected:
-  LinearArray(size_t cap, Alloc alloc = DefaultAllocator()) noexcept
-      : size(0), capacity(cap), allocator(alloc) {
-    pdp_assert(cap > 0);
-    ptr = Allocate<T>(allocator, cap);
-    pdp_assert(ptr);
-  }
-
   void GrowExtra(const size_t req_capacity) {
     size_t half_capacity = capacity / 2;
     size_t grow_capacity = half_capacity > req_capacity ? half_capacity : req_capacity;

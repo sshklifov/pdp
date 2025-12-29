@@ -10,8 +10,10 @@ int main() {
 
   pdp::GdbSession session(DefaultAsyncCallback, DefaultStreamCallback);
   session.Start();
-  // session.SendCommand("-gdb-version", nullptr);
-  session.Poll(std::chrono::seconds(1));
+  session.SendCommand("-exec-run --start", nullptr);
+  while (true) {
+    session.Poll(std::chrono::seconds(1));
+  }
 
   return 0;
 }

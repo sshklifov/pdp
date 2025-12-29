@@ -17,7 +17,7 @@ struct GdbSession {
 
   void SendCommand(const StringSlice &command, Callback cb);
 
-  void Poll(std::chrono::milliseconds ms);
+  bool Poll(std::chrono::milliseconds ms);
 
  private:
   void Process();
