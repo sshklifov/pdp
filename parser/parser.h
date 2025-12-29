@@ -79,7 +79,7 @@ struct Arena : public ArenaTraits {
   void *AllocateUnchecked(uint32_t bytes) {
     pdp_assert(bytes > 0);
     pdp_assert(bytes % alignment == 0);
-    pdp_assert((head - chunk) + (int32_t)bytes <= capacity);
+    pdp_assert(uint32_t(head - chunk) + bytes <= capacity);
     void *ptr = head;
     head += bytes;
     return ptr;

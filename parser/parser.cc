@@ -288,8 +288,10 @@ ExprBase *SecondPass::CreateListOrTuple() {
 
     // Locality checks
     pdp_assert((char *)tuple->hashes - (char *)tuple == sizeof(ExprTuple));
-    pdp_assert((char *)tuple->results - (char *)tuple->hashes <= (size + 1) * sizeof(uint32_t));
-    pdp_assert(string_table - (char *)tuple->results == size * sizeof(ExprTuple::Result));
+    pdp_assert((char *)tuple->results - (char *)tuple->hashes <=
+               static_cast<ptrdiff_t>((size + 1) * sizeof(uint32_t)));
+    pdp_assert(string_table - (char *)tuple->results ==
+               static_cast<ptrdiff_t>(size * sizeof(ExprTuple::Result)));
     return tuple;
   } else {
     ExprList *list = static_cast<ExprList *>(arena.AllocateUnchecked(sizeof(ExprList)));
