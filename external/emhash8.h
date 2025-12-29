@@ -96,8 +96,8 @@ class Map {
 
   ~Map() noexcept {
     Clearkv();
-    pdp::Deallocate<Entry>(allocator, _pairs, _num_buckets);
-    pdp::Deallocate<Index>(allocator, _index, _num_buckets + EMH_INDEX_EAD);
+    pdp::Deallocate<Entry>(allocator, _pairs);
+    pdp::Deallocate<Index>(allocator, _index);
   }
 
   void operator=(const Map &rhs);

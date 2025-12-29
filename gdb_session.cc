@@ -1,15 +1,13 @@
 #include "gdb_session.h"
-#include "check.h"
-#include "likely.h"
-#include "log.h"
+
+#include "core/check.h"
+#include "core/likely.h"
+#include "core/log.h"
+#include "parser/parser.h"
 
 #include <fcntl.h>
 #include <poll.h>
 #include <unistd.h>
-
-// TODO
-#include "parser.h"
-
 
 namespace pdp {
 

@@ -1,5 +1,5 @@
 #include "string_slice.h"
-#include "check.h"
+#include "core/check.h"
 
 #include <cstring>
 

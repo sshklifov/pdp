@@ -1,7 +1,7 @@
 #pragma once
 
 #include "allocator.h"
-#include "check.h"
+#include "core/check.h"
 
 #include <cstring>
 #include <utility>
@@ -49,7 +49,7 @@ struct Vector {
     // TODO check disassembly here
     Destroy();
     // static_assert(std::is_trivially_destructible_v<T>);
-    // Deallocate<T>(allocator, ptr, size);
+    // Deallocate<T>(allocator, ptr);
   }
 
   const T *Data() const { return ptr; }
@@ -87,7 +87,7 @@ struct Vector {
 
   void Destroy() {
     static_assert(std::is_trivially_destructible_v<T>);
-    Deallocate<T>(allocator, ptr, size);
+    Deallocate<T>(allocator, ptr);
 
     ptr = nullptr;
     size = 0;

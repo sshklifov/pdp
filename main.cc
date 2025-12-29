@@ -1,5 +1,5 @@
 #include "gdb_session.h"
-#include "log.h"
+#include "core/log.h"
 
 void DefaultStreamCallback(const pdp::StringSlice &s) { pdp_info(s); }
 

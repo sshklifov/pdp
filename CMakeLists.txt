@@ -40,38 +40,38 @@ set(_RELEASE_ENABLED_FEATURES
   ENABLE_ASSERT
 )
 
-add_library(pdp_core
-  check.cc
-  log.cc
-  rolling_buffer.cc
-  string_builder.cc
-  string_slice.cc
-  allocator.cc
-)
-
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
   set(_ENABLED_FEATURES ${_DEBUG_ENABLED_FEATURES})
 else()
   set(_ENABLED_FEATURES ${_RELEASE_ENABLED_FEATURES})
 endif()
 
+include_directories(${CMAKE_CURRENT_SOURCE_DIR})
+
 foreach(var ${_ENABLED_FEATURES})
   list(FIND _FEATURES ${var} _idx)
   if(_idx EQUAL -1)
     message(FATAL_ERROR "Feature '${var}' is enabled but does not exist")
   endif()
-  target_compile_definitions(pdp_core PUBLIC PDP_${var})
+  add_compile_definitions(PDP_${var})
 endforeach()
 
 
-target_include_directories(pdp_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(pdp_core PUBLIC pthread)
+add_subdirectory(core)
+add_subdirectory(data)
+add_subdirectory(strings)
+add_subdirectory(parser)
 
 if(BUILD_TESTS)
   find_package(doctest REQUIRED)
-  add_executable(test test.cc)
-  target_link_libraries(test PRIVATE pdp_core)
+#   add_executable(test test.cc)
+#   target_link_libraries(test PRIVATE pdp_core)
 endif()
 
-add_executable(pdp main.cc gdb_session.cc parser.cc)
-target_link_libraries(pdp PRIVATE pdp_core)
+add_executable(pdp main.cc gdb_session.cc
+  $<TARGET_OBJECTS:pdp_core>
+  $<TARGET_OBJECTS:pdp_data>
+  $<TARGET_OBJECTS:pdp_strings>
+  $<TARGET_OBJECTS:pdp_parser>
+)
+# target_link_libraries(pdp PRIVATE pdp_core)

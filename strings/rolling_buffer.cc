@@ -1,5 +1,5 @@
 #include "rolling_buffer.h"
-#include "check.h"
+#include "core/check.h"
 
 #include <unistd.h>
 #include <cerrno>
@@ -20,7 +20,7 @@ RollingBuffer::RollingBuffer()
   end = ptr;
 }
 
-RollingBuffer::~RollingBuffer() { Deallocate<char>(allocator, ptr, capacity); }
+RollingBuffer::~RollingBuffer() { Deallocate<char>(allocator, ptr); }
 
 // TODO don't read full if we found a new line
 // keep position of last found new line. and also invalidate it if we reallocate.
@@ -107,7 +107,7 @@ void RollingBuffer::ReserveForRead() {
   char *new_ptr = Allocate<char>(allocator, capacity + grow_capacity);
   pdp_assert(new_ptr);
   memcpy(new_ptr, begin, used_size);
-  Deallocate<char>(allocator, ptr, capacity);
+  Deallocate<char>(allocator, ptr);
 
   ptr = new_ptr;
   begin = new_ptr;

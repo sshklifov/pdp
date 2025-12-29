@@ -1,8 +1,8 @@
 #pragma once
 
-#include "likely.h"
-#include "stack.h"
-#include "string_slice.h"
+#include "core/likely.h"
+#include "data/stack.h"
+#include "strings/string_slice.h"
 
 #include <cstdint>
 
@@ -59,16 +59,19 @@ struct ArenaTraits {
 
 template <typename Alloc>
 struct Arena : public ArenaTraits {
-  Arena(size_t cap) : capacity(cap) {
+  Arena(size_t cap) {
     chunk = static_cast<unsigned char *>(allocator.AllocateRaw(cap));
     pdp_assert(chunk);
     pdp_assert(reinterpret_cast<uint64_t>(chunk) % alignment == 0);
     head = chunk;
+#ifdef PDP_ENABLE_ASSERT
+    capacity = cap;
+#endif
   }
 
   ~Arena() {
     pdp_assert(chunk);
-    allocator.DeallocateRaw(chunk, capacity);
+    allocator.DeallocateRaw(chunk);
   }
 
   void *Allocate(uint32_t bytes) { return AllocateUnchecked(AlignUp(bytes)); }
@@ -93,7 +96,9 @@ struct Arena : public ArenaTraits {
  private:
   unsigned char *chunk;
   unsigned char *head;
+#ifdef PDP_ENABLE_ASSERT
   size_t capacity;
+#endif
 
   Alloc allocator;
 };

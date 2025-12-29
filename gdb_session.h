@@ -1,6 +1,6 @@
 #pragma once
 
-#include "rolling_buffer.h"
+#include "strings/rolling_buffer.h"
 
 #include <chrono>
 #include <functional>

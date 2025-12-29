@@ -10,7 +10,7 @@
 // BRAIN
 // POWER
 
-#include "check.h"
+#include "core/check.h"
 
 #include <cstddef>
 #include <limits>
@@ -19,14 +19,14 @@ namespace pdp {
 
 struct BasicAllocator {
   void *AllocateRaw(size_t bytes);
-  void DeallocateRaw(void *ptr, size_t bytes);
-  void *ReallocateRaw(void *ptr, size_t bytes);
+  void DeallocateRaw(void *ptr);
+  void *ReallocateRaw(void *ptr, size_t new_bytes);
 };
 
 struct TracingAllocator {
   void *AllocateRaw(size_t bytes);
-  void DeallocateRaw(void *ptr, size_t bytes);
-  void *ReallocateRaw(void *ptr, size_t bytes);
+  void DeallocateRaw(void *ptr);
+  void *ReallocateRaw(void *ptr, size_t new_bytes);
 };
 
 template <typename T>
@@ -50,9 +50,10 @@ T *Reallocate(Alloc &allocator, T *ptr, size_t n) {
   return static_cast<T *>(allocator.ReallocateRaw(ptr, n * sizeof(T)));
 }
 
+// TODO horrible practice (looks bad and not readable)...
 template <typename T, typename Alloc>
-void Deallocate(Alloc &allocator, void *ptr, size_t size) {
-  allocator.DeallocateRaw(ptr, size * sizeof(T));
+void Deallocate(Alloc &allocator, void *ptr) {
+  allocator.DeallocateRaw(ptr);
 }
 
 #ifdef PDP_TRACE_ALLOCATIONS

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "string_slice.h"
-#include "tracing_counter.h"
+#include "tracing/tracing_counter.h"
 
 namespace pdp {
 
