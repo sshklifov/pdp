@@ -36,7 +36,7 @@ struct StringSlice {
   constexpr const char *Find(char c) const { return Find(Begin(), c); }
 
   constexpr const char *Find(const char *it, char c) const {
-    pdp_assert_non_constexpr(it >= Begin() && it < End());
+    pdp_assert_non_constexpr(it >= Begin() && it <= End());
     if (PDP_CONSTEXPR_EVALUATED()) {
       while (it < End() && *it != c) {
         ++it;

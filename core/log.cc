@@ -1,8 +1,7 @@
 #include "log.h"
-#include <unistd.h>
 #include "check.h"
 
-#include <cstdio>
+#include <unistd.h>
 #include <cstring>
 
 /// @brief Holds the active log level for console messages
@@ -91,7 +90,7 @@ void FlushMessage(const StringBuilder<OneShotAllocator> &msg) {
   // Write buffer in a loop to handle partial writes from write(2).
   ssize_t num_written = 0;
   ssize_t remaining = msg.Size() > max_length ? max_length : msg.Size();
-  while (remaining > 0) {
+  do {
     ssize_t ret = write(STDOUT_FILENO, msg.Data() + num_written, remaining);
     if (__builtin_expect(ret < 0, false)) {
       // Not much you can do except accepting the partial write and moving on.
@@ -99,7 +98,7 @@ void FlushMessage(const StringBuilder<OneShotAllocator> &msg) {
     }
     num_written += ret;
     remaining -= ret;
-  }
+  } while (__builtin_expect(remaining, false));
 }
 
 bool ShouldLogAt(Level level) {

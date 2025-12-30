@@ -33,7 +33,7 @@ bool FirstPass::ParseResult() {
   }
 
   const uint32_t length_plus_one = it - input.Begin() + 1;
-  sizes_stack[nesting_stack.Last()].total_string_size += length_plus_one;
+  sizes_stack[nesting_stack.Top()].total_string_size += length_plus_one;
 
   input.DropLeft(length_plus_one);
   return ParseValue();
@@ -103,7 +103,7 @@ bool FirstPass::ParseResultOrValue() {
 }
 
 void FirstPass::AccumulateBytes() {
-  const auto &record = sizes_stack[nesting_stack.Last()];
+  const auto &record = sizes_stack[nesting_stack.Top()];
   if (record.total_string_size > 0) {
     total_bytes += ArenaTraits::AlignUp(sizeof(ExprTuple));
     total_bytes += ArenaTraits::AlignUp(record.num_elements * sizeof(uint32_t));
@@ -139,7 +139,7 @@ bool FirstPass::Parse() {
         input.DropLeft(1);
         // follow-through
       default:
-        sizes_stack[nesting_stack.Last()].num_elements += 1;
+        sizes_stack[nesting_stack.Top()].num_elements += 1;
         okay = ParseResultOrValue();
     }
   }
@@ -174,9 +174,9 @@ ExprBase *SecondPass::ParseResult() {
 
   // TODO check disassembly with restrict
   pdp_assert(!second_pass_stack.Empty());
-  char *__restrict string_table_ptr = second_pass_stack.Last().string_table_ptr;
+  char *__restrict string_table_ptr = second_pass_stack.Top().string_table_ptr;
   pdp_assert(string_table_ptr);
-  second_pass_stack.Last().tuple_members->key = string_table_ptr;
+  second_pass_stack.Top().tuple_members->key = string_table_ptr;
 
   const char *__restrict it = input.Begin();
   while (IsIdentifier(*it)) {
@@ -191,7 +191,7 @@ ExprBase *SecondPass::ParseResult() {
   }
 
   *string_table_ptr = '\0';
-  second_pass_stack.Last().string_table_ptr = string_table_ptr + 1;
+  second_pass_stack.Top().string_table_ptr = string_table_ptr + 1;
 
   const size_t length_plus_one = it - input.Begin() + 1;
   input.DropLeft(length_plus_one);
@@ -367,15 +367,15 @@ ExprBase *SecondPass::Parse() {
     switch (input[0]) {
       case ']':
       case '}':
-        if (second_pass_stack.Last().string_table_ptr) {
-          pdp_assert(second_pass_stack.Last().string_table_ptr <=
-                     second_pass_stack.Last().record_end);
-          ExprTuple *tuple = static_cast<ExprTuple *>(second_pass_stack.Last().expr);
-          pdp_assert(second_pass_stack.Last().tuple_members - tuple->results == tuple->size);
+        if (second_pass_stack.Top().string_table_ptr) {
+          pdp_assert(second_pass_stack.Top().string_table_ptr <=
+                     second_pass_stack.Top().record_end);
+          ExprTuple *tuple = static_cast<ExprTuple *>(second_pass_stack.Top().expr);
+          pdp_assert(second_pass_stack.Top().tuple_members - tuple->results == tuple->size);
           // XXX: This is important and not part of the checks!
           ComputeHashes(tuple);
         } else {
-          pdp_assert(second_pass_stack.Last().list_members <= second_pass_stack.Last().record_end);
+          pdp_assert(second_pass_stack.Top().list_members <= second_pass_stack.Top().record_end);
         }
         second_pass_stack.Pop();
         input.DropLeft(1);

@@ -18,6 +18,10 @@ struct Stack : public Vector<T, Alloc> {
     pdp_assert(!this->Empty());
     --this->size;
   }
+
+  T &Top() { return this->Last(); }
+
+  const T &Top() const { return this->Last(); }
 };
 
 }  // namespace pdp

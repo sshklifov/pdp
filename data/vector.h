@@ -32,6 +32,7 @@ struct Vector {
   Vector &operator=(Vector &&other) {
     pdp_assert(this != &other);
     if (this != &other) {
+      Deallocate<T>(allocator, ptr);
       ptr = other.ptr;
       size = other.size;
       capacity = other.capacity;

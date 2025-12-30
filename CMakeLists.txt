@@ -70,8 +70,7 @@ add_subdirectory(parser)
 
 if(BUILD_TESTS)
   find_package(doctest REQUIRED)
-#   add_executable(test test.cc)
-#   target_link_libraries(test PRIVATE pdp_core)
+  add_subdirectory(test)
 endif()
 
 add_executable(pdp main.cc gdb_session.cc
@@ -79,4 +78,3 @@ add_executable(pdp main.cc gdb_session.cc
   $<TARGET_OBJECTS:pdp_strings>
   $<TARGET_OBJECTS:pdp_parser>
 )
-# target_link_libraries(pdp PRIVATE pdp_core)

@@ -106,17 +106,17 @@ void GdbSession::SendCommand(const StringSlice &command, Callback cb) {
   callbacks.push_back(std::move(cb));
   ++token_counter;
 
-  ssize_t total_written = 0;
+  ssize_t num_written = 0;
   ssize_t remaining = builder.Size();
-  while (remaining > 0) {
-    ssize_t ret = write(in[1], builder.Data() + total_written, remaining);
-    if (ret < 0) {
+  do {
+    ssize_t ret = write(in[1], builder.Data() + num_written, remaining);
+    if (PDP_UNLIKELY(ret < 0)) {
       Check(ret, "write");
-      std::terminate();
+      return;
     }
-    total_written += ret;
+    num_written += ret;
     remaining -= ret;
-  }
+  } while (PDP_UNLIKELY(remaining));
 }
 
 bool GdbSession::Poll(std::chrono::milliseconds ms) {
