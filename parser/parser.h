@@ -152,8 +152,6 @@ struct SecondPass {
   ExprBase *ParseListOrTuple();
   ExprBase *ParseResultOrValue();
 
-  void ComputeHashes(ExprTuple *tuple);
-
   struct ExprRecord {
     ExprBase *expr;
     union {
@@ -161,6 +159,7 @@ struct SecondPass {
       ExprTuple::Result *tuple_members;
     };
     char *string_table_ptr;
+    uint32_t *hash_table_ptr;
 #ifdef PDP_ENABLE_ASSERT
     void *record_end;
 #endif

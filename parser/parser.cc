@@ -1,5 +1,6 @@
 #include "parser.h"
 #include "core/likely.h"
+#include "external/ankerl_hash.h"
 
 namespace pdp {
 
@@ -193,9 +194,12 @@ ExprBase *SecondPass::ParseResult() {
   *string_table_ptr = '\0';
   second_pass_stack.Top().string_table_ptr = string_table_ptr + 1;
 
-  const size_t length_plus_one = it - input.Begin() + 1;
-  input.DropLeft(length_plus_one);
+  const size_t length = it - input.Begin();
+  const uint32_t hash = ankerl::unordered_dense::hash(input.Begin(), length);
+  *second_pass_stack.Top().hash_table_ptr = hash;
+  ++second_pass_stack.Top().hash_table_ptr;
 
+  input.DropLeft(length + 1);
   return ParseValue();
 }
 
@@ -281,6 +285,7 @@ ExprBase *SecondPass::CreateListOrTuple() {
     auto *expr_trace = second_pass_stack.NewElement();
     expr_trace->expr = tuple;
     expr_trace->tuple_members = tuple->results;
+    expr_trace->hash_table_ptr = tuple->hashes;
     expr_trace->string_table_ptr = string_table;
 #ifdef PDP_ENABLE_ASSERT
     expr_trace->record_end = string_table + string_table_size;
@@ -351,15 +356,6 @@ ExprBase *SecondPass::ParseResultOrValue() {
   return expr;
 }
 
-void SecondPass::ComputeHashes(ExprTuple *tuple) {
-  for (size_t i = 0; i < tuple->size; ++i) {
-    const char *key = tuple->results[i].key;
-    // TODO use a hashing routine
-    const uint32_t hash = key[0];
-    tuple->hashes[i] = hash;
-  }
-}
-
 ExprBase *SecondPass::Parse() {
   ExprBase *root = CreateListOrTuple();
   bool okay = (root != nullptr);
@@ -372,8 +368,7 @@ ExprBase *SecondPass::Parse() {
                      second_pass_stack.Top().record_end);
           ExprTuple *tuple = static_cast<ExprTuple *>(second_pass_stack.Top().expr);
           pdp_assert(second_pass_stack.Top().tuple_members - tuple->results == tuple->size);
-          // XXX: This is important and not part of the checks!
-          ComputeHashes(tuple);
+          pdp_assert(second_pass_stack.Top().hash_table_ptr - tuple->hashes == tuple->size);
         } else {
           pdp_assert(second_pass_stack.Top().list_members <= second_pass_stack.Top().record_end);
         }
