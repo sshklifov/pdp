@@ -14,3 +14,11 @@ target_compile_definitions(test_core PRIVATE
   PDP_TRACE_MESSAGES
   PDP_TRACE_BRANCH
 )
+
+add_executable(test_string_slice test_string_slice.cc
+  $<TARGET_OBJECTS:pdp_core>
+)
+
+add_executable(test_string_builder test_string_builder.cc
+  $<TARGET_OBJECTS:pdp_core>
+)

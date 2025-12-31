@@ -5,6 +5,12 @@
 #include <atomic>
 #include <chrono>
 
+// TODO
+// use a stack allocated buffer if possible
+// investigate type erasure
+// reduce instruction count on a log call
+// improve printing of integers 3. count digits hack for 2 or 16 bytes
+
 namespace pdp {
 
 /// @brief Returns a pointer to the basename of the path-like string.
@@ -131,7 +137,7 @@ void Log(size_t header_size, const char *filename, unsigned line, Level level,
 /// of an additional dynamic function call (depending on LTO and final DSO).
 #define PDP_LOG(level, ...)                                                    \
   do {                                                                         \
-    if (__builtin_expect(pdp::impl::ShouldLogAt(level), true)) {               \
+    if (PDP_LIKELY(pdp::impl::ShouldLogAt(level))) {                           \
       constexpr const char *_fl = pdp::GetBasename(__FILE__);                  \
       constexpr size_t _sz = pdp::impl::CountHeaderSize(_fl, __LINE__, level); \
       pdp::impl::Log(_sz, _fl, __LINE__, level, __VA_ARGS__);                  \

@@ -28,8 +28,8 @@
 
 #include "external/ankerl_hash.h"
 
-#include "allocator.h"
-#include "likely.h"
+#include "core/internals.h"
+#include "data/allocator.h"
 
 #include <cstdint>
 #include <utility>

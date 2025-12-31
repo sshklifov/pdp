@@ -1,6 +1,6 @@
 #pragma once
 
-#include "core/likely.h"
+#include "tracing/trace_likely.h"
 #include "data/stack.h"
 #include "strings/string_slice.h"
 
@@ -86,7 +86,7 @@ struct Arena : public ArenaTraits {
   }
 
   void *AllocateOrNull(uint32_t bytes) {
-    if (PDP_LIKELY(bytes > 0)) {
+    if (PDP_TRACE_LIKELY(bytes > 0)) {
       return Allocate(bytes);
     } else {
       return nullptr;

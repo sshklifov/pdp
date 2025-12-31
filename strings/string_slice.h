@@ -1,7 +1,7 @@
 #pragma once
 
-#include "core/internals.h"
 #include "core/check.h"
+#include "core/internals.h"
 
 #include <cstddef>
 #include <cstring>
@@ -43,7 +43,7 @@ struct StringSlice {
       }
       return it;
     } else {
-      const char *ret = (const char *)memchr(it, c, size);
+      const char *ret = (const char *)memchr(it, c, End() - it);
       return ret != nullptr ? ret : End();
     }
   }
@@ -65,15 +65,11 @@ struct StringSlice {
     return StringSlice(ptr + pos, size - pos);
   }
 
-  constexpr StringSlice Substr(size_t pos, size_t n) const {
-    pdp_assert_non_constexpr(pos < Size() && pos + n <= size);
-    return StringSlice(ptr + pos, size - pos);
-  }
-
   constexpr StringSlice TakeLeft(const char *it) {
     pdp_assert_non_constexpr(it >= ptr && it <= End());
     StringSlice res(ptr, it);
     ptr = it;
+    size -= res.Size();
     return res;
   }
 
@@ -96,18 +92,19 @@ struct StringSlice {
   constexpr size_t Length() const { return size; }
 
   constexpr bool operator==(const StringSlice &other) const {
-    // TODO
-    return false;
-#if 0
     if (Size() != other.Size()) {
       return false;
     }
     if (PDP_CONSTEXPR_EVALUATED()) {
-      return true;  // TODO
+      for (size_t i = 0; i < Size(); ++i) {
+        if (ptr[i] != other[i]) {
+          return false;
+        }
+      }
+      return true;
     } else {
       return memcmp(Begin(), other.Begin(), Size()) == 0;
     }
-#endif
   }
 
   constexpr bool operator!=(const StringSlice &other) const { return !(*this == other); }

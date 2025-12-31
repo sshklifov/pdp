@@ -24,7 +24,7 @@ set(_FEATURES
   ENABLE_ASSERT
   # Enables pdp_trace and pdp_trace_once debug messages 
   TRACE_MESSAGES
-  # Report branch mispredictions originating from PDP_LIKELY 
+  # Report branch mispredictions originating from PDP_TRACE_LIKELY 
   TRACE_BRANCH
   # Allow use of external, unverified code 
   ENABLE_EXTERNAL_CODE

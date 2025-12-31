@@ -92,13 +92,13 @@ void FlushMessage(const StringBuilder<OneShotAllocator> &msg) {
   ssize_t remaining = msg.Size() > max_length ? max_length : msg.Size();
   do {
     ssize_t ret = write(STDOUT_FILENO, msg.Data() + num_written, remaining);
-    if (__builtin_expect(ret < 0, false)) {
+    if (PDP_UNLIKELY(ret < 0)) {
       // Not much you can do except accepting the partial write and moving on.
       return;
     }
     num_written += ret;
     remaining -= ret;
-  } while (__builtin_expect(remaining, false));
+  } while (PDP_UNLIKELY(remaining));
 }
 
 bool ShouldLogAt(Level level) {

@@ -1,5 +1,4 @@
 #include "parser.h"
-#include "core/likely.h"
 #include "external/ankerl_hash.h"
 
 namespace pdp {
@@ -29,7 +28,7 @@ void FirstPass::PushSizeOnStack(uint32_t num_elements) {
 
 bool FirstPass::ParseResult() {
   auto it = input.Find('=');
-  if (PDP_UNLIKELY(it == input.End())) {
+  if (PDP_TRACE_UNLIKELY(it == input.End())) {
     return ReportError("Expecting variable=...");
   }
 
@@ -41,7 +40,7 @@ bool FirstPass::ParseResult() {
 }
 
 bool FirstPass::ParseValue() {
-  if (PDP_UNLIKELY(input.Empty())) {
+  if (PDP_TRACE_UNLIKELY(input.Empty())) {
     return ReportError("Expecting value but got empty string");
   }
   switch (input[0]) {
@@ -66,7 +65,7 @@ bool FirstPass::ParseString() {
     it += (1 + skip_extra);
   }
 
-  if (PDP_UNLIKELY(it == input.End())) {
+  if (PDP_TRACE_UNLIKELY(it == input.End())) {
     return ReportError("Unterminated c-string!");
   }
 
@@ -89,7 +88,7 @@ bool FirstPass::ParseListOrTuple() {
 }
 
 bool FirstPass::ParseResultOrValue() {
-  if (PDP_UNLIKELY(input.Empty())) {
+  if (PDP_TRACE_UNLIKELY(input.Empty())) {
     return ReportError("Expecting result or value but got nothing");
   }
   switch (input[0]) {
@@ -125,7 +124,7 @@ bool FirstPass::Parse() {
 
   bool okay = ParseResultOrValue();
   while (okay && !input.Empty()) {
-    if (PDP_UNLIKELY(nesting_stack.Empty())) {
+    if (PDP_TRACE_UNLIKELY(nesting_stack.Empty())) {
       return ReportError("No open list/tuple in scope");
     }
     switch (input[0]) {
@@ -144,7 +143,7 @@ bool FirstPass::Parse() {
         okay = ParseResultOrValue();
     }
   }
-  if (PDP_LIKELY(okay && nesting_stack.Size() == 1)) {
+  if (PDP_TRACE_LIKELY(okay && nesting_stack.Size() == 1)) {
     AccumulateBytes();
     return true;
   } else if (nesting_stack.Size() > 1) {
@@ -187,7 +186,7 @@ ExprBase *SecondPass::ParseResult() {
     ++it;
   }
   const bool failed = (*it != '=');
-  if (PDP_UNLIKELY(failed)) {
+  if (PDP_TRACE_UNLIKELY(failed)) {
     return ReportError("Expecting variable=...");
   }
 
@@ -204,7 +203,7 @@ ExprBase *SecondPass::ParseResult() {
 }
 
 ExprBase *SecondPass::ParseValue() {
-  if (PDP_UNLIKELY(input.Empty())) {
+  if (PDP_TRACE_UNLIKELY(input.Empty())) {
     return ReportError("Expecting value but got empty string");
   }
   switch (input[0]) {
@@ -234,7 +233,7 @@ ExprBase *SecondPass::ParseString() {
 
   while (*it != '\"') {
     pdp_assert(it < input.End());
-    if (PDP_LIKELY(*it != '\\')) {
+    if (PDP_TRACE_LIKELY(*it != '\\')) {
       *payload = *it;
       ++payload;
       ++it;
@@ -343,7 +342,7 @@ ExprBase *SecondPass::ParseResultOrValue() {
       expr = ParseResult();
   }
 
-  if (PDP_LIKELY(expr)) {
+  if (PDP_TRACE_LIKELY(expr)) {
     const bool is_tuple = second_pass_stack[pos].string_table_ptr;
     if (is_tuple) {
       second_pass_stack[pos].tuple_members->value = expr;
@@ -385,7 +384,7 @@ ExprBase *SecondPass::Parse() {
   }
   pdp_assert(first_pass_marker == first_pass_stack.Size());
   pdp_assert(second_pass_stack.Size() == 1);
-  if (PDP_LIKELY(okay)) {
+  if (PDP_TRACE_LIKELY(okay)) {
     return root;
   }
   return nullptr;

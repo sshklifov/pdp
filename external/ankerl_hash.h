@@ -28,9 +28,10 @@
 
 #pragma once
 
-#include "core/likely.h"
+#include "core/internals.h"
 
 #include <cstdint>
+#include <cstring>
 
 namespace ankerl {
 
@@ -62,7 +63,7 @@ static inline uint64_t hash(uint64_t x) {
 [[nodiscard]]
 static inline uint64_t r8(const uint8_t *p) {
   uint64_t v;
-  std::memcpy(&v, p, 8);
+  memcpy(&v, p, 8);
   return v;
 }
 

@@ -1,11 +1,13 @@
 #pragma once
 
+#include "internals.h"
+
 #include <exception>
 
 #ifdef PDP_ENABLE_ASSERT
 #define pdp_assert(x)                              \
   do {                                             \
-    if (__builtin_expect(!((x)), false)) {         \
+    if (PDP_UNLIKELY(!((x)))) {                    \
       pdp::OnAssertFailed(__FILE__, __LINE__, #x); \
     }                                              \
   } while (0)

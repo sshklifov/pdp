@@ -1,11 +1,12 @@
 #pragma once
 
-#include "log.h"
+#include "core/internals.h"
+#include "core/log.h"
 
 #include <atomic>
 
 #ifdef PDP_TRACE_BRANCH
-#define PDP_LIKELY(x)                                                              \
+#define PDP_TRACE_LIKELY(x)                                                        \
   [](bool value, const char *cond) -> bool {                                       \
     static std::atomic_uint total(0);                                              \
     static std::atomic_uint taken(0);                                              \
@@ -19,7 +20,7 @@
     }                                                                              \
     return value;                                                                  \
   }(x, #x)
-#define PDP_UNLIKELY(x)                                                              \
+#define PDP_TRACE_UNLIKELY(x)                                                        \
   [](bool value, const char *cond) -> bool {                                         \
     static std::atomic_uint total(0);                                                \
     static std::atomic_uint not_taken(0);                                            \
@@ -34,6 +35,6 @@
     return value;                                                                    \
   }(x, #x)
 #else
-#define PDP_LIKELY(x) __builtin_expect(static_cast<bool>(x), true)
-#define PDP_UNLIKELY(x) __builtin_expect(static_cast<bool>(x), false)
+#define PDP_TRACE_LIKELY(x) PDP_LIKELY(x)
+#define PDP_TRACE_UNLIKELY(x) PDP_UNLIKELY(x)
 #endif

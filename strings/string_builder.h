@@ -11,8 +11,8 @@ struct EstimateSize {
   constexpr size_t operator()(char c) { return 1; }
 
   constexpr size_t operator()(void *p) {
-    // Max decimal digits for 64-bit + "0x" prefix
-    return std::numeric_limits<size_t>::digits10 + 3;
+    // Max hex digits for 64-bit + "0x" prefix
+    return sizeof(void *) * 2;
   }
 
   template <typename T>
@@ -67,6 +67,7 @@ struct StringBuilder : public Vector<char, Alloc> {
   template <typename... Args>
   void Appendf(const StringSlice &fmt, Args... args) {
     size_t req_size = fmt.Size();
+    [[maybe_unused]]
     EstimateSize estimator;
     ((req_size += estimator(args)), ...);
     this->ReserveFor(req_size);
@@ -84,8 +85,7 @@ struct StringBuilder : public Vector<char, Alloc> {
     fmt.DropLeft(it);
 
     const bool more_fmt_data = !fmt.Empty();
-    // XXX: This is very intentionally not using PDP_LIKELY.
-    if (__builtin_expect(more_fmt_data, true)) {
+    if (PDP_LIKELY(more_fmt_data)) {
       fmt.DropLeft(1);
       if (fmt.StartsWith('}')) {
         AppendUnchecked(arg);
@@ -143,7 +143,7 @@ struct StringBuilder : public Vector<char, Alloc> {
     using U = std::make_unsigned_t<T>;
     if (signed_value < 0) {
       AppendUnchecked('-');
-      size_t magnitude = static_cast<U>(-(signed_value + 1)) + 1;
+      size_t magnitude = ~static_cast<U>(signed_value) + 1;
       AppendUnchecked(magnitude);
     } else {
       size_t magnitude = static_cast<U>(signed_value);

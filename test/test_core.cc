@@ -1,11 +1,11 @@
+#include <signal.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
-#include <signal.h>
 
 #include "core/check.h"
-#include "core/likely.h"
 #include "core/log.h"
+#include "tracing/trace_likely.h"
 
 static void RunChildAndTerminate(const char *name, void (*callback)()) {
   pid_t pid = fork();
@@ -60,15 +60,15 @@ int main() {
   pdp::SetConsoleLogLevel(pdp::Level::kInfo);
   pdp_info("Restogin logging level");
 
-  pdp_info("Testing PDP_LIKELY / PDP_UNLIKELY with mispredictions.");
+  pdp_info("Testing PDP_TRACE_LIKELY / PDP_TRACE_UNLIKELY with mispredictions.");
   const size_t mispredictions = 4;
   for (size_t i = 0; i < mispredictions; ++i) {
-    if (PDP_LIKELY(i * i == i + i)) {
+    if (PDP_TRACE_LIKELY(i * i == i + i)) {
       pdp_info("likely branch taken");
     }
   }
   for (size_t i = 0; i < mispredictions; ++i) {
-    if (PDP_UNLIKELY(i % 2 == 0)) {
+    if (PDP_TRACE_UNLIKELY(i % 2 == 0)) {
       pdp_info("unlikely branch taken");
     }
   }

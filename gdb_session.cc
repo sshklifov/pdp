@@ -1,7 +1,7 @@
 #include "gdb_session.h"
 
 #include "core/check.h"
-#include "core/likely.h"
+#include "tracing/trace_likely.h"
 #include "core/log.h"
 #include "parser/parser.h"
 
@@ -110,13 +110,13 @@ void GdbSession::SendCommand(const StringSlice &command, Callback cb) {
   ssize_t remaining = builder.Size();
   do {
     ssize_t ret = write(in[1], builder.Data() + num_written, remaining);
-    if (PDP_UNLIKELY(ret < 0)) {
+    if (PDP_TRACE_UNLIKELY(ret < 0)) {
       Check(ret, "write");
       return;
     }
     num_written += ret;
     remaining -= ret;
-  } while (PDP_UNLIKELY(remaining));
+  } while (PDP_TRACE_UNLIKELY(remaining));
 }
 
 bool GdbSession::Poll(std::chrono::milliseconds ms) {
@@ -155,7 +155,7 @@ inline StringSlice ProcessStreamInPlace(char *begin, char *end) {
   pdp_assert(end - begin > 0);
   pdp_assert(IsStreamChar(*begin));
 
-  if (PDP_UNLIKELY(end - begin < 2 || begin[1] != '"')) {
+  if (PDP_TRACE_UNLIKELY(end - begin < 2 || begin[1] != '"')) {
     pdp_error("Unexpected start of stream message");
     return StringSlice(begin, end);
   }
@@ -170,7 +170,7 @@ inline StringSlice ProcessStreamInPlace(char *begin, char *end) {
 
   char *read_head = write_head;
   while (read_head < end) {
-    if (PDP_LIKELY(*read_head != '\\')) {
+    if (PDP_TRACE_LIKELY(*read_head != '\\')) {
       *write_head = *read_head;
       ++write_head;
       ++read_head;
