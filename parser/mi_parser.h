@@ -1,8 +1,8 @@
 #pragma once
 
-#include "arena.h"
-#include "expr.h"
+#include "mi_expr.h"
 
+#include "data/arena.h"
 #include "data/stack.h"
 #include "strings/string_slice.h"
 
@@ -10,12 +10,12 @@
 
 namespace pdp {
 
-bool IsIdentifier(char c);
+bool IsMiIdentifier(char c);
 
-struct FirstPass {
-  friend struct SecondPass;
+struct MiFirstPass {
+  friend struct MISecondPass;
 
-  FirstPass(const StringSlice &s);
+  MiFirstPass(const StringSlice &s);
 
   bool Parse();
 
@@ -30,38 +30,38 @@ struct FirstPass {
   bool ParseListOrTuple();
   bool ParseResultOrValue();
 
-  struct Record {
+  struct MiRecord {
     uint32_t num_elements;
     uint32_t total_string_size;
   };
 
   StringSlice input;
   Stack<uint32_t> nesting_stack;
-  Stack<Record> sizes_stack;
+  Stack<MiRecord> sizes_stack;
 
   uint32_t total_bytes;
 };
 
-struct SecondPass {
-  SecondPass(const StringSlice &s, FirstPass &first_pass);
+struct MISecondPass {
+  MISecondPass(const StringSlice &s, MiFirstPass &first_pass);
 
-  ExprBase *Parse();
+  MiExprBase *Parse();
 
  private:
-  ExprBase *ReportError(const StringSlice &msg);
-  ExprBase *CreateListOrTuple();
+  MiExprBase *ReportError(const StringSlice &msg);
+  MiExprBase *CreateListOrTuple();
 
-  ExprBase *ParseResult();
-  ExprBase *ParseValue();
-  ExprBase *ParseString();
-  ExprBase *ParseListOrTuple();
-  ExprBase *ParseResultOrValue();
+  MiExprBase *ParseResult();
+  MiExprBase *ParseValue();
+  MiExprBase *ParseString();
+  MiExprBase *ParseListOrTuple();
+  MiExprBase *ParseResultOrValue();
 
-  struct ExprRecord {
-    ExprBase *expr;
+  struct MiRecord {
+    MiExprBase *expr;
     union {
-      ExprBase **list_members;
-      ExprTuple::Result *tuple_members;
+      MiExprBase **list_members;
+      MiExprTuple::Result *tuple_members;
     };
     char *string_table_ptr;
     uint32_t *hash_table_ptr;
@@ -71,10 +71,10 @@ struct SecondPass {
   };
 
   StringSlice input;
-  Stack<FirstPass::Record> first_pass_stack;
+  Stack<MiFirstPass::MiRecord> first_pass_stack;
   size_t first_pass_marker;
   Arena<DefaultAllocator> arena;
-  Stack<ExprRecord> second_pass_stack;
+  Stack<MiRecord> second_pass_stack;
 };
 
 }  // namespace pdp

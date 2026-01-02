@@ -1,8 +1,8 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 
-#include "parser/expr.h"
-#include "parser/parser.h"
+#include "parser/mi_expr.h"
+#include "parser/mi_parser.h"
 #include "strings/string_slice.h"
 
 using namespace pdp;
@@ -10,11 +10,11 @@ using namespace pdp;
 TEST_CASE("simple param tuples") {
   {
     StringSlice input("param=\"pagination\",value=\"off\"");
-    FirstPass first(input);
+    MiFirstPass first(input);
     REQUIRE(first.Parse());
 
-    SecondPass second(input, first);
-    NiceExpr e(second.Parse());
+    MISecondPass second(input, first);
+    MiNiceExpr e(second.Parse());
 
     CHECK(e.Count() == 2);
     CHECK(e["param"].StringOr("X") == "pagination");
@@ -23,11 +23,11 @@ TEST_CASE("simple param tuples") {
 
   {
     StringSlice input("param=\"inferior-tty\",value=\"/dev/pts/0\"");
-    FirstPass first(input);
+    MiFirstPass first(input);
     REQUIRE(first.Parse());
 
-    SecondPass second(input, first);
-    NiceExpr e(second.Parse());
+    MISecondPass second(input, first);
+    MiNiceExpr e(second.Parse());
 
     CHECK(e["param"].StringOr("X") == "inferior-tty");
     CHECK(e["value"].StringOr("X") == "/dev/pts/0");
@@ -35,11 +35,11 @@ TEST_CASE("simple param tuples") {
 
   {
     StringSlice input("param=\"prompt\",value=\"\"");
-    FirstPass first(input);
+    MiFirstPass first(input);
     REQUIRE(first.Parse());
 
-    SecondPass second(input, first);
-    NiceExpr e(second.Parse());
+    MISecondPass second(input, first);
+    MiNiceExpr e(second.Parse());
 
     CHECK(e["param"].StringOr("X") == "prompt");
     CHECK(e["value"].StringOr("NOT_EMPTY") == "");
@@ -47,11 +47,11 @@ TEST_CASE("simple param tuples") {
 
   {
     StringSlice input("param=\"max-completions\",value=\"20\"");
-    FirstPass first(input);
+    MiFirstPass first(input);
     REQUIRE(first.Parse());
 
-    SecondPass second(input, first);
-    NiceExpr e(second.Parse());
+    MISecondPass second(input, first);
+    MiNiceExpr e(second.Parse());
 
     CHECK(e["param"].StringOr("X") == "max-completions");
     CHECK(e["value"].NumberOr(-1) == 20);
@@ -59,11 +59,11 @@ TEST_CASE("simple param tuples") {
 
   {
     StringSlice input("param=\"startup-with-shell\",value=\"off\"");
-    FirstPass first(input);
+    MiFirstPass first(input);
     REQUIRE(first.Parse());
 
-    SecondPass second(input, first);
-    NiceExpr e(second.Parse());
+    MISecondPass second(input, first);
+    MiNiceExpr e(second.Parse());
 
     CHECK(e["param"].StringOr("X") == "startup-with-shell");
     CHECK(e["value"].StringOr("X") == "off");
@@ -79,11 +79,11 @@ TEST_CASE("bkpt tuple with mixed fields") {
       "original-location=\"-qualified main\""
       "}");
 
-  FirstPass first(input);
+  MiFirstPass first(input);
   REQUIRE(first.Parse());
 
-  SecondPass second(input, first);
-  NiceExpr e(second.Parse());
+  MISecondPass second(input, first);
+  MiNiceExpr e(second.Parse());
 
   auto bkpt = e["bkpt"];
   CHECK(bkpt.Count() > 5);
@@ -106,11 +106,11 @@ TEST_CASE("shared object with ranges list") {
       "host-name=\"/lib/ld-linux-aarch64.so.1\",symbols-loaded=\"0\",thread-group=\"i1\","
       "ranges=[{from=\"0x0000007ff7fc3d80\",to=\"0x0000007ff7fe1328\"}]");
 
-  FirstPass first(input);
+  MiFirstPass first(input);
   REQUIRE(first.Parse());
 
-  SecondPass second(input, first);
-  NiceExpr e(second.Parse());
+  MISecondPass second(input, first);
+  MiNiceExpr e(second.Parse());
 
   CHECK(e["id"].StringOr("X") == "/lib/ld-linux-aarch64.so.1");
   CHECK(e["symbols-loaded"].NumberOr(-1) == 0);
@@ -131,11 +131,11 @@ TEST_CASE("stop reason with nested frame and args") {
       "fullname=\"/home/stef/backtrace_tool.cc\",line=\"182\",arch=\"aarch64\"},thread-id=\"1\","
       "stopped-threads=\"all\",core=\"2\"");
 
-  FirstPass first(input);
+  MiFirstPass first(input);
   REQUIRE(first.Parse());
 
-  SecondPass second(input, first);
-  NiceExpr e(second.Parse());
+  MISecondPass second(input, first);
+  MiNiceExpr e(second.Parse());
 
   CHECK(e["reason"].StringOr("X") == "breakpoint-hit");
   CHECK(e["bkptno"].NumberOr(-1) == 1);

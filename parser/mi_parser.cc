@@ -1,30 +1,30 @@
-#include "parser.h"
+#include "mi_parser.h"
 #include "core/log.h"
 #include "external/ankerl_hash.h"
 #include "tracing/trace_likely.h"
 
 namespace pdp {
 
-bool IsIdentifier(char c) {
+bool IsMiIdentifier(char c) {
   return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' || c == '-';
 }
 
-FirstPass::FirstPass(const StringSlice &s)
+MiFirstPass::MiFirstPass(const StringSlice &s)
     : input(s), nesting_stack(50), sizes_stack(500), total_bytes(0) {}
 
-bool FirstPass::ReportError(const StringSlice &msg) {
+bool MiFirstPass::ReportError(const StringSlice &msg) {
   auto context_len = input.Size() > 50 ? 50 : input.Size();
   pdp_error("{} at {}", msg, input.GetLeft(context_len));
   return false;
 }
 
-void FirstPass::PushSizeOnStack(uint32_t num_elements) {
+void MiFirstPass::PushSizeOnStack(uint32_t num_elements) {
   auto ptr = sizes_stack.NewElement();
   ptr->num_elements = num_elements;
   ptr->total_string_size = 0;
 }
 
-bool FirstPass::ParseResult() {
+bool MiFirstPass::ParseResult() {
   auto it = input.Find('=');
   if (PDP_UNLIKELY(it == input.End())) {
     return ReportError("Expecting variable=...");
@@ -37,7 +37,7 @@ bool FirstPass::ParseResult() {
   return ParseValue();
 }
 
-bool FirstPass::ParseValue() {
+bool MiFirstPass::ParseValue() {
   if (PDP_UNLIKELY(input.Empty())) {
     return ReportError("Expecting value but got empty string");
   }
@@ -52,7 +52,7 @@ bool FirstPass::ParseValue() {
   }
 }
 
-bool FirstPass::ParseString() {
+bool MiFirstPass::ParseString() {
   pdp_assert(input.StartsWith('"'));
 
   auto it = input.Begin() + 1;
@@ -69,13 +69,13 @@ bool FirstPass::ParseString() {
 
   const uint32_t length = it - input.Begin() + 1;
   PushSizeOnStack(length - num_skipped);
-  total_bytes += ArenaTraits::AlignUp(sizeof(ExprString) + length - num_skipped);
+  total_bytes += ArenaTraits::AlignUp(sizeof(MiExprString) + length - num_skipped);
 
   input.DropLeft(length);
   return true;
 }
 
-bool FirstPass::ParseListOrTuple() {
+bool MiFirstPass::ParseListOrTuple() {
   pdp_assert(input.StartsWith('[') || input.StartsWith('{'));
   input.DropLeft(1);
 
@@ -85,7 +85,7 @@ bool FirstPass::ParseListOrTuple() {
   return true;
 }
 
-bool FirstPass::ParseResultOrValue() {
+bool MiFirstPass::ParseResultOrValue() {
   if (PDP_UNLIKELY(input.Empty())) {
     return ReportError("Expecting result or value but got nothing");
   }
@@ -100,22 +100,22 @@ bool FirstPass::ParseResultOrValue() {
   }
 }
 
-void FirstPass::AccumulateBytes() {
+void MiFirstPass::AccumulateBytes() {
   const auto &record = sizes_stack[nesting_stack.Top()];
   if (record.total_string_size > 0) {
-    total_bytes += ArenaTraits::AlignUp(sizeof(ExprTuple));
+    total_bytes += ArenaTraits::AlignUp(sizeof(MiExprTuple));
     total_bytes += ArenaTraits::AlignUp(record.num_elements * sizeof(uint32_t));
-    total_bytes += ArenaTraits::AlignUp(record.num_elements * sizeof(ExprTuple::Result));
+    total_bytes += ArenaTraits::AlignUp(record.num_elements * sizeof(MiExprTuple::Result));
     total_bytes += ArenaTraits::AlignUp(record.total_string_size);
   } else {
-    total_bytes += ArenaTraits::AlignUp(sizeof(ExprList));
-    total_bytes += ArenaTraits::AlignUp(record.num_elements * sizeof(ExprBase *));
+    total_bytes += ArenaTraits::AlignUp(sizeof(MiExprList));
+    total_bytes += ArenaTraits::AlignUp(record.num_elements * sizeof(MiExprBase *));
   }
 }
 
-bool FirstPass::Parse() {
+bool MiFirstPass::Parse() {
   if (PDP_UNLIKELY(input.Empty())) {
-    total_bytes = ArenaTraits::AlignUp(sizeof(ExprTuple));
+    total_bytes = ArenaTraits::AlignUp(sizeof(MiExprTuple));
     return true;
   }
 
@@ -157,20 +157,20 @@ bool FirstPass::Parse() {
   return false;
 }
 
-SecondPass::SecondPass(const StringSlice &s, FirstPass &first_pass)
+MISecondPass::MISecondPass(const StringSlice &s, MiFirstPass &first_pass)
     : input(s),
       first_pass_stack(std::move(first_pass.sizes_stack)),
       first_pass_marker(0),
       arena(first_pass.total_bytes),
       second_pass_stack(50) {}
 
-ExprBase *SecondPass::ReportError(const StringSlice &msg) {
+MiExprBase *MISecondPass::ReportError(const StringSlice &msg) {
   auto context_len = input.Size() > 50 ? 50 : input.Size();
   pdp_error("{} at {}", msg, input.GetLeft(context_len));
   return nullptr;
 }
 
-ExprBase *SecondPass::ParseResult() {
+MiExprBase *MISecondPass::ParseResult() {
   pdp_assert(!input.Empty());
 
   pdp_assert(!second_pass_stack.Empty());
@@ -179,7 +179,7 @@ ExprBase *SecondPass::ParseResult() {
   second_pass_stack.Top().tuple_members->key = string_table_ptr;
 
   const char *__restrict it = input.Begin();
-  while (IsIdentifier(*it)) {
+  while (IsMiIdentifier(*it)) {
     pdp_assert(it < input.End());
     *string_table_ptr = *it;
     ++string_table_ptr;
@@ -202,7 +202,7 @@ ExprBase *SecondPass::ParseResult() {
   return ParseValue();
 }
 
-ExprBase *SecondPass::ParseValue() {
+MiExprBase *MISecondPass::ParseValue() {
   if (PDP_UNLIKELY(input.Empty())) {
     return ReportError("Expecting value but got empty string");
   }
@@ -217,13 +217,13 @@ ExprBase *SecondPass::ParseValue() {
   }
 }
 
-ExprBase *SecondPass::ParseString() {
+MiExprBase *MISecondPass::ParseString() {
   uint32_t length = first_pass_stack[first_pass_marker].num_elements;
   pdp_assert(first_pass_stack[first_pass_marker].total_string_size == 0);
   ++first_pass_marker;
 
-  ExprString *expr = static_cast<ExprString *>(arena.Allocate(sizeof(ExprString) + length));
-  expr->kind = ExprBase::kString;
+  MiExprString *expr = static_cast<MiExprString *>(arena.Allocate(sizeof(MiExprString) + length));
+  expr->kind = MiExprBase::kString;
   expr->size = length;
   char *__restrict payload = expr->payload;
 
@@ -266,19 +266,19 @@ ExprBase *SecondPass::ParseString() {
   return expr;
 }
 
-ExprBase *SecondPass::CreateListOrTuple() {
+MiExprBase *MISecondPass::CreateListOrTuple() {
   uint32_t size = first_pass_stack[first_pass_marker].num_elements;
   uint32_t string_table_size = first_pass_stack[first_pass_marker].total_string_size;
   const bool is_tuple = string_table_size > 0;
   ++first_pass_marker;
 
   if (is_tuple) {
-    ExprTuple *tuple = static_cast<ExprTuple *>(arena.AllocateUnchecked(sizeof(ExprTuple)));
-    tuple->kind = ExprBase::kTuple;
+    MiExprTuple *tuple = static_cast<MiExprTuple *>(arena.AllocateUnchecked(sizeof(MiExprTuple)));
+    tuple->kind = MiExprBase::kTuple;
     tuple->size = size;
     tuple->hashes = static_cast<uint32_t *>(arena.AllocateOrNull(size * sizeof(uint32_t)));
     tuple->results =
-        static_cast<ExprTuple::Result *>(arena.AllocateOrNull(size * sizeof(ExprTuple::Result)));
+        static_cast<MiExprTuple::Result *>(arena.AllocateOrNull(size * sizeof(MiExprTuple::Result)));
     char *string_table = static_cast<char *>(arena.AllocateOrNull(string_table_size));
 
     auto *expr_trace = second_pass_stack.NewElement();
@@ -291,43 +291,44 @@ ExprBase *SecondPass::CreateListOrTuple() {
 #endif
 
     // Locality checks
-    pdp_assert((char *)tuple->hashes - (char *)tuple == sizeof(ExprTuple));
+    pdp_assert((char *)tuple->hashes - (char *)tuple == sizeof(MiExprTuple));
     pdp_assert((char *)tuple->results - (char *)tuple->hashes <=
                static_cast<ptrdiff_t>((size + 1) * sizeof(uint32_t)));
     pdp_assert(string_table - (char *)tuple->results ==
-               static_cast<ptrdiff_t>(size * sizeof(ExprTuple::Result)));
+               static_cast<ptrdiff_t>(size * sizeof(MiExprTuple::Result)));
     return tuple;
   } else {
-    ExprList *list = static_cast<ExprList *>(arena.AllocateUnchecked(sizeof(ExprList)));
-    list->kind = ExprBase::kList;
+    MiExprList *list = static_cast<MiExprList *>(arena.AllocateUnchecked(sizeof(MiExprList)));
+    list->kind = MiExprBase::kList;
     list->size = size;
-    ExprBase **members = static_cast<ExprBase **>(arena.AllocateOrNull(size * sizeof(ExprBase *)));
+    MiExprBase **members =
+        static_cast<MiExprBase **>(arena.AllocateOrNull(size * sizeof(MiExprBase *)));
 
     auto *expr_trace = second_pass_stack.NewElement();
     expr_trace->expr = list;
     expr_trace->list_members = members;
     expr_trace->string_table_ptr = nullptr;
 #ifdef PDP_ENABLE_ASSERT
-    expr_trace->record_end = (char *)members + size * sizeof(ExprBase *);
+    expr_trace->record_end = (char *)members + size * sizeof(MiExprBase *);
 #endif
 
     // Validity allocation check
-    pdp_assert(!members || (char *)members - (char *)list == sizeof(ExprList));
+    pdp_assert(!members || (char *)members - (char *)list == sizeof(MiExprList));
     return list;
   }
 }
 
-ExprBase *SecondPass::ParseListOrTuple() {
+MiExprBase *MISecondPass::ParseListOrTuple() {
   pdp_assert(input.StartsWith('[') || input.StartsWith('{'));
   input.DropLeft(1);
 
   return CreateListOrTuple();
 }
 
-ExprBase *SecondPass::ParseResultOrValue() {
+MiExprBase *MISecondPass::ParseResultOrValue() {
   auto parent_pos = second_pass_stack.Size() - 1;
 
-  ExprBase *expr = nullptr;
+  MiExprBase *expr = nullptr;
   pdp_assert(!input.Empty());
   switch (input[0]) {
     case '"':
@@ -354,17 +355,17 @@ ExprBase *SecondPass::ParseResultOrValue() {
   return expr;
 }
 
-ExprBase *SecondPass::Parse() {
+MiExprBase *MISecondPass::Parse() {
   if (PDP_UNLIKELY(input.Empty())) {
-    ExprTuple *tuple = static_cast<ExprTuple *>(arena.AllocateUnchecked(sizeof(ExprTuple)));
-    tuple->kind = ExprBase::kTuple;
+    MiExprTuple *tuple = static_cast<MiExprTuple *>(arena.AllocateUnchecked(sizeof(MiExprTuple)));
+    tuple->kind = MiExprBase::kTuple;
     tuple->size = 0;
     tuple->hashes = nullptr;
     tuple->results = nullptr;
     return tuple;
   }
 
-  ExprBase *root = CreateListOrTuple();
+  MiExprBase *root = CreateListOrTuple();
   bool okay = (root != nullptr);
   while (okay && !input.Empty()) {
     switch (input[0]) {
@@ -374,7 +375,7 @@ ExprBase *SecondPass::Parse() {
           pdp_assert(second_pass_stack.Top().string_table_ptr <=
                      second_pass_stack.Top().record_end);
           [[maybe_unused]]
-          ExprTuple *tuple = static_cast<ExprTuple *>(second_pass_stack.Top().expr);
+          MiExprTuple *tuple = static_cast<MiExprTuple *>(second_pass_stack.Top().expr);
           pdp_assert(second_pass_stack.Top().tuple_members - tuple->results == tuple->size);
           pdp_assert(second_pass_stack.Top().hash_table_ptr - tuple->hashes == tuple->size);
         } else {

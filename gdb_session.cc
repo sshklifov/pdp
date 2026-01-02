@@ -2,7 +2,7 @@
 
 #include "core/check.h"
 #include "core/log.h"
-#include "parser/parser.h"
+#include "parser/mi_parser.h"
 #include "tracing/trace_likely.h"
 
 #include <fcntl.h>
@@ -175,11 +175,11 @@ void GdbSession::Process() {
     if (s[0] == '=' || s[0] == '*') {
       StringSlice ddz(s.Find(',') + 1, s.End() - 1);
       pdp_info("Parsing: {}", ddz);
-      FirstPass first_pass(ddz);
+      MiFirstPass first_pass(ddz);
       bool result = first_pass.Parse();
       if (result) {
-        SecondPass final_pass(ddz, first_pass);
-        NiceExpr expr = final_pass.Parse();
+        MISecondPass final_pass(ddz, first_pass);
+        MiNiceExpr expr = final_pass.Parse();
         expr.Print();
       } else {
         pdp_error("Parse failed!");
