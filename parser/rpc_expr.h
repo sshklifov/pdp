@@ -6,19 +6,14 @@
 
 namespace pdp {
 
-struct MiExprBase {
-  enum Kind { kNull, kInt, kString, kList, kTuple };
+#if 0
+struct RpcExprBase {
+  enum Kind { kInt32, kString, kList, kTuple };
 
   uint8_t kind;
   uint8_t unused[3];
   uint32_t size;
 };
-
-struct MiExprInt : public MiExprBase {
-  int64_t value;
-};
-
-static_assert(sizeof(MiExprInt) == 16 && alignof(MiExprInt) <= 8);
 
 struct MiExprString : public MiExprBase {
   char payload[0];
@@ -61,5 +56,8 @@ struct MiNiceExpr {
  private:
   const MiExprBase *expr;
 };
+#endif
 
 }  // namespace pdp
+
+

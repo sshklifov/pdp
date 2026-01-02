@@ -1,21 +1,14 @@
 #pragma once
 
 #include "core/check.h"
+#include "data/allocator.h"
 
 #include <cstdint>
 
 namespace pdp {
 
-struct ArenaTraits {
-  static constexpr uint32_t AlignUp(uint32_t bytes) {
-    return bytes = (bytes + alignment - 1) & ~(alignment - 1);
-  }
-
-  static constexpr const uint32_t alignment = 8;
-};
-
-template <typename Alloc>
-struct Arena : public ArenaTraits {
+template <typename Alloc = DefaultAllocator>
+struct Arena : public AlignmentTraits {
   Arena(size_t cap) {
     chunk = static_cast<unsigned char *>(allocator.AllocateRaw(cap));
     pdp_assert(chunk);

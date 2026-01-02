@@ -69,7 +69,7 @@ bool MiFirstPass::ParseString() {
 
   const uint32_t length = it - input.Begin() + 1;
   PushSizeOnStack(length - num_skipped);
-  total_bytes += ArenaTraits::AlignUp(sizeof(MiExprString) + length - num_skipped);
+  total_bytes += AlignmentTraits::AlignUp(sizeof(MiExprString) + length - num_skipped);
 
   input.DropLeft(length);
   return true;
@@ -103,19 +103,19 @@ bool MiFirstPass::ParseResultOrValue() {
 void MiFirstPass::AccumulateBytes() {
   const auto &record = sizes_stack[nesting_stack.Top()];
   if (record.total_string_size > 0) {
-    total_bytes += ArenaTraits::AlignUp(sizeof(MiExprTuple));
-    total_bytes += ArenaTraits::AlignUp(record.num_elements * sizeof(uint32_t));
-    total_bytes += ArenaTraits::AlignUp(record.num_elements * sizeof(MiExprTuple::Result));
-    total_bytes += ArenaTraits::AlignUp(record.total_string_size);
+    total_bytes += AlignmentTraits::AlignUp(sizeof(MiExprTuple));
+    total_bytes += AlignmentTraits::AlignUp(record.num_elements * sizeof(uint32_t));
+    total_bytes += AlignmentTraits::AlignUp(record.num_elements * sizeof(MiExprTuple::Result));
+    total_bytes += AlignmentTraits::AlignUp(record.total_string_size);
   } else {
-    total_bytes += ArenaTraits::AlignUp(sizeof(MiExprList));
-    total_bytes += ArenaTraits::AlignUp(record.num_elements * sizeof(MiExprBase *));
+    total_bytes += AlignmentTraits::AlignUp(sizeof(MiExprList));
+    total_bytes += AlignmentTraits::AlignUp(record.num_elements * sizeof(MiExprBase *));
   }
 }
 
 bool MiFirstPass::Parse() {
   if (PDP_UNLIKELY(input.Empty())) {
-    total_bytes = ArenaTraits::AlignUp(sizeof(MiExprTuple));
+    total_bytes = AlignmentTraits::AlignUp(sizeof(MiExprTuple));
     return true;
   }
 
@@ -138,7 +138,7 @@ bool MiFirstPass::Parse() {
 
       case ',':
         input.DropLeft(1);
-        // follow-through
+        [[fallthrough]];
       default:
         sizes_stack[nesting_stack.Top()].num_elements += 1;
         okay = ParseResultOrValue();
@@ -387,7 +387,7 @@ MiExprBase *MISecondPass::Parse() {
 
       case ',':
         input.DropLeft(1);
-        // follow-through
+        [[fallthrough]];
       default:
         okay = ParseResultOrValue();
     }

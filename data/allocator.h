@@ -17,6 +17,7 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdlib>
+#include <cstring>
 #include <limits>
 
 namespace pdp {
@@ -37,8 +38,22 @@ constexpr std::size_t operator""_GB(unsigned long long gigabytes) {
   return gigabytes * 1024 * 1024 * 1024;
 }
 
+struct AlignmentTraits {
+  static constexpr uint32_t AlignUp(uint32_t bytes) {
+    return bytes = (bytes + alignment - 1) & ~(alignment - 1);
+  }
+
+  static constexpr const uint32_t alignment = 8;
+};
+
 struct MallocAllocator {
-  void *AllocateRaw(size_t bytes) { return malloc(bytes); }
+  void *AllocateRaw(size_t bytes) {
+    void *ptr = malloc(bytes);
+#ifdef PDP_ENABLE_ZERO_INITIALIZE
+    memset(ptr, 0, bytes);
+#endif
+    return ptr;
+  }
 
   void DeallocateRaw(void *ptr) { free(ptr); }
 
