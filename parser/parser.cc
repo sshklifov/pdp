@@ -1,14 +1,12 @@
 #include "parser.h"
+#include "core/log.h"
 #include "external/ankerl_hash.h"
+#include "tracing/trace_likely.h"
 
 namespace pdp {
 
 bool IsIdentifier(char c) {
   return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' || c == '-';
-}
-
-bool IsBracketMatch(char open, char close) {
-  return (open == '[' && close == ']') || (open == '{' && close == '}');
 }
 
 FirstPass::FirstPass(const StringSlice &s)
@@ -28,7 +26,7 @@ void FirstPass::PushSizeOnStack(uint32_t num_elements) {
 
 bool FirstPass::ParseResult() {
   auto it = input.Find('=');
-  if (PDP_TRACE_UNLIKELY(it == input.End())) {
+  if (PDP_UNLIKELY(it == input.End())) {
     return ReportError("Expecting variable=...");
   }
 
@@ -40,7 +38,7 @@ bool FirstPass::ParseResult() {
 }
 
 bool FirstPass::ParseValue() {
-  if (PDP_TRACE_UNLIKELY(input.Empty())) {
+  if (PDP_UNLIKELY(input.Empty())) {
     return ReportError("Expecting value but got empty string");
   }
   switch (input[0]) {
@@ -65,7 +63,7 @@ bool FirstPass::ParseString() {
     it += (1 + skip_extra);
   }
 
-  if (PDP_TRACE_UNLIKELY(it == input.End())) {
+  if (PDP_UNLIKELY(it == input.End())) {
     return ReportError("Unterminated c-string!");
   }
 
@@ -88,7 +86,7 @@ bool FirstPass::ParseListOrTuple() {
 }
 
 bool FirstPass::ParseResultOrValue() {
-  if (PDP_TRACE_UNLIKELY(input.Empty())) {
+  if (PDP_UNLIKELY(input.Empty())) {
     return ReportError("Expecting result or value but got nothing");
   }
   switch (input[0]) {
@@ -116,7 +114,10 @@ void FirstPass::AccumulateBytes() {
 }
 
 bool FirstPass::Parse() {
-  // TODO support empty messages here.
+  if (PDP_UNLIKELY(input.Empty())) {
+    total_bytes = ArenaTraits::AlignUp(sizeof(ExprTuple));
+    return true;
+  }
 
   // Record first result speculatively (for correct order).
   nesting_stack.Push(sizes_stack.Size());
@@ -124,7 +125,7 @@ bool FirstPass::Parse() {
 
   bool okay = ParseResultOrValue();
   while (okay && !input.Empty()) {
-    if (PDP_TRACE_UNLIKELY(nesting_stack.Empty())) {
+    if (PDP_UNLIKELY(nesting_stack.Empty())) {
       return ReportError("No open list/tuple in scope");
     }
     switch (input[0]) {
@@ -143,7 +144,7 @@ bool FirstPass::Parse() {
         okay = ParseResultOrValue();
     }
   }
-  if (PDP_TRACE_LIKELY(okay && nesting_stack.Size() == 1)) {
+  if (PDP_LIKELY(okay && nesting_stack.Size() == 1)) {
     AccumulateBytes();
     return true;
   } else if (nesting_stack.Size() > 1) {
@@ -172,7 +173,6 @@ ExprBase *SecondPass::ReportError(const StringSlice &msg) {
 ExprBase *SecondPass::ParseResult() {
   pdp_assert(!input.Empty());
 
-  // TODO check disassembly with restrict
   pdp_assert(!second_pass_stack.Empty());
   char *__restrict string_table_ptr = second_pass_stack.Top().string_table_ptr;
   pdp_assert(string_table_ptr);
@@ -186,7 +186,7 @@ ExprBase *SecondPass::ParseResult() {
     ++it;
   }
   const bool failed = (*it != '=');
-  if (PDP_TRACE_UNLIKELY(failed)) {
+  if (PDP_UNLIKELY(failed)) {
     return ReportError("Expecting variable=...");
   }
 
@@ -203,7 +203,7 @@ ExprBase *SecondPass::ParseResult() {
 }
 
 ExprBase *SecondPass::ParseValue() {
-  if (PDP_TRACE_UNLIKELY(input.Empty())) {
+  if (PDP_UNLIKELY(input.Empty())) {
     return ReportError("Expecting value but got empty string");
   }
   switch (input[0]) {
@@ -276,10 +276,10 @@ ExprBase *SecondPass::CreateListOrTuple() {
     ExprTuple *tuple = static_cast<ExprTuple *>(arena.AllocateUnchecked(sizeof(ExprTuple)));
     tuple->kind = ExprBase::kTuple;
     tuple->size = size;
-    tuple->hashes = static_cast<uint32_t *>(arena.Allocate(size * sizeof(uint32_t)));
+    tuple->hashes = static_cast<uint32_t *>(arena.AllocateOrNull(size * sizeof(uint32_t)));
     tuple->results =
-        static_cast<ExprTuple::Result *>(arena.AllocateUnchecked(size * sizeof(ExprTuple::Result)));
-    char *string_table = static_cast<char *>(arena.Allocate(string_table_size));
+        static_cast<ExprTuple::Result *>(arena.AllocateOrNull(size * sizeof(ExprTuple::Result)));
+    char *string_table = static_cast<char *>(arena.AllocateOrNull(string_table_size));
 
     auto *expr_trace = second_pass_stack.NewElement();
     expr_trace->expr = tuple;
@@ -325,10 +325,9 @@ ExprBase *SecondPass::ParseListOrTuple() {
 }
 
 ExprBase *SecondPass::ParseResultOrValue() {
-  ExprBase *expr = nullptr;
-  // TODO better solution?
-  auto pos = second_pass_stack.Size() - 1;
+  auto parent_pos = second_pass_stack.Size() - 1;
 
+  ExprBase *expr = nullptr;
   pdp_assert(!input.Empty());
   switch (input[0]) {
     case '"':
@@ -342,20 +341,29 @@ ExprBase *SecondPass::ParseResultOrValue() {
       expr = ParseResult();
   }
 
-  if (PDP_TRACE_LIKELY(expr)) {
-    const bool is_tuple = second_pass_stack[pos].string_table_ptr;
+  if (PDP_LIKELY(expr)) {
+    const bool is_tuple = second_pass_stack[parent_pos].string_table_ptr;
     if (is_tuple) {
-      second_pass_stack[pos].tuple_members->value = expr;
-      ++second_pass_stack[pos].tuple_members;
+      second_pass_stack[parent_pos].tuple_members->value = expr;
+      ++second_pass_stack[parent_pos].tuple_members;
     } else {
-      *second_pass_stack[pos].list_members = expr;
-      ++second_pass_stack[pos].list_members;
+      *second_pass_stack[parent_pos].list_members = expr;
+      ++second_pass_stack[parent_pos].list_members;
     }
   }
   return expr;
 }
 
 ExprBase *SecondPass::Parse() {
+  if (PDP_UNLIKELY(input.Empty())) {
+    ExprTuple *tuple = static_cast<ExprTuple *>(arena.AllocateUnchecked(sizeof(ExprTuple)));
+    tuple->kind = ExprBase::kTuple;
+    tuple->size = 0;
+    tuple->hashes = nullptr;
+    tuple->results = nullptr;
+    return tuple;
+  }
+
   ExprBase *root = CreateListOrTuple();
   bool okay = (root != nullptr);
   while (okay && !input.Empty()) {
@@ -385,7 +393,7 @@ ExprBase *SecondPass::Parse() {
   }
   pdp_assert(first_pass_marker == first_pass_stack.Size());
   pdp_assert(second_pass_stack.Size() == 1);
-  if (PDP_TRACE_LIKELY(okay)) {
+  if (PDP_LIKELY(okay)) {
     return root;
   }
   return nullptr;

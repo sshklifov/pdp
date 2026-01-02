@@ -1,0 +1,65 @@
+#pragma once
+
+#include "core/check.h"
+
+#include <cstdint>
+
+namespace pdp {
+
+struct ArenaTraits {
+  static constexpr uint32_t AlignUp(uint32_t bytes) {
+    return bytes = (bytes + alignment - 1) & ~(alignment - 1);
+  }
+
+  static constexpr const uint32_t alignment = 8;
+};
+
+template <typename Alloc>
+struct Arena : public ArenaTraits {
+  Arena(size_t cap) {
+    chunk = static_cast<unsigned char *>(allocator.AllocateRaw(cap));
+    pdp_assert(chunk);
+    pdp_assert(reinterpret_cast<uint64_t>(chunk) % alignment == 0);
+    head = chunk;
+#ifdef PDP_ENABLE_ASSERT
+    capacity = cap;
+#endif
+  }
+
+  ~Arena() {
+    pdp_assert(chunk);
+    allocator.DeallocateRaw(chunk);
+  }
+
+  void *Allocate(uint32_t bytes) {
+    return PDP_ASSUME_ALIGNED(AllocateUnchecked(AlignUp(bytes)), alignment);
+  }
+
+  void *AllocateUnchecked(uint32_t bytes) {
+    pdp_assert(bytes > 0);
+    pdp_assert(bytes % alignment == 0);
+    pdp_assert(uint32_t(head - chunk) + bytes <= capacity);
+    void *ptr = head;
+    head += bytes;
+    return PDP_ASSUME_ALIGNED(ptr, alignment);
+  }
+
+  void *AllocateOrNull(uint32_t bytes) {
+    if (PDP_LIKELY(bytes > 0)) {
+      return Allocate(bytes);
+    } else {
+      return nullptr;
+    }
+  }
+
+ private:
+  unsigned char *chunk;
+  unsigned char *head;
+#ifdef PDP_ENABLE_ASSERT
+  size_t capacity;
+#endif
+
+  Alloc allocator;
+};
+
+}  // namespace pdp

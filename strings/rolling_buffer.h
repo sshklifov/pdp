@@ -18,10 +18,10 @@ struct RollingBuffer {
  private:
   void ReserveForRead();
 
-  char *ptr;
-  char *begin;
-  char *end;
-  char *limit;
+  char *__restrict__ ptr;
+  char *__restrict__ begin;
+  char *__restrict__ end;
+  const char *__restrict__ limit;
 
   DefaultAllocator allocator;
 

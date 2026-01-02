@@ -109,7 +109,7 @@ void GdbSession::SendCommand(const StringSlice &command, Callback cb) {
   ssize_t remaining = builder.Size();
   do {
     ssize_t ret = write(in[1], builder.Data() + num_written, remaining);
-    if (PDP_TRACE_UNLIKELY(ret < 0)) {
+    if (PDP_UNLIKELY(ret < 0)) {
       Check(ret, "write");
       return;
     }

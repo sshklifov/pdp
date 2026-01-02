@@ -1,9 +1,9 @@
-#include <fcntl.h>
-#include <thread>
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 
+#include <fcntl.h>
 #include <unistd.h>
+#include <thread>
 
 #include "strings/rolling_buffer.h"
 
