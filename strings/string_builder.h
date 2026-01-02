@@ -257,9 +257,9 @@ struct StringBuilder {
 
   void AppendUnchecked(bool b) {
     if (b) {
-      AppendUnchecked("true");
+      AppendUnchecked(StringSlice("true"));
     } else {
-      AppendUnchecked("false");
+      AppendUnchecked(StringSlice("false"));
     }
   }
 
@@ -268,6 +268,8 @@ struct StringBuilder {
     *end = c;
     ++end;
   }
+
+  void AppendUnchecked(const char *s) { AppendUnchecked(StringSlice(s)); }
 
   void AppendUnchecked(const StringSlice &s) {
     pdp_assert(limit - end >= (int64_t)s.Size());
@@ -292,7 +294,8 @@ struct StringBuilder {
     end += digits;
   }
 
-  void AppendUnchecked(const void *ptr) {
+  template <typename T, std::enable_if_t<!IsCStringV<T *>, int> = 0>
+  void AppendUnchecked(const T *ptr) {
     size_t unsigned_value = reinterpret_cast<uint64_t>(ptr);
     const uint64_t digits = CountDigits16(unsigned_value);
     pdp_assert(limit - end >= (int64_t)digits + 2);

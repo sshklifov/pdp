@@ -139,7 +139,8 @@ void Log(const char *f, unsigned line, Level level, const StringSlice &fmt, Pack
 
   constexpr EstimateSize estimator;
   constexpr size_t est = estimator("[2026-01-02 11:42:27.380] [] [:] \n") + EstimateLogLevelSize();
-  size_t capacity = est + estimator(line) + estimator(filename) + RunEstimator(args, type_bits);
+  size_t capacity =
+      est + estimator(line) + estimator(filename) + estimator(fmt) + RunEstimator(args, type_bits);
   builder.ReserveFor(capacity);
 
   WriteLogHeader(filename, line, level, builder);

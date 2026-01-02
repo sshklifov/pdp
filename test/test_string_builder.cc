@@ -198,6 +198,40 @@ TEST_CASE("AppendUnchecked(signed) formatting incl edge cases") {
   CHECK(s == "-9223372036854775808");
 }
 
+TEST_CASE("AppendUnchecked recursion check") {
+  SUBCASE("Append(char*)") {
+    char asd[] = "asd";
+    StringBuilder<> b;
+    b.ReserveFor(20);
+    b.AppendUnchecked((char *)asd);
+    CHECK(b.GetSlice() == StringSlice("asd"));
+  }
+
+  SUBCASE("AppendUnchecked(char[])") {
+    char digits[] = "0123456789";
+    StringBuilder<> b;
+    b.ReserveFor(20);
+    b.AppendUnchecked(digits);
+    CHECK(b.GetSlice() == StringSlice("0123456789"));
+  }
+
+  SUBCASE("AppendUnchecked(const char*)") {
+    const char *def = "def";
+    StringBuilder<> b;
+    b.ReserveFor(20);
+    b.AppendUnchecked(def);
+    CHECK(b.GetSlice() == StringSlice("def"));
+  }
+
+  SUBCASE("AppendUnchecked(const char)") {
+    const char bracket = '{';
+    StringBuilder<> b;
+    b.ReserveFor(20);
+    b.AppendUnchecked(bracket);
+    CHECK(b.GetSlice() == StringSlice("{"));
+  }
+}
+
 TEST_CASE("Append(T) with various types") {
   SUBCASE("Append(StringSlice)") {
     StringBuilder<> b;
@@ -224,7 +258,7 @@ TEST_CASE("Append(T) with various types") {
   }
 
   SUBCASE("Append(pointer)") {
-    void *ptr = reinterpret_cast<void*>(0xdeadbeef);
+    void *ptr = reinterpret_cast<void *>(0xdeadbeef);
     StringBuilder<> b;
     b.Append(ptr);
     CHECK(b.GetSlice() == StringSlice("0xdeadbeef"));
@@ -233,7 +267,7 @@ TEST_CASE("Append(T) with various types") {
   SUBCASE("Append(char*)") {
     char asd[] = "asd";
     StringBuilder<> b;
-    b.Append((char*)asd);
+    b.Append((char *)asd);
     CHECK(b.GetSlice() == StringSlice("asd"));
   }
 
@@ -245,7 +279,7 @@ TEST_CASE("Append(T) with various types") {
   }
 
   SUBCASE("Append(const char*)") {
-    const char *def= "def";
+    const char *def = "def";
     StringBuilder<> b;
     b.Append(def);
     CHECK(b.GetSlice() == StringSlice("def"));
