@@ -93,25 +93,10 @@ TEST_CASE("MemChar") {
 TEST_CASE("Substr(pos)") {
   StringSlice s("abcdef");
 
-  auto sub = s.Substr(2);
+  auto sub = s.Substr(s.Begin() + 2);
   CHECK(sub.Size() == 4);
   CHECK(sub[0] == 'c');
   CHECK(sub[3] == 'f');
-}
-
-TEST_CASE("TakeLeft") {
-  StringSlice s("abcdef");
-
-  const char *it = s.Begin() + 3;
-  auto left = s.TakeLeft(it);
-
-  CHECK(left.Size() == 3);
-  CHECK(left[0] == 'a');
-  CHECK(left[2] == 'c');
-
-  CHECK(s.Size() == 3);
-  CHECK(s[0] == 'd');
-  CHECK(s[2] == 'f');
 }
 
 TEST_CASE("DropLeft(pointer)") {
@@ -179,25 +164,4 @@ TEST_CASE("operator[]") {
   CHECK(s[0] == 'x');
   CHECK(s[1] == 'y');
   CHECK(s[2] == 'z');
-}
-
-TEST_CASE("Chained mutation behavior") {
-  StringSlice s("abcdef");
-
-  auto a = s.TakeLeft(s.Begin() + 2);
-  CHECK(a == StringSlice("ab"));
-
-  s.DropLeft(1);
-  CHECK(s == StringSlice("def"));
-}
-
-TEST_CASE("Find + TakeLeft integration") {
-  StringSlice s("key=value");
-
-  const char *eq = s.Find('=');
-  auto key = s.TakeLeft(eq);
-
-  CHECK(key == StringSlice("key"));
-  CHECK(s.Size() == 6);
-  CHECK(s[0] == '=');
 }

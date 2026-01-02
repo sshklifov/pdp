@@ -29,3 +29,9 @@ add_executable(test_rolling_buffer test_rolling_buffer.cc
   $<TARGET_OBJECTS:pdp_core>
   $<TARGET_OBJECTS:pdp_strings>
 )
+
+add_executable(test_parser test_parser.cc
+  $<TARGET_OBJECTS:pdp_core>
+  $<TARGET_OBJECTS:pdp_strings>
+  $<TARGET_OBJECTS:pdp_parser>
+)

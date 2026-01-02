@@ -72,17 +72,14 @@ struct StringSlice {
     }
   }
 
-  constexpr StringSlice Substr(size_t pos) const {
-    pdp_assert_non_constexpr(pos < Size());
-    return StringSlice(ptr + pos, size - pos);
+  constexpr StringSlice Substr(const char *it) const {
+    pdp_assert_non_constexpr(it >= Begin() && it < End());
+    return StringSlice(it, End());
   }
 
-  constexpr StringSlice TakeLeft(const char *it) {
-    pdp_assert_non_constexpr(it >= ptr && it <= End());
-    StringSlice res(ptr, it);
-    ptr = it;
-    size -= res.Size();
-    return res;
+  constexpr StringSlice GetLeft(size_t n) {
+    pdp_assert_non_constexpr(n <= Size());
+    return StringSlice(ptr, n);
   }
 
   constexpr void DropLeft(const char *it) {

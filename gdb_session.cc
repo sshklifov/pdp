@@ -11,42 +11,6 @@
 
 namespace pdp {
 
-void DebugFormatExpr(ExprBase *expr, StringBuilder<> &builder) {
-  if (expr->kind == ExprBase::kString) {
-    StringSlice s((char *)expr + sizeof(ExprString), expr->size);
-    builder.Append(s);
-  } else if (expr->kind == ExprBase::kList) {
-    if (expr->size == 0) {
-      builder.Append("[]");
-    } else {
-      builder.Append('[');
-      ExprBase **elements = reinterpret_cast<ExprBase **>((char *)expr + sizeof(ExprList));
-      DebugFormatExpr(elements[0], builder);
-      for (size_t i = 1; i < expr->size; ++i) {
-        builder.Append(", ");
-        DebugFormatExpr(elements[i], builder);
-      }
-      builder.Append(']');
-    }
-  } else if (expr->kind == ExprBase::kTuple) {
-    if (expr->size == 0) {
-      builder.Append("{}");
-    } else {
-      ExprTuple *tuple = static_cast<ExprTuple *>(expr);
-      ExprTuple::Result *results = tuple->results;
-      builder.AppendFormat("{{}=", StringSlice(results[0].key));
-      DebugFormatExpr(results[0].value, builder);
-      for (size_t i = 1; i < expr->size; ++i) {
-        builder.AppendFormat(", {}=", StringSlice(results[i].key));
-        DebugFormatExpr(results[i].value, builder);
-      }
-      builder.Append('}');
-    }
-  } else {
-    pdp_assert(false);
-  }
-}
-
 GdbSession::GdbSession(Callback async_callback, Callback stream_callback)
     : in{0, 0}, out{0, 0}, err{0, 0}, token_counter(1), disconnected(false) {}
 
@@ -215,10 +179,8 @@ void GdbSession::Process() {
       bool result = first_pass.Parse();
       if (result) {
         SecondPass final_pass(ddz, first_pass);
-        ExprBase *expr = final_pass.Parse();
-        StringBuilder debug_builder;
-        DebugFormatExpr(expr, debug_builder);
-        pdp_info("RES: {}", debug_builder.GetSlice());
+        NiceExpr expr = final_pass.Parse();
+        expr.Print();
       } else {
         pdp_error("Parse failed!");
       }

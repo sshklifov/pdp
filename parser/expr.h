@@ -1,5 +1,7 @@
 #pragma once
 
+#include "strings/string_slice.h"
+
 #include <cstdint>
 
 namespace pdp {
@@ -36,5 +38,22 @@ struct ExprTuple : public ExprBase {
 };
 
 static_assert(sizeof(ExprTuple) == 24 && alignof(ExprTuple) <= 8);
+
+struct NiceExpr {
+  NiceExpr(const ExprBase *expr);
+
+  uint32_t Count() const;
+
+  NiceExpr operator[](uint32_t index);
+  NiceExpr operator[](const StringSlice &key);
+
+  StringSlice StringOr(const StringSlice &alternative) const;
+  int32_t NumberOr(int32_t alternative) const;
+
+  void Print();
+
+ private:
+  const ExprBase *expr;
+};
 
 }  // namespace pdp

@@ -14,7 +14,7 @@ FirstPass::FirstPass(const StringSlice &s)
 
 bool FirstPass::ReportError(const StringSlice &msg) {
   auto context_len = input.Size() > 50 ? 50 : input.Size();
-  pdp_error("{} at {}", msg, input.Substr(context_len));
+  pdp_error("{} at {}", msg, input.GetLeft(context_len));
   return false;
 }
 
@@ -166,7 +166,7 @@ SecondPass::SecondPass(const StringSlice &s, FirstPass &first_pass)
 
 ExprBase *SecondPass::ReportError(const StringSlice &msg) {
   auto context_len = input.Size() > 50 ? 50 : input.Size();
-  pdp_error("{} at {}", msg, input.Substr(context_len));
+  pdp_error("{} at {}", msg, input.GetLeft(context_len));
   return nullptr;
 }
 
