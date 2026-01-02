@@ -1,9 +1,9 @@
 #include "gdb_session.h"
 
 #include "core/check.h"
-#include "tracing/trace_likely.h"
 #include "core/log.h"
 #include "parser/parser.h"
+#include "tracing/trace_likely.h"
 
 #include <fcntl.h>
 #include <poll.h>
@@ -11,7 +11,6 @@
 
 namespace pdp {
 
-// TODO testing
 void DebugFormatExpr(ExprBase *expr, StringBuilder<> &builder) {
   if (expr->kind == ExprBase::kString) {
     StringSlice s((char *)expr + sizeof(ExprString), expr->size);
@@ -35,10 +34,10 @@ void DebugFormatExpr(ExprBase *expr, StringBuilder<> &builder) {
     } else {
       ExprTuple *tuple = static_cast<ExprTuple *>(expr);
       ExprTuple::Result *results = tuple->results;
-      builder.Appendf("{{}=", results[0].key);
+      builder.AppendFormat("{{}=", StringSlice(results[0].key));
       DebugFormatExpr(results[0].value, builder);
       for (size_t i = 1; i < expr->size; ++i) {
-        builder.Appendf(", {}=", results[i].key);
+        builder.AppendFormat(", {}=", StringSlice(results[i].key));
         DebugFormatExpr(results[i].value, builder);
       }
       builder.Append('}');
@@ -224,8 +223,8 @@ void GdbSession::Process() {
       } else {
         pdp_error("Parse failed!");
       }
-      // pdp_info("Parse result: {}", result);
-      // pdp_info("Other: {}", s);
+      pdp_info("Parse result: {}", result);
+      pdp_info("Other: {}", s);
     } else {
       pdp_info("Got: {}", s);
     }

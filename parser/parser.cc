@@ -14,9 +14,9 @@ bool IsBracketMatch(char open, char close) {
 FirstPass::FirstPass(const StringSlice &s)
     : input(s), nesting_stack(50), sizes_stack(500), total_bytes(0) {}
 
-bool FirstPass::ReportError(const char *msg) {
+bool FirstPass::ReportError(const StringSlice &msg) {
   auto context_len = input.Size() > 50 ? 50 : input.Size();
-  pdp_error("{} at {}", msg, StringSlice(input.Begin(), context_len));
+  pdp_error("{} at {}", msg, input.Substr(context_len));
   return false;
 }
 
@@ -163,9 +163,9 @@ SecondPass::SecondPass(const StringSlice &s, FirstPass &first_pass)
       arena(first_pass.total_bytes),
       second_pass_stack(50) {}
 
-ExprBase *SecondPass::ReportError(const char *msg) {
+ExprBase *SecondPass::ReportError(const StringSlice &msg) {
   auto context_len = input.Size() > 50 ? 50 : input.Size();
-  pdp_error("{} at {}", msg, StringSlice(input.Begin(), context_len));
+  pdp_error("{} at {}", msg, input.Substr(context_len));
   return nullptr;
 }
 
@@ -365,6 +365,7 @@ ExprBase *SecondPass::Parse() {
         if (second_pass_stack.Top().string_table_ptr) {
           pdp_assert(second_pass_stack.Top().string_table_ptr <=
                      second_pass_stack.Top().record_end);
+          [[maybe_unused]]
           ExprTuple *tuple = static_cast<ExprTuple *>(second_pass_stack.Top().expr);
           pdp_assert(second_pass_stack.Top().tuple_members - tuple->results == tuple->size);
           pdp_assert(second_pass_stack.Top().hash_table_ptr - tuple->hashes == tuple->size);

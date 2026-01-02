@@ -79,6 +79,17 @@ TEST_CASE("MemReverseChar") {
   CHECK(s.MemReverseChar('z') == nullptr);
 }
 
+TEST_CASE("MemChar") {
+  StringSlice s("abcac");
+
+  const char *p = s.MemChar('c');
+  CHECK(p != nullptr);
+  CHECK(*p == 'c');
+  CHECK(p == s.Begin() + 2);
+
+  CHECK(s.MemChar('z') == nullptr);
+}
+
 TEST_CASE("Substr(pos)") {
   StringSlice s("abcdef");
 

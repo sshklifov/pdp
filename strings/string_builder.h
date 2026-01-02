@@ -1,148 +1,326 @@
 #pragma once
 
-#include "data/vector.h"
+#include "core/internals.h"
+#include "data/allocator.h"
 #include "string_slice.h"
+
+#include <cstdint>
+#include <limits>
 
 namespace pdp {
 
+template <typename T>
+constexpr bool IsCStringV =
+    std::is_pointer_v<std::decay_t<T>> &&
+    std::is_same_v<std::remove_cv_t<std::remove_pointer_t<std::decay_t<T>>>, char>;
+
+// Compile time size estimator (inexact).
+
 struct EstimateSize {
-  constexpr size_t operator()(const StringSlice &s) { return s.Size(); }
+  constexpr size_t operator()(const StringSlice &s) const { return s.Size(); }
 
-  constexpr size_t operator()(char c) { return 1; }
+  constexpr size_t operator()(bool b) const { return 5; }
 
-  constexpr size_t operator()(void *p) {
+  constexpr size_t operator()(char c) const { return 1; }
+
+  template <typename T, std::enable_if_t<!IsCStringV<T>, int> = 0>
+  constexpr size_t operator()(const T *p) const {
     // Max hex digits for 64-bit + "0x" prefix
-    return sizeof(void *) * 2;
+    return sizeof(void *) * 2 + 2;
   }
 
   template <typename T>
-  constexpr std::enable_if_t<std::is_integral_v<T>, size_t> operator()(T) {
+  constexpr std::enable_if_t<std::is_unsigned_v<T>, size_t> operator()(T) const {
+    return std::numeric_limits<T>::digits10 + 1;
+  }
+
+  template <typename T>
+  constexpr std::enable_if_t<std::is_signed_v<T>, size_t> operator()(T) const {
     // Max decimal digits + sign
     return std::numeric_limits<T>::digits10 + 2;
   }
 };
 
-template <typename Alloc = DefaultAllocator>
-struct StringBuilder : public Vector<char, Alloc> {
-  StringBuilder() = default;
+// Run time size estimator (exact).
 
-  StringBuilder(size_t cap) : Vector<char, Alloc>(cap) {}
+inline uint32_t CountDigits10(uint64_t n) {
+  static constexpr uint8_t table[] = {
+      1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4,  4,  5,  5,  5,  6,  6,  6,  7,  7,  7,
+      7,  8,  8,  8,  9,  9,  9,  10, 10, 10, 10, 11, 11, 11, 12, 12, 12, 13, 13, 13, 13, 14,
+      14, 14, 15, 15, 15, 16, 16, 16, 16, 17, 17, 17, 18, 18, 18, 19, 19, 19, 19, 20};
+  // Compute bits-1 of n and use that to index into the table.
+  uint8_t inc = table[PDP_CLZLL(n | 1) ^ 63];
 
-  size_t Length() const { return this->Size(); }
+#define POWERS_OF_10(factor)                                                         \
+  factor * 10, (factor) * 100, (factor) * 1000, (factor) * 10000, (factor) * 100000, \
+      (factor) * 1000000, (factor) * 10000000, (factor) * 100000000, (factor) * 1000000000
+  static constexpr const uint64_t powers_of_10[] = {
+      0, 0, POWERS_OF_10(1U), POWERS_OF_10(1000000000ULL), 10000000000000000000ULL};
+#undef POWERS_OF_10
 
-  StringSlice Substr(size_t pos) const {
-    pdp_assert(pos < this->Size());
-    return StringSlice(this->ptr + pos, this->Size() - pos);
+  // Fixes the log2 -> log10 off-by-one
+  return inc - (n < powers_of_10[inc]);
+}
+
+inline uint32_t CountDigits16(uint64_t n) {
+  uint32_t bits = PDP_CLZLL(n | 1) ^ 63;
+  return (bits >> 2) + 1;
+}
+
+// Type erase classes
+
+union PackedValue {
+  PackedValue() = default;
+  constexpr PackedValue(bool x) : _bool(x) {}
+  constexpr PackedValue(char x) : _char(x) {}
+  constexpr PackedValue(int32_t x) : _int32(x) {}
+  constexpr PackedValue(uint32_t x) : _uint32(x) {}
+  constexpr PackedValue(int64_t x) : _int64(x) {}
+  constexpr PackedValue(uint64_t x) : _uint64(x) {}
+  constexpr PackedValue(void *x) : _ptr(x) {}
+
+  bool _bool;
+  char _char;
+  int32_t _int32;
+  uint32_t _uint32;
+  int64_t _int64;
+  uint64_t _uint64;
+  const void *_ptr;
+  const char *_str;
+};
+
+enum PackedValueType { kUnspecified, kBool, kChar, kInt32, kUint32, kInt64, kUint64, kPtr, kStr };
+
+template <typename T>
+constexpr uint64_t PackOneType() {
+  if constexpr (std::is_same_v<T, bool>) {
+    return kBool;
+  } else if constexpr (std::is_same_v<T, char>) {
+    return kChar;
+  } else if constexpr (std::is_same_v<T, int32_t>) {
+    return kInt32;
+  } else if constexpr (std::is_same_v<T, uint32_t>) {
+    return kUint32;
+  } else if constexpr (std::is_same_v<T, int64_t>) {
+    return kInt64;
+  } else if constexpr (std::is_same_v<T, uint64_t>) {
+    return kUint64;
+  } else if constexpr (std::is_same_v<T, StringSlice>) {
+    return kStr;
+  } else if constexpr (std::is_pointer_v<T>) {
+    return kPtr;
+  } else {
+    static_assert(false, "Unsupported type!");
   }
+}
 
-  StringSlice Substr(size_t pos, size_t n) const {
-    pdp_assert(pos < this->Size() && pos + n <= this->size);
-    return StringSlice(this->ptr + pos, n);
+template <typename... Args>
+constexpr uint64_t PackTypeBits() {
+  uint64_t bits = 0;
+  uint64_t shift = 0;
+
+  ((bits |= (PackOneType<Args>() << shift), shift += 4), ...);
+  return bits;
+}
+
+template <typename T>
+constexpr uint64_t PackOneSlots() {
+  if constexpr (sizeof(T) <= sizeof(uint64_t)) {
+    return 1;
+  } else if constexpr (std::is_same_v<T, StringSlice>) {
+    return 2;
+  } else {
+    static_assert(false, "Unsupported type!");
   }
+}
 
-  StringSlice Substr(const char *it) const {
-    pdp_assert(it >= this->ptr && it <= this->End());
-    return StringSlice(it, this->End());
-  }
+template <typename... T>
+constexpr size_t PackSlots() {
+  return (0 + ... + PackOneSlots<T>());
+}
 
-  StringSlice GetSlice() const { return StringSlice(this->ptr, this->Size()); }
+template <typename... Args>
+struct PackedArgs {
+  static_assert(sizeof...(Args) <= 16, "Too many arguments passed!");
 
-  bool operator==(const StringSlice &other) const {
-    if (this->Size() != other.Size()) {
-      return false;
-    }
-    return memcmp(this->Begin(), other.Begin(), this->Size()) == 0;
-  }
-
-  bool operator!=(const StringSlice &other) const { return !(*this == other); }
-
-  template <typename T>
-  void Append(T value) {
-    EstimateSize estimator;
-    this->ReserveFor(estimator(value));
-    AppendUnchecked(value);
-  }
-
-  // Similar to printf but supports only %s and %d.
-  template <typename... Args>
-  void Appendf(const StringSlice &fmt, Args... args) {
-    size_t req_size = fmt.Size();
+  constexpr PackedArgs(Args... args) : type_bits(PackTypeBits<Args...>()) {
     [[maybe_unused]]
-    EstimateSize estimator;
-    ((req_size += estimator(args)), ...);
-    this->ReserveFor(req_size);
-    AppendfUnchecked(fmt, std::forward<Args>(args)...);
+    size_t i = 0;
+    ((i += ConstructLoop(i, args)), ...);
   }
 
-  template <typename Arg, typename... Args>
-  void AppendfUnchecked(StringSlice fmt, Arg arg, Args... rest) {
-#ifdef PDP_ENABLE_ASSERT
-    StringSlice original_fmt = fmt;
-#endif
+  static constexpr size_t Slots = PackSlots<Args...>();
 
-    auto it = fmt.Find('{');
-    AppendUnchecked(StringSlice(fmt.Begin(), it));
-    fmt.DropLeft(it);
+  uint64_t type_bits;
+  PackedValue slots[Slots];
 
-    const bool more_fmt_data = !fmt.Empty();
-    if (PDP_LIKELY(more_fmt_data)) {
-      fmt.DropLeft(1);
-      if (fmt.StartsWith('}')) {
-        AppendUnchecked(arg);
-        fmt.DropLeft(1);
-        return AppendfUnchecked(fmt, std::forward<Args>(rest)...);
-      } else {
-        AppendUnchecked('{');
-        return AppendfUnchecked(fmt, arg, std::forward<Args>(rest)...);
-      }
+ private:
+  template <typename T>
+  constexpr uint64_t ConstructLoop(size_t i, T value) {
+    static_assert(!IsCStringV<T>, "Convert to StringSlice!");
+
+    if constexpr (sizeof(T) <= sizeof(uint64_t)) {
+      static_assert(PackOneSlots<T>() == 1);
+      slots[i] = PackedValue(value);
+      return 1;
+    } else if constexpr (std::is_same_v<T, StringSlice>) {
+      static_assert(PackOneSlots<T>() == 2);
+      slots[i]._str = value.Begin();
+      slots[i + 1]._uint64 = value.Size();
+      return 2;
     } else {
-#ifdef PDP_ENABLE_ASSERT
-      OnAssertFailed("Extra arguments for format", original_fmt.Begin(), original_fmt.Size());
+      static_assert(false, "Unsupported type!");
+    }
+  }
+};
+
+template <typename... Args>
+constexpr auto MakePackedArgs(Args &&...args) {
+  using ResultType = PackedArgs<std::decay_t<Args>...>;
+  return ResultType(std::forward<Args>(args)...);
+}
+
+inline size_t RunEstimator(PackedValue *args, uint64_t type_bits) {
+  size_t bytes = 0;
+  size_t i = 0;
+  while (type_bits > 0) {
+    EstimateSize estimator;
+    switch (type_bits & 0xF) {
+      case kBool:
+        bytes += estimator(args[i]._bool);
+        break;
+      case kChar:
+        bytes += estimator(args[i]._char);
+        break;
+      case kInt32:
+        bytes += estimator(args[i]._int32);
+        break;
+      case kUint32:
+        bytes += estimator(args[i]._uint32);
+        break;
+      case kInt64:
+        bytes += estimator(args[i]._int64);
+        break;
+      case kUint64:
+        bytes += estimator(args[i]._uint64);
+        break;
+      case kPtr:
+        bytes += estimator(args[i]._ptr);
+        break;
+      case kStr:
+        ++i;
+        bytes += args[i]._uint64;
+        break;
+      default:
+        pdp_assert(false);
+    }
+    type_bits >>= 4;
+    ++i;
+  }
+  return bytes;
+}
+
+// TODO comment
+
+template <typename Alloc = DefaultAllocator>
+struct StringBuilder {
+  StringBuilder() : begin(buffer), end(buffer), limit(buffer + sizeof(buffer)) {
+#ifdef PDP_ENABLE_ZERO_INITIALIZE
+    memset(buffer, 0, sizeof(buffer));
 #endif
+  }
+
+  ~StringBuilder() {
+    if (PDP_UNLIKELY(begin != buffer)) {
+      Deallocate<char>(allocator, begin);
     }
   }
 
-  void AppendfUnchecked(const StringSlice &fmt) {
-#ifdef PDP_ENABLE_ASSERT
-    StringSlice copy = fmt;
-    auto it = copy.Find('{');
-    while (it < copy.End()) {
-      copy.DropLeft(it + 1);
-      if (copy.StartsWith('}')) {
-        OnAssertFailed("Extra {} in format string", fmt.Begin(), fmt.Size());
-      }
-      it = fmt.Find('{');
-    }
-#endif
+  char *Begin() { return begin; }
+  const char *Begin() const { return begin; }
 
-    const bool more_work = !fmt.Empty();
-    if (more_work) {
-      Append(fmt);
+  const char *Data() const { return begin; }
+
+  char *End() { return end; }
+  const char *End() const { return end; }
+
+  bool Empty() const { return begin == end; }
+  size_t Length() const { return end - begin; }
+  size_t Size() const { return Length(); }
+  size_t Capacity() const { return limit - begin; }
+
+  void Clear() { end = begin; }
+
+  StringSlice GetSlice() const { return StringSlice(begin, end); }
+
+  // Append methods.
+
+  void AppendUnchecked(bool b) {
+    if (b) {
+      AppendUnchecked("true");
+    } else {
+      AppendUnchecked("false");
     }
   }
 
   void AppendUnchecked(char c) {
-    pdp_assert(this->size + 1 <= this->capacity);
-    this->ptr[this->size++] = c;
+    pdp_assert(end < limit);
+    *end = c;
+    ++end;
   }
 
   void AppendUnchecked(const StringSlice &s) {
-    pdp_assert(this->size + s.Size() <= this->capacity);
-    memcpy(this->End(), s.Begin(), s.Size());
-    this->size += s.Size();
+    pdp_assert(limit - end >= (int64_t)s.Size());
+    memcpy(end, s.Begin(), s.Size());
+    end += s.Size();
   }
 
-  void AppendUnchecked(void *p) {
-    AppendUnchecked('0');
-    AppendUnchecked('x');
-    AppendUnchecked(reinterpret_cast<size_t>(p));
+  template <typename U, std::enable_if_t<std::is_unsigned_v<U>, int> = 0>
+  void AppendUnchecked(U unsigned_value) {
+    const uint64_t digits = CountDigits10(unsigned_value);
+    pdp_assert(limit - end >= (int64_t)digits);
+
+    char *__restrict__ store = end + digits - 1;
+    do {
+      pdp_assert(store >= end);
+      *store = '0' + (unsigned_value % 10);
+      --store;
+      unsigned_value /= 10;
+    } while (unsigned_value != 0);
+
+    pdp_assert(store == end - 1);
+    end += digits;
   }
 
-  template <typename T, std::enable_if_t<std::is_signed_v<T> && !std::is_same_v<T, char>, int> = 0>
+  void AppendUnchecked(const void *ptr) {
+    size_t unsigned_value = reinterpret_cast<uint64_t>(ptr);
+    const uint64_t digits = CountDigits16(unsigned_value);
+    pdp_assert(limit - end >= (int64_t)digits + 2);
+
+    const char *lookup = "0123456789abcdef";
+
+    char *__restrict__ store = end + digits + 1;
+    do {
+      pdp_assert(store >= end);
+      *store = lookup[unsigned_value & 0xf];
+      --store;
+      unsigned_value >>= 4;
+    } while (unsigned_value != 0);
+
+    *store = 'x';
+    --store;
+    *store = '0';
+    pdp_assert(store == end);
+    end = end + digits + 2;
+  }
+
+  template <typename T, std::enable_if_t<std::is_signed_v<T>, int> = 0>
   void AppendUnchecked(T signed_value) {
     using U = std::make_unsigned_t<T>;
     if (signed_value < 0) {
-      AppendUnchecked('-');
+      pdp_assert(end < limit);
+      *end = '-';
+      ++end;
       size_t magnitude = ~static_cast<U>(signed_value) + 1;
       AppendUnchecked(magnitude);
     } else {
@@ -151,27 +329,146 @@ struct StringBuilder : public Vector<char, Alloc> {
     }
   }
 
-  template <typename U,
-            std::enable_if_t<std::is_unsigned_v<U> && !std::is_same_v<U, char>, int> = 0>
-  void AppendUnchecked(U unsigned_value) {
-    char *write_head = this->End();
-    do {
-      pdp_assert(write_head < this->ptr + this->capacity);
-      *write_head = '0' + (unsigned_value % 10);
-      ++write_head;
-      unsigned_value /= 10;
-    } while (unsigned_value != 0);
+  // Safe Append version.
 
-    char *left = this->End();
-    char *right = write_head - 1;
-    this->size += write_head - left;
+  template <typename T, std::enable_if_t<std::is_integral_v<T>, int> = 0>
+  void Append(T integral) {
+    EstimateSize estimator;
+    ReserveFor(estimator(integral));
+    AppendUnchecked(integral);
+  }
 
-    while (left < right) {
-      std::swap(*left, *right);
-      ++left;
-      --right;
+  template <typename T, std::enable_if_t<!IsCStringV<T *>, int> = 0>
+  void Append(const T *ptr) {
+    EstimateSize estimator;
+    ReserveFor(estimator(ptr));
+    AppendUnchecked((const void *)ptr);
+  }
+
+  void Append(const StringSlice &str) {
+    ReserveFor(str.Size());
+    AppendUnchecked(str);
+  }
+
+  // Append variadic arguments.
+
+  template <typename... Args>
+  void AppendFormat(const StringSlice &fmt, Args &&...args) {
+    auto packed_args = MakePackedArgs(std::forward<Args>(args)...);
+    AppendPack(fmt, packed_args.slots, packed_args.type_bits);
+  }
+
+  void AppendPack(const StringSlice &fmt, PackedValue *slots, uint64_t type_bits) {
+    ReserveFor(fmt.Size() + RunEstimator(slots, type_bits));
+    AppendPackUnchecked(fmt, slots, type_bits);
+  }
+
+  void AppendPackUnchecked(StringSlice fmt, PackedValue *args, uint64_t type_bits) {
+#ifdef PDP_ENABLE_ASSERT
+    StringSlice original_fmt = fmt;
+#endif
+    while (type_bits > 0) {
+      const char *it = fmt.MemChar('{');
+      if (PDP_UNLIKELY(!it)) {
+#ifdef PDP_ENABLE_ASSERT
+        OnAssertFailed("Extra arguments for format", original_fmt.Begin(), original_fmt.Size());
+#endif
+        return;
+      }
+      StringSlice unformatted(fmt.Begin(), it);
+      AppendUnchecked(unformatted);
+      fmt.DropLeft(unformatted.Size() + 1);
+
+      if (PDP_LIKELY(fmt.StartsWith('}'))) {
+        const size_t num_slots_used = AppendPackedValueUnchecked(args, type_bits);
+        args += num_slots_used;
+        type_bits >>= 4;
+        fmt.DropLeft(1);
+      } else {
+        AppendUnchecked('{');
+      }
+    }
+#ifdef PDP_ENABLE_ASSERT
+    if (memmem(fmt.Begin(), fmt.Size(), "{}", 2)) {
+      OnAssertFailed("Insufficient arguments for format", original_fmt.Begin(),
+                     original_fmt.Size());
+    }
+#endif
+    AppendUnchecked(fmt);
+  }
+
+  void ReserveFor(size_t new_elems) {
+    pdp_assert(max_capacity - new_elems >= Size());
+    const char *__restrict__ new_limit = end + new_elems;
+    if (PDP_UNLIKELY(new_limit > limit)) {
+      GrowExtra(new_limit - limit);
     }
   }
+
+ private:
+  size_t AppendPackedValueUnchecked(PackedValue *arg, uint64_t type_bits) {
+    switch (type_bits & 0xF) {
+      case kChar:
+        AppendUnchecked(arg->_char);
+        return PackOneSlots<decltype(arg->_char)>();
+      case kBool:
+        AppendUnchecked(arg->_bool);
+        return PackOneSlots<decltype(arg->_bool)>();
+      case kInt32:
+        AppendUnchecked(arg->_int32);
+        return PackOneSlots<decltype(arg->_int32)>();
+      case kUint32:
+        AppendUnchecked(arg->_uint32);
+        return PackOneSlots<decltype(arg->_uint32)>();
+      case kInt64:
+        AppendUnchecked(arg->_int64);
+        return PackOneSlots<decltype(arg->_int64)>();
+      case kUint64:
+        AppendUnchecked(arg->_uint64);
+        return PackOneSlots<decltype(arg->_uint64)>();
+      case kPtr:
+        AppendUnchecked(arg->_ptr);
+        return PackOneSlots<decltype(arg->_ptr)>();
+      case kStr:
+        AppendUnchecked(StringSlice(arg[0]._str, arg[1]._uint64));
+        return PackOneSlots<StringSlice>();
+      default:
+        pdp_assert(false);
+        return 0;
+    }
+  }
+
+  void GrowExtra(const size_t extra_limit) {
+    size_t size = Size();
+    size_t capacity = Capacity();
+
+    const size_t half_capacity = capacity / 2;
+    const size_t grow_capacity = half_capacity > extra_limit ? half_capacity : extra_limit;
+
+    [[maybe_unused]]
+    const bool ok_limit = max_capacity - grow_capacity >= capacity;
+    pdp_assert(ok_limit);
+    capacity += grow_capacity;
+
+    if (PDP_LIKELY(begin != buffer)) {
+      begin = Reallocate<char>(allocator, begin, capacity);
+    } else {
+      begin = Allocate<char>(allocator, capacity);
+      memcpy(begin, buffer, sizeof(buffer));
+    }
+    end = begin + size;
+    limit = begin + capacity;
+    pdp_assert(begin);
+  }
+
+  static constexpr const size_t max_capacity = 1 << 30;
+
+  char buffer[256];
+  char *__restrict__ begin;
+  char *__restrict__ end;
+  const char *__restrict__ limit;
+
+  Alloc allocator;
 };
 
 };  // namespace pdp

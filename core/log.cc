@@ -3,6 +3,7 @@
 
 #include <unistd.h>
 #include <cstring>
+#include <ctime>
 
 /// @brief Holds the active log level for console messages
 /// @note Each process will get a different copy of this variable.
@@ -10,30 +11,53 @@ static std::atomic_int console_level = static_cast<int>(pdp::Level::kInfo);
 
 namespace pdp {
 
-static void Pad2Unchecked(unsigned char value, StringBuilder<OneShotAllocator> &out) {
+/// @brief Returns an ANSI-colored string literal for the given log level.
+static constexpr StringSlice LogLevelToString(Level level) {
+  switch (level) {
+    case Level::kTrace:
+      return "\e[37mtrace\e[0m";
+    case Level::kInfo:
+      return "\e[32minfo\e[0m";
+    case Level::kWarn:
+      return "\e[33m\e[1mwarning\e[0m";
+    case Level::kError:
+      return "\e[31m\e[1merror\e[0m";
+    case Level::kCrit:
+      return "\e[1m\e[41mcritical\e[0m";
+    default:
+      pdp_assert(false);
+      return "???";
+  }
+}
+
+static constexpr size_t EstimateLogLevelSize() {
+  constexpr Level levels[] = {Level::kTrace, Level::kInfo, Level::kWarn, Level::kError,
+                              Level::kCrit};
+  size_t max = 0;
+  for (auto level : levels) {
+    size_t curr = LogLevelToString(level).Size();
+    if (curr > max) {
+      max = curr;
+    }
+  }
+  return max;
+}
+
+static void Pad2Unchecked(unsigned char value, StringBuilder<> &out) {
   pdp_assert(value <= 99);
   out.AppendUnchecked(static_cast<char>('0' + value / 10));
   out.AppendUnchecked(static_cast<char>('0' + value % 10));
 }
 
-static void Pad3Unchecked(unsigned value, StringBuilder<OneShotAllocator> &out) {
+static void Pad3Unchecked(unsigned value, StringBuilder<> &out) {
   pdp_assert(value <= 999);
   auto dig3 = value / 100;
   out.AppendUnchecked(static_cast<char>('0' + dig3));
   Pad2Unchecked(value - dig3 * 100, out);
 }
 
-/// @brief Changes the log level process wide of console messages
-void SetConsoleLogLevel(Level level) {
-  // XXX: Trace level logging is controlled only via macros!
-  pdp_assert(level != Level::kTrace);
-  console_level.store(static_cast<int>(level));
-}
-
-namespace impl {
-
-void WriteLogHeader(const char *filename, unsigned line, Level level,
-                    StringBuilder<OneShotAllocator> &out) {
+static void WriteLogHeader(const StringSlice &filename, unsigned line, Level level,
+                           StringBuilder<> &out) {
   // Capture current wall-clock time with nanosecond precision.
   timespec ts;
   memset(&ts, 0, sizeof(timespec));
@@ -83,7 +107,7 @@ void WriteLogHeader(const char *filename, unsigned line, Level level,
   out.AppendUnchecked(' ');
 }
 
-void FlushMessage(const StringBuilder<OneShotAllocator> &msg) {
+static void FlushMessage(const StringBuilder<> &msg) {
   // Safeguard against blasting the terminal with output.
   const ssize_t max_length = 65535;
 
@@ -101,26 +125,34 @@ void FlushMessage(const StringBuilder<OneShotAllocator> &msg) {
   } while (PDP_UNLIKELY(remaining));
 }
 
-bool ShouldLogAt(Level level) {
+static bool ShouldLogAt(Level level) {
   return console_level.load(std::memory_order_relaxed) <= static_cast<int>(level);
 }
 
-bool ShouldLogAtTime(Level level, std::atomic_int64_t *last_print,
-                     std::chrono::milliseconds threshold) {
-  if (!ShouldLogAt(level)) {
-    return false;
+void Log(const char *f, unsigned line, Level level, const StringSlice &fmt, PackedValue *args,
+         uint64_t type_bits) {
+  if (PDP_UNLIKELY(!ShouldLogAt(level))) {
+    return;
   }
+  StringSlice filename(f);
+  StringBuilder builder;
 
-  auto then = last_print->load(std::memory_order_relaxed);
-  auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
-                 std::chrono::steady_clock::now().time_since_epoch())
-                 .count();
-  if (now - then < threshold.count()) {
-    return false;
-  }
-  return last_print->compare_exchange_strong(then, now, std::memory_order_relaxed);
+  constexpr EstimateSize estimator;
+  constexpr size_t est = estimator("[2026-01-02 11:42:27.380] [] [:] \n") + EstimateLogLevelSize();
+  size_t capacity = est + estimator(line) + estimator(filename) + RunEstimator(args, type_bits);
+  builder.ReserveFor(capacity);
+
+  WriteLogHeader(filename, line, level, builder);
+  builder.AppendPackUnchecked(fmt, args, type_bits);
+  builder.AppendUnchecked('\n');
+  FlushMessage(builder);
 }
 
-}  // namespace impl
+/// @brief Changes the log level process wide of console messages
+void SetConsoleLogLevel(Level level) {
+  // XXX: Trace level logging is controlled only via macros!
+  pdp_assert(level != Level::kTrace);
+  console_level.store(static_cast<int>(level));
+}
 
 }  // namespace pdp

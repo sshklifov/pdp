@@ -27,7 +27,7 @@ struct FirstPass {
   bool Parse();
 
  private:
-  bool ReportError(const char *msg);
+  bool ReportError(const StringSlice &msg);
   void PushSizeOnStack(uint32_t num_elements);
   void AccumulateBytes();
 
@@ -143,7 +143,7 @@ struct SecondPass {
   ExprBase *Parse();
 
  private:
-  ExprBase *ReportError(const char *msg);
+  ExprBase *ReportError(const StringSlice &msg);
   ExprBase *CreateListOrTuple();
 
   ExprBase *ParseResult();

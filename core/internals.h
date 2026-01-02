@@ -4,3 +4,8 @@
 
 #define PDP_LIKELY(x) __builtin_expect(static_cast<bool>(x), true)
 #define PDP_UNLIKELY(x) __builtin_expect(static_cast<bool>(x), false)
+
+#define PDP_CLZ(x) __builtin_clz(x)
+#define PDP_CLZLL(x) __builtin_clzll(x)
+
+#define PDP_UNREACHABLE() pdp::OnAssertFailed(__FILE__, __LINE__, "Unreachable code reached")

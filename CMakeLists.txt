@@ -13,7 +13,7 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wall -O0 -ggdb")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -g1 -fno-omit-frame-pointer -O3 -Wall")
 
 # Build unit tests
-option(BUILD_TESTS "Build unit tests" ON)
+set(BUILD_TESTS ON)
 
 set(_FEATURES
   # Use tracing allocator and emit allocation statistics"
@@ -30,7 +30,11 @@ set(_FEATURES
   ENABLE_EXTERNAL_CODE
   # Trace RollingBuffer reallocation statistics 
   TRACE_ROLLING_BUFFER
+  # Zero initialize values for better debugging
+  ENABLE_ZERO_INITIALIZE
 )
+
+# TODO sanitizer and clang-tidy
 
 # TODO Feature: ENABLE_BACKTRACE
 
@@ -41,10 +45,10 @@ set(_DEBUG_ENABLED_FEATURES
   ENABLE_ASSERT
   TRACE_MESSAGES
   ENABLE_EXTERNAL_CODE
+  ENABLE_ZERO_INITIALIZE
 )
 
 set(_RELEASE_ENABLED_FEATURES
-  ENABLE_ASSERT
 )
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")

@@ -7,7 +7,7 @@
 #include "core/log.h"
 #include "tracing/trace_likely.h"
 
-static void RunChildAndTerminate(const char *name, void (*callback)()) {
+static void RunChildAndTerminate(pdp::StringSlice name, void (*callback)()) {
   pid_t pid = fork();
   if (pid == 0) {
     // Child
@@ -49,7 +49,8 @@ int main() {
   pdp_info("=== Core library test ===");
 
   pdp_info("Testing logging");
-  for (auto level : {pdp::Level::kInfo, pdp::Level::kWarn, pdp::Level::kError}) {
+  const pdp::Level levels[] = {pdp::Level::kInfo, pdp::Level::kWarn, pdp::Level::kError};
+  for (auto level : levels) {
     pdp_critical("Changing log level");
     pdp::SetConsoleLogLevel(level);
     pdp_info("info message");

@@ -48,6 +48,18 @@ struct StringSlice {
     }
   }
 
+  constexpr const char *MemChar(char c) const {
+    if (PDP_CONSTEXPR_EVALUATED()) {
+      const char *it = Begin();
+      while (it <= End() && *it != c) {
+        ++it;
+      }
+      return it < End() ? it : nullptr;
+    } else {
+      return (const char *)memchr(Begin(), c, Size());
+    }
+  }
+
   constexpr const char *MemReverseChar(char c) const {
     if (PDP_CONSTEXPR_EVALUATED()) {
       const char *it = End() - 1;

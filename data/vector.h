@@ -136,9 +136,9 @@ struct Vector {
   }
 
  protected:
-  void GrowExtra(const size_t req_capacity) {
+  void GrowExtra(const size_t extra_cap) {
     size_t half_capacity = capacity / 2;
-    size_t grow_capacity = half_capacity > req_capacity ? half_capacity : req_capacity;
+    size_t grow_capacity = half_capacity > extra_cap ? half_capacity : extra_cap;
 
     [[maybe_unused]]
     const bool within_limits = max_capacity - grow_capacity >= capacity;

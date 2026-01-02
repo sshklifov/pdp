@@ -7,21 +7,23 @@ using pdp::EstimateSize;
 using pdp::StringBuilder;
 using pdp::StringSlice;
 
-static StringSlice SS(const char *s) { return StringSlice(s); }
-
-#if 0
 TEST_CASE("EstimateSize overloads") {
   EstimateSize est;
 
   SUBCASE("StringSlice") {
     StringSlice s("hello");
-    CHECK(est(s) == 5);
-    CHECK(est(StringSlice("what the hell", 2)) == 2);
+    CHECK(est(s) >= 5);
+    CHECK(est(StringSlice("what the hell", 2)) >= 2);
   }
 
   SUBCASE("char") {
-    CHECK(est('a') == 1);
-    CHECK(est('\0') == 1);
+    CHECK(est('a') >= 1);
+    CHECK(est('\0') >= 1);
+  }
+
+  SUBCASE("bool") {
+    CHECK(est(false) >= strlen("false"));
+    CHECK(est(true) >= strlen("true"));
   }
 
   SUBCASE("void*") {
@@ -30,14 +32,43 @@ TEST_CASE("EstimateSize overloads") {
     CHECK(n >= 6);
   }
 
+  SUBCASE("void*") {
+    uint64_t bits = std::numeric_limits<uint64_t>::max();
+    void *p = reinterpret_cast<void *>(bits);
+    const size_t n = est(p);
+    CHECK(n >= pdp::CountDigits16(bits));
+  }
+
   SUBCASE("integral estimate") {
-    CHECK(est(int32_t{0}) == std::numeric_limits<int32_t>::digits10 + 2);
-    CHECK(est(int32_t{-1}) == std::numeric_limits<int32_t>::digits10 + 2);
-    CHECK(est(uint32_t{0}) == std::numeric_limits<uint32_t>::digits10 + 2);
-    CHECK(est(uint64_t{123}) == std::numeric_limits<uint64_t>::digits10 + 2);
+    CHECK(est(std::numeric_limits<int>::max()) >= 10);
+    CHECK(est(std::numeric_limits<int>::min()) >= 11);
+    CHECK(est(std::numeric_limits<unsigned>::max()) >= 10);
+    CHECK(est(0) >= 1);
   }
 }
-#endif
+
+TEST_CASE("CountDigits10 basic values") {
+  CHECK(pdp::CountDigits10(0) == 1);
+  CHECK(pdp::CountDigits10(1) == 1);
+  CHECK(pdp::CountDigits10(9) == 1);
+  CHECK(pdp::CountDigits10(10) == 2);
+  CHECK(pdp::CountDigits10(99) == 2);
+  CHECK(pdp::CountDigits10(100) == 3);
+  CHECK(pdp::CountDigits10(12345) == 5);
+}
+
+TEST_CASE("CountDigits10 matches reference for wide range") {
+  for (uint64_t n = 0; n < 1'000'000; ++n) {
+    auto run = pdp::CountDigits10(n);
+    uint32_t ref = 0;
+    uint32_t m = n;
+    do {
+      ref++;
+      m /= 10;
+    } while (m > 0);
+    CHECK(run == ref);
+  }
+}
 
 TEST_CASE("StringBuilder basic construction and Length") {
   SUBCASE("Default ctor") {
@@ -45,68 +76,50 @@ TEST_CASE("StringBuilder basic construction and Length") {
     CHECK(b.Length() == 0);
     CHECK(b.Size() == 0);
   }
+}
 
-  SUBCASE("Capacity ctor") {
-    StringBuilder<> b(64);
-    CHECK(b.Length() == 0);
-    CHECK(b.Size() == 0);
-    CHECK(b.Capacity() >= 64);
+TEST_CASE("CountDigits16 basic values") {
+  CHECK(pdp::CountDigits16(0x0) == 1);
+  CHECK(pdp::CountDigits16(0x1) == 1);
+  CHECK(pdp::CountDigits16(0xF) == 1);
+  CHECK(pdp::CountDigits16(0x10) == 2);
+  CHECK(pdp::CountDigits16(0xFF) == 2);
+  CHECK(pdp::CountDigits16(0x100) == 3);
+  CHECK(pdp::CountDigits16(0x12345) == 5);
+}
+
+TEST_CASE("CountDigits16 matches reference for wide range") {
+  for (uint64_t n = 0; n < 1'000'000; ++n) {
+    auto run = pdp::CountDigits16(n);
+    uint32_t ref = 0;
+    uint64_t m = n;
+    do {
+      ref++;
+      m /= 16;
+    } while (m > 0);
+
+    CHECK(run == ref);
   }
 }
 
-TEST_CASE("StringBuilder GetSlice and equality operators") {
-  StringBuilder<> b(64);
-  b.Append(SS("hello"));
+TEST_CASE("StringBuilder GetSlice") {
+  StringBuilder<> b;
+  b.Append(StringSlice("hello"));
   CHECK(b.Length() == 5);
 
   StringSlice s = b.GetSlice();
   CHECK(s == StringSlice("hello"));
 
-  CHECK(b == StringSlice("hello"));
-  CHECK_FALSE(b == StringSlice("hell"));
-  CHECK_FALSE(b == StringSlice("hello!"));
-
-  CHECK(b != StringSlice("hell"));
-  CHECK_FALSE(b != StringSlice("hello"));
+  b.Append(' ');
+  b.Append(5);
+  CHECK(b.GetSlice() == StringSlice("hello 5"));
 }
 
-TEST_CASE("StringBuilder Substr overloads") {
-  StringBuilder<> b(64);
-  b.Append(SS("abcdef"));
-
-  SUBCASE("Substr(pos)") {
-    auto s = b.Substr(1);
-    CHECK(s == StringSlice("bcdef"));
-
-    auto t = b.Substr(2);
-    CHECK(t.Size() == 4);
-    CHECK(t[0] == 'c');
-    CHECK(t == StringSlice("cdef"));
-  }
-
-  SUBCASE("Substr(pos, n)") {
-    auto s = b.Substr(2, 3);
-    CHECK(s.Size() == 3);
-    CHECK(s[0] == 'c');
-    CHECK(s[2] == 'e');
-    CHECK(s == StringSlice("cde"));
-
-    auto z = b.Substr(0, 0);
-    CHECK(z.Size() == 0);
-    CHECK(z.Empty());
-  }
-
-  SUBCASE("Substr(it)") {
-    const char *it = b.Begin() + 3;
-    auto s = b.Substr(it);
-    CHECK(s.Size() == 3);
-    CHECK(s == StringSlice("def"));
-    CHECK(b.Substr(b.Begin() + 2) == b.Substr(2));
-  }
-}
 TEST_CASE("AppendUnchecked(char) and Append(char) produce same output") {
-  StringBuilder<> a(64);
-  StringBuilder<> b(64);
+  StringBuilder<> a;
+  StringBuilder<> b;
+  a.ReserveFor(1);
+  b.ReserveFor(1);
 
   a.AppendUnchecked('x');
   a.AppendUnchecked('y');
@@ -115,174 +128,197 @@ TEST_CASE("AppendUnchecked(char) and Append(char) produce same output") {
   b.Append('y');
 
   CHECK(a.GetSlice() == b.GetSlice());
-  CHECK(a == StringSlice("xy"));
+  CHECK(a.GetSlice() == StringSlice("xy"));
+  CHECK(b.GetSlice() == StringSlice("xy"));
 }
 
 TEST_CASE("AppendUnchecked(StringSlice) and Append(StringSlice)") {
-  StringBuilder<> a(64);
-  StringBuilder<> b(64);
+  StringBuilder<> a;
+  StringBuilder<> b;
+  a.ReserveFor(64);
+  b.ReserveFor(64);
 
   a.AppendUnchecked(StringSlice("hello"));
   b.Append(StringSlice("hello"));
 
-  CHECK(a == StringSlice("hello"));
-  CHECK(b == StringSlice("hello"));
+  CHECK(a.GetSlice() == StringSlice("hello"));
+  CHECK(b.GetSlice() == StringSlice("hello"));
   CHECK(a.GetSlice() == b.GetSlice());
 
   a.AppendUnchecked(StringSlice(" "));
   a.AppendUnchecked(StringSlice("world"));
-  CHECK(a == StringSlice("hello world"));
+  CHECK(a.GetSlice() == StringSlice("hello world"));
 }
 
 TEST_CASE("AppendUnchecked(unsigned) formatting") {
-  StringBuilder<> b(128);
+  StringBuilder<> b;
+  b.ReserveFor(128);
 
   b.AppendUnchecked(uint32_t{0});
-  CHECK(b == StringSlice("0"));
+  CHECK(b.GetSlice() == StringSlice("0"));
 
-  b = StringBuilder<>(128);
+  b.Clear();
   b.AppendUnchecked(uint32_t{7});
-  CHECK(b == StringSlice("7"));
+  CHECK(b.GetSlice() == StringSlice("7"));
 
-  b = StringBuilder<>(128);
+  b.Clear();
   b.AppendUnchecked(uint32_t{10});
-  CHECK(b == StringSlice("10"));
+  CHECK(b.GetSlice() == StringSlice("10"));
 
-  b = StringBuilder<>(128);
+  b.Clear();
   b.AppendUnchecked(uint32_t{123456});
-  CHECK(b == StringSlice("123456"));
-
-  b = StringBuilder<>(256);
-  b.AppendUnchecked(std::numeric_limits<uint64_t>::max());
-  // Can't hardcode easily; sanity checks:
-  auto s = b.GetSlice();
-  CHECK(s.Size() > 0);
-  CHECK(s[0] >= '1');
-  CHECK(s[0] <= '9');
-  for (size_t i = 0; i < s.Size(); ++i) {
-    CHECK(s[i] >= '0');
-    CHECK(s[i] <= '9');
-  }
+  CHECK(b.GetSlice() == StringSlice("123456"));
 }
 
 TEST_CASE("AppendUnchecked(signed) formatting incl edge cases") {
-  StringBuilder<> b(256);
+  StringBuilder<> b;
+  b.ReserveFor(128);
 
   b.AppendUnchecked(int32_t{0});
-  CHECK(b == StringSlice("0"));
+  CHECK(b.GetSlice() == StringSlice("0"));
 
-  b = StringBuilder<>(256);
+  b.Clear();
   b.AppendUnchecked(int32_t{42});
-  CHECK(b == StringSlice("42"));
+  CHECK(b.GetSlice() == StringSlice("42"));
 
-  b = StringBuilder<>(256);
+  b.Clear();
   b.AppendUnchecked(int32_t{-42});
-  CHECK(b == StringSlice("-42"));
+  CHECK(b.GetSlice() == StringSlice("-42"));
 
   // nasty: min value
-  b = StringBuilder<>(256);
+  b.Clear();
   b.AppendUnchecked(std::numeric_limits<int32_t>::min());
   auto s = b.GetSlice();
-  CHECK(s.Size() > 1);
-  CHECK(s[0] == '-');
-  for (size_t i = 1; i < s.Size(); ++i) {
-    CHECK(s[i] >= '0');
-    CHECK(s[i] <= '9');
-  }
+  CHECK(s.Size() == 11);
+  CHECK(s == "-2147483648");
 
-  b = StringBuilder<>(256);
+  b.Clear();
   b.AppendUnchecked(std::numeric_limits<int64_t>::min());
   s = b.GetSlice();
-  CHECK(s.Size() > 1);
-  CHECK(s[0] == '-');
-  for (size_t i = 1; i < s.Size(); ++i) {
-    CHECK(s[i] >= '0');
-    CHECK(s[i] <= '9');
-  }
+  CHECK(s == "-9223372036854775808");
 }
 
 TEST_CASE("Append(T) with various types") {
   SUBCASE("Append(StringSlice)") {
-    StringBuilder<> b(64);
+    StringBuilder<> b;
     b.Append(StringSlice("hi"));
-    CHECK(b == StringSlice("hi"));
+    CHECK(b.GetSlice() == StringSlice("hi"));
   }
 
   SUBCASE("Append(char)") {
-    StringBuilder<> b(64);
+    StringBuilder<> b;
     b.Append('A');
-    CHECK(b == StringSlice("A"));
+    CHECK(b.GetSlice() == StringSlice("A"));
   }
 
   SUBCASE("Append(unsigned)") {
-    StringBuilder<> b(64);
+    StringBuilder<> b;
     b.Append(uint32_t{123});
-    CHECK(b == StringSlice("123"));
+    CHECK(b.GetSlice() == StringSlice("123"));
   }
 
   SUBCASE("Append(signed)") {
-    StringBuilder<> b(64);
+    StringBuilder<> b;
     b.Append(int32_t{-5});
-    CHECK(b == StringSlice("-5"));
+    CHECK(b.GetSlice() == StringSlice("-5"));
+  }
+
+  SUBCASE("Append(pointer)") {
+    void *ptr = reinterpret_cast<void*>(0xdeadbeef);
+    StringBuilder<> b;
+    b.Append(ptr);
+    CHECK(b.GetSlice() == StringSlice("0xdeadbeef"));
+  }
+
+  SUBCASE("Append(char*)") {
+    char asd[] = "asd";
+    StringBuilder<> b;
+    b.Append((char*)asd);
+    CHECK(b.GetSlice() == StringSlice("asd"));
+  }
+
+  SUBCASE("Append(char[])") {
+    char digits[] = "0123456789";
+    StringBuilder<> b;
+    b.Append(digits);
+    CHECK(b.GetSlice() == StringSlice("0123456789"));
+  }
+
+  SUBCASE("Append(const char*)") {
+    const char *def= "def";
+    StringBuilder<> b;
+    b.Append(def);
+    CHECK(b.GetSlice() == StringSlice("def"));
+  }
+
+  SUBCASE("Append(const char)") {
+    const char bracket = '{';
+    StringBuilder<> b;
+    b.Append(bracket);
+    CHECK(b.GetSlice() == StringSlice("{"));
   }
 }
 
 TEST_CASE("Appendf basic replacement") {
-  StringBuilder<> b(256);
+  StringBuilder<> b;
 
-  b.Appendf("hello {}", StringSlice("world"));
-  CHECK(b == StringSlice("hello world"));
+  b.AppendFormat("hello {}", StringSlice("world"));
+  CHECK(b.GetSlice() == StringSlice("hello world"));
 
-  b = StringBuilder<>(256);
-  b.Appendf("{}+{}={}", 2, 3, 5);
-  CHECK(b == StringSlice("2+3=5"));
+  b.Clear();
+  b.AppendFormat("{}+{}={}", 2, 3, 5);
+  CHECK(b.GetSlice() == StringSlice("2+3=5"));
 
-  b = StringBuilder<>(256);
-  b.Appendf("X{}Y{}Z", 'a', 'b');
-  CHECK(b == StringSlice("XaYbZ"));
+  b.Clear();
+  b.AppendFormat("X{}Y{}Z", 'a', 'b');
+  CHECK(b.GetSlice() == StringSlice("XaYbZ"));
 }
 
 TEST_CASE("Appendf braces behavior (escaped or malformed-ish sequences)") {
   SUBCASE("No args: Appendf(fmt) should append fmt as-is when non-empty") {
-    StringBuilder<> b(256);
-    b.Appendf("plain text");
-    CHECK(b == StringSlice("plain text"));
+    StringBuilder<> b;
+    b.AppendFormat("plain text");
+    CHECK(b.GetSlice() == StringSlice("plain text"));
   }
 
   SUBCASE("Empty fmt with no args does nothing") {
-    StringBuilder<> b(64);
-    b.Appendf("");
+    StringBuilder<> b;
+    b.ReserveFor(200);
+    b.AppendFormat("");
     CHECK(b.Empty());
   }
 
   SUBCASE("Single { not followed by } becomes literal { (and continues)") {
-    StringBuilder<> b(256);
-    b.Appendf("a{b{}c", 7);
+    StringBuilder<> b;
+    b.ReserveFor(200);
+    b.AppendFormat("a{b{}c", 7);
     // Walk it:
     // finds '{' after 'a' -> appends 'a', drops to "{b{}c"
     // drops '{', next is 'b' != '}' => appends '{' literally, recurse with same arg on "b{}c"
     // finds '{' before '{}' -> appends 'b', drops, sees '}' => appends arg(7), then "c"
-    CHECK(b == StringSlice("a{b7c"));
+    CHECK(b.GetSlice() == StringSlice("a{b7c"));
   }
 
   SUBCASE("Consecutive placeholders") {
-    StringBuilder<> b(256);
-    b.Appendf("{}{}{}", 1, 2, 3);
-    CHECK(b == StringSlice("123"));
+    StringBuilder<> b;
+    b.ReserveFor(200);
+    b.AppendFormat("{}{}{}", 1, 2, 3);
+    CHECK(b.GetSlice() == StringSlice("123"));
   }
 
   SUBCASE("Text after last placeholder") {
-    StringBuilder<> b(256);
-    b.Appendf("v={}.", 9);
-    CHECK(b == StringSlice("v=9."));
+    StringBuilder<> b;
+    b.ReserveFor(200);
+    b.AppendFormat("v={}.", 9);
+    CHECK(b.GetSlice() == StringSlice("v=9."));
   }
 }
 
 TEST_CASE("Appendf equivalence: Appendf vs manual Append") {
-  StringBuilder<> a(256);
-  StringBuilder<> b(256);
+  StringBuilder<> a;
+  StringBuilder<> b;
 
-  a.Appendf("x{}y{}z", 10, StringSlice("QQ"));
+  a.AppendFormat("x{}y{}z", 10, StringSlice("QQ"));
 
   b.Append(StringSlice("x"));
   b.Append(10);
@@ -294,7 +330,8 @@ TEST_CASE("Appendf equivalence: Appendf vs manual Append") {
 }
 
 TEST_CASE("Multiple appends grow content correctly") {
-  StringBuilder<> b(512);
+  StringBuilder<> b;
+  b.ReserveFor(200);
 
   for (int i = 0; i < 50; ++i) b.Append('a');
   CHECK(b.Length() == 50);
@@ -304,15 +341,18 @@ TEST_CASE("Multiple appends grow content correctly") {
   for (size_t i = 0; i < s.Size(); ++i) CHECK(s[i] == 'a');
 }
 
-TEST_CASE("Substr + Append integration") {
-  StringBuilder<> b(256);
-  b.Append("abcdef");
+TEST_CASE("StringBuilder grows beyond stack buffer") {
+  pdp::StringBuilder<> sb;
 
-  auto s = b.Substr(2, 3);  // "cde"
-  StringBuilder<> out(256);
-  out.Append(StringSlice("X"));
-  out.Append(s);
-  out.Append(StringSlice("Y"));
+  // Push more than the internal 256-byte stack buffer
+  for (int i = 0; i < 1000; ++i) {
+    sb.Append('x');
+  }
 
-  CHECK(out == StringSlice("XcdeY"));
+  CHECK(sb.Size() == 1000);
+
+  // Verify contents
+  for (size_t i = 0; i < sb.Size(); ++i) {
+    CHECK(sb.Begin()[i] == 'x');
+  }
 }

@@ -45,20 +45,22 @@ void OnAssertFailed(const char *what, const char *context, size_t n) {
   std::terminate();
 }
 
+static StringSlice GetErrorDescription() { return StringSlice(strerrordesc_np(errno)); }
+
 bool Check(int result, const char *operation) {
   bool is_successful = (0 <= result);
-  if (!is_successful) {
-    pdp_error("'{}' returned '{}'. Error '{}': '{}'.", operation, result, errno,
-              strerrordesc_np(errno));
+  if (PDP_UNLIKELY(!is_successful)) {
+    pdp_error("'{}' returned '{}'. Error '{}': '{}'.", StringSlice(operation), result, errno,
+              GetErrorDescription());
   }
   return is_successful;
 }
 
 bool Check(void *pointer, const char *operation) {
   bool is_successful = (pointer != nullptr && pointer != MAP_FAILED);
-  if (!is_successful) {
-    pdp_error("'{}' returned '{}'. Error '{}': '{}'.", operation, pointer, errno,
-              strerrordesc_np(errno));
+  if (PDP_UNLIKELY(!is_successful)) {
+    pdp_error("'{}' returned '{}'. Error '{}': '{}'.", StringSlice(operation), pointer, errno,
+              GetErrorDescription());
   }
   return is_successful;
 }

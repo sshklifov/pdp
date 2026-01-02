@@ -7,7 +7,7 @@
 
 #ifdef PDP_TRACE_BRANCH
 #define PDP_TRACE_LIKELY(x)                                                        \
-  [](bool value, const char *cond) -> bool {                                       \
+  [](bool value, const pdp::StringSlice cond) -> bool {                            \
     static std::atomic_uint total(0);                                              \
     static std::atomic_uint taken(0);                                              \
     total.fetch_add(1, std::memory_order_relaxed);                                 \
@@ -21,7 +21,7 @@
     return value;                                                                  \
   }(x, #x)
 #define PDP_TRACE_UNLIKELY(x)                                                        \
-  [](bool value, const char *cond) -> bool {                                         \
+  [](bool value, const pdp::StringSlice &cond) -> bool {                             \
     static std::atomic_uint total(0);                                                \
     static std::atomic_uint not_taken(0);                                            \
     total.fetch_add(1, std::memory_order_relaxed);                                   \
