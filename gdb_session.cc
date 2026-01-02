@@ -201,13 +201,12 @@ inline StringSlice ProcessStreamInPlace(char *begin, char *end) {
 }
 
 void GdbSession::Process() {
-  size_t n = buffer.ReadFull(out[0]);
-  if (n <= 0) {
-    pdp_warning("Could not read data after polling!");
+  auto s = buffer.ReadLine(out[0]);
+  if (s.Empty()) {
+    pdp_warning("Could not read any data after polling!");
     return;
   }
 
-  auto s = buffer.ConsumeLine();
   while (!s.Empty()) {
     if (s[0] == '=' || s[0] == '*') {
       StringSlice ddz(s.Find(',') + 1, s.End() - 1);
@@ -228,7 +227,7 @@ void GdbSession::Process() {
     } else {
       pdp_info("Got: {}", s);
     }
-    s = buffer.ConsumeLine();
+    s = buffer.ReadLine(out[0]);
   }
 }
 

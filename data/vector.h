@@ -95,7 +95,7 @@ struct Vector {
   }
 
   void ReserveFor(size_t new_elems) {
-    pdp_assert(max_capacity - new_elems >= size);
+    pdp_assert(max_elements - new_elems >= size);
     size_t new_capacity = size + new_elems;
     if (new_capacity > capacity) {
       GrowExtra(new_capacity - capacity);
@@ -136,21 +136,23 @@ struct Vector {
   }
 
  protected:
-  void GrowExtra(const size_t extra_cap) {
+  void GrowExtra(size_t extra_elements) {
     size_t half_capacity = capacity / 2;
-    size_t grow_capacity = half_capacity > extra_cap ? half_capacity : extra_cap;
+    if (half_capacity > extra_elements) {
+      extra_elements = half_capacity;
+    }
 
     [[maybe_unused]]
-    const bool within_limits = max_capacity - grow_capacity >= capacity;
+    const bool within_limits = max_elements - extra_elements >= capacity;
     pdp_assert(within_limits);
-    capacity += grow_capacity;
+    capacity += extra_elements;
 
     static_assert(std::is_trivially_move_constructible_v<T>);
     ptr = Reallocate<T>(allocator, ptr, capacity);
     pdp_assert(ptr);
   }
 
-  static constexpr const size_t max_capacity = 1 << 30;
+  static constexpr const size_t max_elements = 1_GB / sizeof(T);
 
   T *ptr;
   size_t size;

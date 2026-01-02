@@ -6,21 +6,14 @@
 namespace pdp {
 
 struct RollingBuffer {
-  static constexpr const size_t min_read_size = 4'000;
-  static constexpr const size_t default_buffer_size = min_read_size * 2;
-  static constexpr const size_t max_capacity = 1 << 30;
+  static constexpr const size_t min_read_size = 4_KB;
+  static constexpr const size_t default_buffer_size = 1_MB;
+  static constexpr const size_t max_capacity = 1_GB;
 
   RollingBuffer();
   ~RollingBuffer();
 
-  size_t ReadFull(int fd);
-
-  StringSlice ConsumeLine();
-
-  StringSlice ViewOnly() const;
-
-  bool Empty() const;
-  size_t Size() const;
+  StringSlice ReadLine(int fd);
 
  private:
   void ReserveForRead();
@@ -28,7 +21,7 @@ struct RollingBuffer {
   char *ptr;
   char *begin;
   char *end;
-  size_t capacity;
+  char *limit;
 
   DefaultAllocator allocator;
 

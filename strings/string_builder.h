@@ -461,7 +461,7 @@ struct StringBuilder {
     pdp_assert(begin);
   }
 
-  static constexpr const size_t max_capacity = 1 << 30;
+  static constexpr const size_t max_capacity = 1_GB;
 
   char buffer[256];
   char *__restrict__ begin;

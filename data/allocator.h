@@ -21,6 +21,22 @@
 
 namespace pdp {
 
+// @brief Bytes (B)
+constexpr std::size_t operator""_B(unsigned long long bytes) { return bytes; }
+
+// @brief Kilobytes (KB)
+constexpr std::size_t operator""_KB(unsigned long long kilobytes) { return kilobytes * 1024; }
+
+// @brief Megabytes (MB)
+constexpr std::size_t operator""_MB(unsigned long long megabytes) {
+  return megabytes * 1024 * 1024;
+}
+
+// @brief Gigabytes (GB)
+constexpr std::size_t operator""_GB(unsigned long long gigabytes) {
+  return gigabytes * 1024 * 1024 * 1024;
+}
+
 struct MallocAllocator {
   void *AllocateRaw(size_t bytes) { return malloc(bytes); }
 
