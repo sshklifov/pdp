@@ -1,3 +1,4 @@
+#include <sys/wait.h>
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 
@@ -163,4 +164,56 @@ TEST_CASE("rpc response with error as fixmap") {
 
   CHECK(err["message"].StringOr("X") == "Invalid buffer");
   CHECK(err["code"].NumberOr(-1) == 0);
+}
+
+TEST_CASE("rpc request for which vim is dropping me") {
+  int fds[2];
+  REQUIRE(pipe(fds) == 0);
+
+  const uint8_t msg[] = {0x94,  // array(4)
+                         0x00,  // request
+                         0x01,  // msgid = 1
+                         0xb0,  // str(17)
+                         'n',  'v', 'i', 'm', '_', 'b', 'u', 'f',
+                         '_',  'g', 'e', 't', '_', 'v', 'a', 'r',
+                         0x92,  // array(2)
+                         0x00,  // buffer 0 (current)
+                         0xa6,  // str(6)
+                         's',  'e', 'c', 'r', 'e', 't'};
+
+  WriteAll(fds[1], msg, sizeof(msg));
+  close(fds[1]);
+
+  RpcPass pass(fds[0]);
+  ExprView e(pass.Parse());
+
+  CHECK(e[0].NumberOr(-1) == 0);
+  CHECK(e[1].NumberOr(-1) == 1);
+  CHECK(e[2].StringOr("") == "nvim_buf_get_var");
+  CHECK(e[3][0].NumberOr(-1) == 0);
+  CHECK(e[3][1].StringOr("") == "secret");
+}
+
+TEST_CASE("rpc notification: empty args array") {
+  int fds[2];
+  REQUIRE(pipe(fds) == 0);
+
+  // [2, "nvim_redraw", []]
+  const unsigned char msg[] = {
+      0x93,  // array(3)
+      0x02,  // notification
+      0xAB,  // str(11)
+      'n',  'v', 'i', 'm', '_', 'r', 'e', 'd', 'r', 'a', 'w',
+      0x90  // array(0)
+  };
+
+  WriteAll(fds[1], msg, sizeof(msg));
+  close(fds[1]);
+
+  RpcPass pass(fds[0]);
+  ExprView e(pass.Parse());
+
+  CHECK(e[0].NumberOr(-1) == 2);
+  CHECK(e[1].StringOr("X") == "nvim_redraw");
+  CHECK(e[2].Count() == 0);  // empty args
 }

@@ -51,17 +51,19 @@ void RpcPass::AttachExpr(ExprBase *expr) {
 }
 
 void RpcPass::PushNesting(ExprBase *expr) {
-  if (expr->kind == ExprBase::kList) {
-    auto *record = nesting_stack.NewElement();
-    record->elements = reinterpret_cast<ExprBase **>((uint8_t *)expr + sizeof(ExprList));
-    record->remaining = expr->size;
-    record->hashes = nullptr;
-  } else if (expr->kind == ExprBase::kMap) {
-    auto *record = nesting_stack.NewElement();
-    ExprMap *map = static_cast<ExprMap *>(expr);
-    record->elements = (ExprBase **)map->pairs;
-    record->remaining = 2 * map->size;
-    record->hashes = map->hashes;
+  if (PDP_LIKELY(expr->size > 0)) {
+    if (expr->kind == ExprBase::kList) {
+      auto *record = nesting_stack.NewElement();
+      record->elements = reinterpret_cast<ExprBase **>((uint8_t *)expr + sizeof(ExprList));
+      record->remaining = expr->size;
+      record->hashes = nullptr;
+    } else if (expr->kind == ExprBase::kMap) {
+      auto *record = nesting_stack.NewElement();
+      ExprMap *map = static_cast<ExprMap *>(expr);
+      record->elements = (ExprBase **)map->pairs;
+      record->remaining = 2 * map->size;
+      record->hashes = map->hashes;
+    }
   }
 }
 

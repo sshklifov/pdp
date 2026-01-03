@@ -153,23 +153,25 @@ static void DebugFormatExpr(const ExprBase *expr, StringBuilder<> &builder) {
       }
       builder.Append('}');
     }
-#if 0
-    // TODO Need StringOr() method!
   } else if (expr->kind == ExprBase::kMap) {
     if (expr->size == 0) {
       builder.Append("{}");
     } else {
       const ExprMap *map = static_cast<const ExprMap *>(expr);
       ExprMap::Pair *pairs = map->pairs;
-      builder.AppendFormat("{{}=", StringSlice(pairs[0].key));
+      builder.AppendFormat("{{}=", ExprView(pairs[0].key).StringOr("??"));
       DebugFormatExpr(pairs[0].value, builder);
       for (size_t i = 1; i < expr->size; ++i) {
-        builder.AppendFormat(", {}=", StringSlice(pairs[i].key));
+        builder.AppendFormat(", {}=", ExprView(pairs[i].key).StringOr("??"));
         DebugFormatExpr(pairs[i].value, builder);
       }
       builder.Append('}');
     }
-#endif
+  } else if (expr->kind == ExprBase::kInt) {
+    const ExprInt *integer = static_cast<const ExprInt *>(expr);
+    builder.Append(integer->value);
+  } else if (expr->kind == ExprBase::kNull) {
+    builder.Append("(nil)");
   } else {
     pdp_assert(false);
   }

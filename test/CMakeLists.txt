@@ -34,3 +34,6 @@ target_link_libraries(test_byte_stream PRIVATE pdp_strings)
 
 add_executable(test_rpc_parser test_rpc_parser.cc)
 target_link_libraries(test_rpc_parser PRIVATE pdp_parser)
+
+add_executable(show_nvim_api_info show_nvim_api_info.cc)
+target_link_libraries(show_nvim_api_info PRIVATE pdp_parser)
