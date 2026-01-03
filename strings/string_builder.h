@@ -59,8 +59,8 @@ inline uint32_t CountDigits10(uint64_t n) {
 #define POWERS_OF_10(factor)                                                         \
   factor * 10, (factor) * 100, (factor) * 1000, (factor) * 10000, (factor) * 100000, \
       (factor) * 1000000, (factor) * 10000000, (factor) * 100000000, (factor) * 1000000000
-  static constexpr const uint64_t powers_of_10[] = {
-      0, 0, POWERS_OF_10(1U), POWERS_OF_10(1000000000ULL), 10000000000000000000ULL};
+  static constexpr uint64_t powers_of_10[] = {0, 0, POWERS_OF_10(1U), POWERS_OF_10(1000000000ULL),
+                                              10000000000000000000ULL};
 #undef POWERS_OF_10
 
   // Fixes the log2 -> log10 off-by-one
@@ -504,7 +504,7 @@ struct StringBuilder {
     pdp_assert(begin);
   }
 
-  static constexpr const size_t max_capacity = 1_GB;
+  static constexpr size_t max_capacity = 1_GB;
 
   char buffer[256];
   char *__restrict__ begin;

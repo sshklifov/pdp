@@ -29,7 +29,7 @@ struct TracingCounter {
   }
 
  private:
-  static constexpr const unsigned print_every = 100;
+  static constexpr unsigned print_every = 100;
 
   const std::array<const char *, N> &names;
   std::array<unsigned, N> counters;

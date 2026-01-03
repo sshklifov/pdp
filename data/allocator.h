@@ -43,7 +43,7 @@ struct AlignmentTraits {
     return bytes = (bytes + alignment - 1) & ~(alignment - 1);
   }
 
-  static constexpr const uint32_t alignment = 8;
+  static constexpr uint32_t alignment = 8;
 };
 
 struct MallocAllocator {

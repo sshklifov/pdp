@@ -26,7 +26,7 @@
 
 #pragma once
 
-#include "external/ankerl_hash.h"
+#include "ankerl_hash.h"
 
 #include "core/internals.h"
 #include "data/allocator.h"

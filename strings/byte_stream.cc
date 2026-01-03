@@ -1,13 +1,13 @@
 #include "byte_stream.h"
 #include "core/check.h"
+#include "core/log.h"
 
 #include <fcntl.h>
 #include <unistd.h>
 
 namespace pdp {
 
-ByteStream::ByteStream()
-    : ptr(Allocate<char>(allocator, default_buffer_size)), stream(STDIN_FILENO) {
+ByteStream::ByteStream(int fd) : ptr(Allocate<char>(allocator, default_buffer_size)), stream(fd) {
   pdp_assert(ptr);
   begin = ptr;
   end = ptr;
@@ -71,18 +71,18 @@ void ByteStream::Memcpy(void *dst, size_t n) {
   dst = static_cast<uint8_t *>(dst) + available;
   n -= available;
   if (PDP_LIKELY(n < in_place_threshold)) {
-    size_t num_read = stream.ReadAtLeast(ptr, n, default_buffer_size, max_wait_ms);
+    size_t num_read = stream.ReadAtLeast(ptr, n, default_buffer_size, max_wait);
     if (PDP_UNLIKELY(num_read < n)) {
-      pdp_critical("Failed to read {} bytes within {}ms", n, max_wait_ms);
+      pdp_critical("Failed to read {} bytes within {}ms", n, max_wait.GetMilli());
       PDP_UNREACHABLE();
     }
     memcpy(dst, begin, n);
     begin += n;
     end += num_read;
   } else {
-    bool success = stream.ReadExactly(dst, n, max_wait_ms);
+    bool success = stream.ReadExactly(dst, n, max_wait);
     if (PDP_UNLIKELY(!success)) {
-      pdp_critical("Failed to read {} bytes within {}ms", n, max_wait_ms);
+      pdp_critical("Failed to read {} bytes within {}ms", n, max_wait.GetMilli());
       PDP_UNREACHABLE();
     }
   }
@@ -98,9 +98,9 @@ void ByteStream::RequireAtLeast(size_t n) {
     memcpy(ptr, begin, size);
     begin = ptr;
     end = ptr + size;
-    size_t num_read = stream.ReadAtLeast(end, n, default_buffer_size - n, max_wait_ms);
+    size_t num_read = stream.ReadAtLeast(end, n, default_buffer_size - n, max_wait);
     if (PDP_UNLIKELY(num_read < n)) {
-      pdp_critical("Failed to read {} bytes within {}ms", n, max_wait_ms);
+      pdp_critical("Failed to read {} bytes within {}ms", n, max_wait.GetMilli());
       PDP_UNREACHABLE();
     }
     end += num_read;

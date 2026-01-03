@@ -10,7 +10,9 @@ namespace pdp {
 template <typename Alloc = DefaultAllocator>
 struct Arena : public AlignmentTraits {
   Arena(size_t cap) {
+    pdp_assert(cap < max_capacity);
     chunk = static_cast<unsigned char *>(allocator.AllocateRaw(cap));
+
     pdp_assert(chunk);
     pdp_assert(reinterpret_cast<uint64_t>(chunk) % alignment == 0);
     head = chunk;
@@ -44,6 +46,8 @@ struct Arena : public AlignmentTraits {
       return nullptr;
     }
   }
+
+  static constexpr size_t max_capacity = 1_GB;
 
  private:
   unsigned char *chunk;

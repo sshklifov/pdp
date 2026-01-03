@@ -6,9 +6,9 @@
 namespace pdp {
 
 struct RollingBuffer {
-  static constexpr const size_t min_read_size = 4_KB;
-  static constexpr const size_t default_buffer_size = 1_MB;
-  static constexpr const size_t max_capacity = 1_GB;
+  static constexpr size_t min_read_size = 4_KB;
+  static constexpr size_t default_buffer_size = 1_MB;
+  static constexpr size_t max_capacity = 1_GB;
 
   RollingBuffer();
   ~RollingBuffer();

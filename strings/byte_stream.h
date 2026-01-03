@@ -1,19 +1,20 @@
 #pragma once
 
 #include "data/allocator.h"
-#include "file_descriptor.h"
+#include "system/file_descriptor.h"
 
+#include <unistd.h>
 #include <cstdint>
 
 namespace pdp {
 
 struct ByteStream {
-  static constexpr const size_t in_place_threshold = 4_KB;
-  static constexpr const size_t default_buffer_size = 1_MB;
-  static constexpr const size_t max_capacity = 1_GB;
-  static constexpr const size_t max_wait_ms = 1000;
+  static constexpr size_t in_place_threshold = 4_KB;
+  static constexpr size_t default_buffer_size = 1_MB;
+  static constexpr size_t max_capacity = 1_GB;
+  static constexpr Milliseconds max_wait = 1000_ms;
 
-  ByteStream();
+  ByteStream(int fd = STDIN_FILENO);
   ~ByteStream();
 
   uint8_t PopByte();

@@ -1,8 +1,8 @@
 #pragma once
 
-#include "chunk_array.h"
 #include "expr.h"
 
+#include "data/chunk_array.h"
 #include "data/stack.h"
 #include "strings/byte_stream.h"
 

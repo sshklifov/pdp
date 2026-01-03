@@ -78,7 +78,11 @@ endforeach()
 
 
 add_subdirectory(core)
+add_subdirectory(system)
+add_subdirectory(tracing)
+add_subdirectory(data)
 add_subdirectory(strings)
+add_subdirectory(external)
 add_subdirectory(parser)
 
 if(BUILD_TESTS)
@@ -86,8 +90,12 @@ if(BUILD_TESTS)
   add_subdirectory(test)
 endif()
 
-add_executable(pdp main.cc gdb_session.cc
-  $<TARGET_OBJECTS:pdp_core>
-  $<TARGET_OBJECTS:pdp_strings>
-  $<TARGET_OBJECTS:pdp_parser>
+add_executable(pdp main.cc gdb_session.cc)
+target_link_libraries(pdp PRIVATE
+  pdp_core
+  pdp_system
+  pdp_tracing
+  pdp_data
+  pdp_strings
+  pdp_parser
 )
