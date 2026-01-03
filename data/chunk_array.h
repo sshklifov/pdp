@@ -11,10 +11,17 @@ struct ChunkArray : public AlignmentTraits {
   ChunkArray() : chunks(16) {
     chunks += static_cast<unsigned char *>(allocator.AllocateRaw(chunk_size));
     top_used_bytes = 0;
+#ifdef PDP_TRACE_CHUNK_ARRAY
     all_used_bytes = chunk_size;
+#endif
   }
 
   ~ChunkArray() {
+#ifdef PDP_TRACE_CHUNK_ARRAY
+    pdp_trace("Chunk array requested {}B vs actually allocated {}B", requested_bytes,
+              allocated_bytes);
+    pdp_trace("Total {} calls to malloc", chunks.Size());
+#endif
     for (size_t i = 0; i < chunks.Size(); ++i) {
       allocator.DeallocateRaw(chunks[i]);
     }
@@ -27,6 +34,9 @@ struct ChunkArray : public AlignmentTraits {
   void *AllocateUnchecked(uint32_t bytes) {
     pdp_assert(bytes > 0);
     pdp_assert(bytes % alignment == 0);
+#ifdef PDP_TRACE_CHUNK_ARRAY
+    requested_bytes += bytes;
+#endif
 
     if (PDP_TRACE_LIKELY(top_used_bytes + bytes <= chunk_size)) {
       void *ret = chunks.Top() + top_used_bytes;
@@ -35,9 +45,11 @@ struct ChunkArray : public AlignmentTraits {
     }
 
     if (PDP_TRACE_UNLIKELY(bytes >= chunk_size)) {
+#ifdef PDP_TRACE_CHUNK_ARRAY
       pdp_assert(all_used_bytes <= max_capacity - bytes);
+      allocated_bytes += bytes;
+#endif
       unsigned char *big_chunk = static_cast<unsigned char *>(allocator.AllocateRaw(bytes));
-      all_used_bytes += bytes;
 
       auto normal_chunk = chunks.Top();
       chunks.Top() = big_chunk;
@@ -45,9 +57,11 @@ struct ChunkArray : public AlignmentTraits {
       return big_chunk;
     }
 
+#ifdef PDP_TRACE_CHUNK_ARRAY
     pdp_assert(all_used_bytes <= max_capacity - chunk_size);
+    allocated_bytes += chunk_size;
+#endif
     unsigned char *result = static_cast<unsigned char *>(allocator.AllocateRaw(chunk_size));
-    all_used_bytes += chunk_size;
     chunks += result;
     top_used_bytes = bytes;
     return result;
@@ -68,8 +82,9 @@ struct ChunkArray : public AlignmentTraits {
 
  private:
   size_t top_used_bytes;
-#ifdef PDP_ENABLE_ASSERT
-  size_t all_used_bytes;
+#ifdef PDP_TRACE_CHUNK_ARRAY
+  size_t allocated_bytes;
+  size_t requested_bytes;
 #endif
   Stack<unsigned char *> chunks;
 

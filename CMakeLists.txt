@@ -39,6 +39,8 @@ set(_FEATURES
   ENABLE_EXTERNAL_CODE
   # Trace RollingBuffer reallocation statistics 
   TRACE_ROLLING_BUFFER
+  # Trace ChunkArray memory fragmentation 
+  TRACE_CHUNK_ARRAY
   # Zero initialize values for better debugging
   ENABLE_ZERO_INITIALIZE
 )

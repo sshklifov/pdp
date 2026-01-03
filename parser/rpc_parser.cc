@@ -26,8 +26,9 @@ void RpcPass::AttachExpr(ExprBase *expr) {
 
   *top.elements = expr;
   ++top.elements;
+  const bool is_key = (top.remaining % 2 == 0);
 
-  if (top.hashes) {
+  if (is_key && top.hashes) {
     if (PDP_LIKELY(expr->kind == ExprBase::kString)) {
       const char *str = (char *)expr + sizeof(ExprBase);
       *top.hashes = ankerl::unordered_dense::hash(str, expr->size);

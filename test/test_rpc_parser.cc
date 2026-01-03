@@ -127,3 +127,40 @@ TEST_CASE("rpc back-to-back notifications") {
   CHECK(e1[2][0].StringOr("X") == "n");
   CHECK(e2[0].StringOr("X") == "i");
 }
+
+TEST_CASE("rpc response with error as fixmap") {
+  int fds[2];
+  REQUIRE(pipe(fds) == 0);
+
+  // [1, 7, {"message": "Invalid buffer", "code": 0}, nil]
+  const unsigned char msg[] = {
+      0x94,  // fixarray(4)
+      0x01,  // response
+      0x07,  // msgid = 7
+      0x82,  // fixmap(2)
+
+      0xA7, 'm', 'e', 's', 's', 'a', 'g', 'e',  // "message"
+      0xAE, 'I', 'n', 'v', 'a', 'l', 'i', 'd',
+      ' ',  'b', 'u', 'f', 'f', 'e', 'r',  // "Invalid buffer"
+
+      0xA4, 'c', 'o', 'd', 'e',  // "code"
+      0x00,                      // 0
+
+      0xC0  // nil
+  };
+
+  WriteAll(fds[1], msg, sizeof(msg));
+  close(fds[1]);
+
+  RpcPass pass(fds[0]);
+  ExprView e(pass.Parse());
+
+  CHECK(e[0].NumberOr(-1) == 1);
+  CHECK(e[1].NumberOr(-1) == 7);
+
+  auto err = e[2];
+  CHECK(err.Count() == 2);
+
+  CHECK(err["message"].StringOr("X") == "Invalid buffer");
+  CHECK(err["code"].NumberOr(-1) == 0);
+}

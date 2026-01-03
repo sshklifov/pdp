@@ -61,7 +61,7 @@ ExprView ExprView::operator[](const StringSlice &key) {
       }
     }
     return nullptr;
-  } else if (false) {
+  } else if (PDP_LIKELY(expr->kind == ExprBase::kMap)) {
     uint32_t hash = ankerl::unordered_dense::hash(key.Begin(), key.Size());
     const ExprMap *map = static_cast<const ExprMap *>(expr);
     for (size_t i = 0; i < map->size; ++i) {
