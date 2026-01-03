@@ -2,18 +2,27 @@ cmake_minimum_required(VERSION 3.12)
 
 project(pdp VERSION 1.0.0 DESCRIPTION "GDB/MI parsing and command processing library")
 
+# Build unit tests
+set(BUILD_TESTS ON)
+
+# TODO: Future: investigate more compiler flags
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
+  set(BUILD_TESTS OFF)
   set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
+  add_compile_options(-Wall -Wno-unused-variable
+    -fno-exceptions -fno-unwind-tables -fasynchronous-unwind-tables
+    -fno-rtti -fno-threadsafe-statics -fno-use-cxa-atexit
+    -nostdlib++
+  )
+else()
+  add_compile_options(-Wall -Wextra)
 endif()
 
 set(CMAKE_CXX_STANDARD 17)
 
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wall -O0 -ggdb")
 # TODO: Future: Remove debugging information
-set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -g1 -fno-omit-frame-pointer -O3 -Wall")
-
-# Build unit tests
-set(BUILD_TESTS ON)
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -ggdb")
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -g1 -fno-omit-frame-pointer -O3")
 
 set(_FEATURES
   # Use tracing allocator and emit allocation statistics"

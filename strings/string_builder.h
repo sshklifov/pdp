@@ -19,12 +19,17 @@ constexpr bool IsCStringV =
 struct EstimateSize {
   constexpr size_t operator()(const StringSlice &s) const { return s.Size(); }
 
-  constexpr size_t operator()(bool b) const { return 5; }
+  constexpr size_t operator()(bool) const { return 5; }
 
-  constexpr size_t operator()(char c) const { return 1; }
+  constexpr size_t operator()(char) const { return 1; }
+
+  constexpr size_t operator()(unsigned char) const {
+    // 2 hex digits + "0x" prefix
+    return 4;
+  }
 
   template <typename T, std::enable_if_t<!IsCStringV<T>, int> = 0>
-  constexpr size_t operator()(const T *p) const {
+  constexpr size_t operator()(const T *) const {
     // Max hex digits for 64-bit + "0x" prefix
     return sizeof(void *) * 2 + 2;
   }
@@ -73,6 +78,7 @@ union PackedValue {
   PackedValue() = default;
   constexpr PackedValue(bool x) : _bool(x) {}
   constexpr PackedValue(char x) : _char(x) {}
+  constexpr PackedValue(unsigned char x) : _byte(x) {}
   constexpr PackedValue(int32_t x) : _int32(x) {}
   constexpr PackedValue(uint32_t x) : _uint32(x) {}
   constexpr PackedValue(int64_t x) : _int64(x) {}
@@ -81,6 +87,7 @@ union PackedValue {
 
   bool _bool;
   char _char;
+  unsigned char _byte;
   int32_t _int32;
   uint32_t _uint32;
   int64_t _int64;
@@ -89,12 +96,25 @@ union PackedValue {
   const char *_str;
 };
 
-enum PackedValueType { kUnspecified, kBool, kChar, kInt32, kUint32, kInt64, kUint64, kPtr, kStr };
+enum PackedValueType {
+  kUnspecified,
+  kBool,
+  kChar,
+  kByte,
+  kInt32,
+  kUint32,
+  kInt64,
+  kUint64,
+  kPtr,
+  kStr
+};
 
 template <typename T>
 constexpr uint64_t PackOneType() {
   if constexpr (std::is_same_v<T, bool>) {
     return kBool;
+  } else if constexpr (std::is_same_v<T, unsigned char>) {
+    return kByte;
   } else if constexpr (std::is_same_v<T, char>) {
     return kChar;
   } else if constexpr (std::is_same_v<T, int32_t>) {
@@ -192,6 +212,9 @@ inline size_t RunEstimator(PackedValue *args, uint64_t type_bits) {
       case kChar:
         bytes += estimator(args[i]._char);
         break;
+      case kByte:
+        bytes += estimator(args[i]._byte);
+        break;
       case kInt32:
         bytes += estimator(args[i]._int32);
         break;
@@ -266,6 +289,20 @@ struct StringBuilder {
   void AppendUnchecked(char c) {
     pdp_assert(end < limit);
     *end = c;
+    ++end;
+  }
+
+  void AppendUnchecked(unsigned char c) {
+    pdp_assert(end + 4 <= limit);
+
+    const char *lookup = "0123456789abcdef";
+    *end = '0';
+    ++end;
+    *end = 'x';
+    ++end;
+    *end = lookup[c >> 4];
+    ++end;
+    *end = lookup[c & 0xf];
     ++end;
   }
 
@@ -414,6 +451,9 @@ struct StringBuilder {
       case kChar:
         AppendUnchecked(arg->_char);
         return PackOneSlots<decltype(arg->_char)>();
+      case kByte:
+        AppendUnchecked(arg->_byte);
+        return PackOneSlots<decltype(arg->_byte)>();
       case kBool:
         AppendUnchecked(arg->_bool);
         return PackOneSlots<decltype(arg->_bool)>();

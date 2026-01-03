@@ -1,161 +1,163 @@
 #include "rpc_parser.h"
 
-#include "core/log.h"
-#include "external/ankerl_hash.h"
-#include "tracing/trace_likely.h"
-
 namespace pdp {
 
-
-
-#if 0
-RpcFirstPass::RpcFirstPass(const StringSlice &s)
-    : input(s), nesting_stack(50), sizes_stack(500), total_bytes(0) {}
-
-bool MiFirstPass::ReportError(const StringSlice &msg) {
-  auto context_len = input.Size() > 50 ? 50 : input.Size();
-  pdp_error("{} at {}", msg, input.GetLeft(context_len));
-  return false;
-}
-
-void MiFirstPass::PushSizeOnStack(uint32_t num_elements) {
-  auto ptr = sizes_stack.NewElement();
-  ptr->num_elements = num_elements;
-  ptr->total_string_size = 0;
-}
-
-bool MiFirstPass::ParseResult() {
-  auto it = input.Find('=');
-  if (PDP_UNLIKELY(it == input.End())) {
-    return ReportError("Expecting variable=...");
+ExprBase *RpcPass::Parse() {
+  ExprBase *root = BigAssSwitch();
+  PushNesting(root);
+  if (PDP_UNLIKELY(nesting_stack.Empty())) {
+    pdp_critical("Top level RPC record is not an array or map!");
+    PDP_UNREACHABLE();
   }
 
-  const uint32_t length_plus_one = it - input.Begin() + 1;
-  sizes_stack[nesting_stack.Top()].total_string_size += length_plus_one;
+  while (!nesting_stack.Empty()) {
+    ExprBase *expr = BigAssSwitch();
 
-  input.DropLeft(length_plus_one);
-  return ParseValue();
-}
-
-bool MiFirstPass::ParseValue() {
-  if (PDP_UNLIKELY(input.Empty())) {
-    return ReportError("Expecting value but got empty string");
-  }
-  switch (input[0]) {
-    case '"':
-      return ParseString();
-    case '[':
-    case '{':
-      return ParseListOrTuple();
-    default:
-      return ReportError("Expecting value but got invalid first char");
-  }
-}
-
-bool MiFirstPass::ParseString() {
-  pdp_assert(input.StartsWith('"'));
-
-  auto it = input.Begin() + 1;
-  uint32_t num_skipped = 2;
-  while (it < input.End() && *it != '\"') {
-    const bool skip_extra = (*it == '\\');
-    num_skipped += skip_extra;
-    it += (1 + skip_extra);
-  }
-
-  if (PDP_UNLIKELY(it == input.End())) {
-    return ReportError("Unterminated c-string!");
-  }
-
-  const uint32_t length = it - input.Begin() + 1;
-  PushSizeOnStack(length - num_skipped);
-  total_bytes += ArenaTraits::AlignUp(sizeof(MiExprString) + length - num_skipped);
-
-  input.DropLeft(length);
-  return true;
-}
-
-bool MiFirstPass::ParseListOrTuple() {
-  pdp_assert(input.StartsWith('[') || input.StartsWith('{'));
-  input.DropLeft(1);
-
-  nesting_stack.Push(sizes_stack.Size());
-  PushSizeOnStack(0);
-  // Note: Don't know yet if this is a list or tuple...
-  return true;
-}
-
-bool MiFirstPass::ParseResultOrValue() {
-  if (PDP_UNLIKELY(input.Empty())) {
-    return ReportError("Expecting result or value but got nothing");
-  }
-  switch (input[0]) {
-    case '"':
-      return ParseString();
-    case '[':
-    case '{':
-      return ParseListOrTuple();
-    default:
-      return ParseResult();
-  }
-}
-
-void MiFirstPass::AccumulateBytes() {
-  const auto &record = sizes_stack[nesting_stack.Top()];
-  if (record.total_string_size > 0) {
-    total_bytes += ArenaTraits::AlignUp(sizeof(MiExprTuple));
-    total_bytes += ArenaTraits::AlignUp(record.num_elements * sizeof(uint32_t));
-    total_bytes += ArenaTraits::AlignUp(record.num_elements * sizeof(MiExprTuple::Result));
-    total_bytes += ArenaTraits::AlignUp(record.total_string_size);
-  } else {
-    total_bytes += ArenaTraits::AlignUp(sizeof(MiExprList));
-    total_bytes += ArenaTraits::AlignUp(record.num_elements * sizeof(MiExprBase *));
-  }
-}
-
-bool MiFirstPass::Parse() {
-  if (PDP_UNLIKELY(input.Empty())) {
-    total_bytes = ArenaTraits::AlignUp(sizeof(MiExprTuple));
-    return true;
-  }
-
-  // Record first result speculatively (for correct order).
-  nesting_stack.Push(sizes_stack.Size());
-  PushSizeOnStack(1);
-
-  bool okay = ParseResultOrValue();
-  while (okay && !input.Empty()) {
-    if (PDP_UNLIKELY(nesting_stack.Empty())) {
-      return ReportError("No open list/tuple in scope");
+    auto &top = nesting_stack.Top();
+    *top.elements = expr;
+    ++top.elements;
+    top.remaining -= 1;
+    if (PDP_UNLIKELY(top.remaining == 0)) {
+      nesting_stack.Pop();
     }
-    switch (input[0]) {
-      case ']':
-      case '}':
-        AccumulateBytes();
-        input.DropLeft(1);
-        nesting_stack.Pop();
-        break;
 
-      case ',':
-        input.DropLeft(1);
-        // follow-through
-      default:
-        sizes_stack[nesting_stack.Top()].num_elements += 1;
-        okay = ParseResultOrValue();
+    if (expr->kind == ExprBase::kList) {
+      auto *record = nesting_stack.NewElement();
+      record->elements = reinterpret_cast<ExprBase **>((uint8_t *)expr + sizeof(ExprBase));
+      record->remaining = expr->size;
+    } else if (expr->kind == ExprBase::kMap) {
+      auto *record = nesting_stack.NewElement();
+      record->elements = reinterpret_cast<ExprBase **>((uint8_t *)expr + sizeof(ExprBase));
+      record->remaining = 2 * expr->size;
     }
   }
-  if (PDP_LIKELY(okay && nesting_stack.Size() == 1)) {
-    AccumulateBytes();
-    return true;
-  } else if (nesting_stack.Size() > 1) {
-    ReportError("Unexpected end of input: unclosed list or tuple");
-  } else if (nesting_stack.Size() == 0) {
-    ReportError("Syntax error, extra closing bracket");
-  }
-  nesting_stack.Destroy();
-  sizes_stack.Destroy();
-  return false;
+  return root;
 }
-#endif
+
+void RpcPass::PushNesting(ExprBase *expr) {
+  ExprBase **elements = reinterpret_cast<ExprBase **>((uint8_t *)expr + sizeof(ExprBase));
+  auto *record = nesting_stack.NewElement();
+  record->elements = elements;
+  if (expr->kind == ExprBase::kList) {
+    record->remaining = expr->size;
+  } else if (expr->kind == ExprBase::kMap) {
+    record->remaining = 2 * expr->size;
+  }
+}
+
+ExprBase *RpcPass::CreateNull() {
+  ExprBase *expr = static_cast<ExprBase *>(chunk_array.AllocateUnchecked(sizeof(ExprBase)));
+  expr->kind = ExprBase::kNull;
+  return expr;
+}
+
+ExprBase *RpcPass::CreateInteger(int64_t value) {
+  ExprInt *expr =
+      static_cast<ExprInt *>(chunk_array.AllocateUnchecked(sizeof(ExprBase) + sizeof(int64_t)));
+  expr->kind = ExprBase::kInt;
+  expr->value = value;
+  return expr;
+}
+
+ExprBase *RpcPass::CreateString(uint32_t length) {
+  ExprString *expr = static_cast<ExprString *>(chunk_array.Allocate(sizeof(ExprBase) + length));
+  expr->kind = ExprBase::kString;
+  expr->size = length;
+  stream.Memcpy(expr->payload, length);
+  return expr;
+}
+
+ExprBase *RpcPass::CreateArray(uint32_t length) {
+  ExprList *expr = static_cast<ExprList *>(
+      chunk_array.AllocateUnchecked(sizeof(ExprList) + sizeof(ExprBase *) * length));
+  expr->kind = ExprBase::kList;
+  expr->size = length;
+
+  return expr;
+}
+
+ExprBase *RpcPass::CreateMap(uint32_t length) {
+  ExprMap *expr = static_cast<ExprMap *>(
+      chunk_array.AllocateUnchecked(sizeof(ExprMap) + sizeof(ExprBase *) * length * 2));
+  expr->kind = ExprBase::kMap;
+  expr->size = length;
+  return expr;
+}
+
+ExprBase *RpcPass::BigAssSwitch() {
+  unsigned char byte = stream.PopByte();
+  switch (byte) {
+      // 8bit signed
+    case 0xd0:
+      return CreateInteger(stream.PopInt8());
+      // 16bit signed
+    case 0xd1:
+      return CreateInteger(stream.PopInt16());
+      // 32bit signed
+    case 0xd2:
+      return CreateInteger(stream.PopInt32());
+      // 64bit signed
+    case 0xd3:
+      return CreateInteger(stream.PopInt64());
+      // 8bit unsigned
+    case 0xcc:
+      return CreateInteger(stream.PopUint8());
+      // 16bit unsigned
+    case 0xcd:
+      return CreateInteger(stream.PopUint16());
+      // 32bit unsigned
+    case 0xce:
+      return CreateInteger(stream.PopUint32());
+      // 64bit unsigned
+    case 0xcf:
+      return CreateInteger(stream.PopUint64());
+
+      // null
+    case 0xc0:
+      return CreateNull();
+
+    case 0xc2:
+    case 0xc3:
+      return CreateInteger(byte & 0x1);
+
+      // String with 1 byte length
+    case 0xd9:
+      return CreateString(stream.PopUint8());
+      // String with 2 byte length
+    case 0xda:
+      return CreateString(stream.PopUint16());
+      // String with 4 byte length
+    case 0xdb:
+      return CreateString(stream.PopUint32());
+
+      // Array with 2 byte length
+    case 0xdc:
+      return CreateArray(stream.PopUint16());
+      // Array with 4 byte length
+    case 0xdd:
+      return CreateArray(stream.PopUint32());
+
+      // Map with 2 byte length
+    case 0xde:
+      return CreateMap(stream.PopUint16());
+      // Array with 4 byte length
+    case 0xdf:
+      return CreateMap(stream.PopUint32());
+  }
+
+  if (byte <= 0x7f) {
+    return CreateInteger((uint8_t)byte);
+  } else if (byte >= 0xe0) {
+    return CreateInteger((int8_t)byte);
+  } else if (byte >= 0xa0 && byte <= 0xbf) {
+    return CreateString(byte & 0x1f);
+  } else if (byte >= 0x90 && byte <= 0x9f) {
+    return CreateArray(byte & 0xf);
+  } else if (byte >= 0x80 && byte <= 0x8f) {
+    return CreateMap(byte & 0xf);
+  }
+  pdp_critical("Unsupported RPC byte: {}", byte);
+  PDP_UNREACHABLE();
+}
 
 }  // namespace pdp

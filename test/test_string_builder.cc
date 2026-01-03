@@ -45,6 +45,12 @@ TEST_CASE("EstimateSize overloads") {
     CHECK(est(std::numeric_limits<unsigned>::max()) >= 10);
     CHECK(est(0) >= 1);
   }
+
+  SUBCASE("unsigned char") {
+    CHECK(est((unsigned char)0xdd) == 4);
+    CHECK(est((unsigned char)0x00) == 4);
+    CHECK(est((unsigned char)0xf1) == 4);
+  }
 }
 
 TEST_CASE("CountDigits10 basic values") {
@@ -290,6 +296,22 @@ TEST_CASE("Append(T) with various types") {
     StringBuilder<> b;
     b.Append(bracket);
     CHECK(b.GetSlice() == StringSlice("{"));
+  }
+}
+
+TEST_CASE("Appending byte (unsigned char)") {
+  SUBCASE("AppendUnchecked") {
+    StringBuilder<> b;
+    b.ReserveFor(10);
+    unsigned char de = 0xde;
+    b.AppendUnchecked(de);
+    CHECK(b.GetSlice() == StringSlice("0xde"));
+  }
+  SUBCASE("Normal Append") {
+    StringBuilder<> b;
+    unsigned char bc = 0xbc;
+    b.Append(bc);
+    CHECK(b.GetSlice() == StringSlice("0xbc"));
   }
 }
 

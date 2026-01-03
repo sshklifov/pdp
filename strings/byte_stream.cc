@@ -6,24 +6,11 @@
 
 namespace pdp {
 
-static bool ReadAtLeast(void *buf, size_t min_size, size_t capacity) {
-  constexpr unsigned 
-}
-
 ByteStream::ByteStream()
-#ifdef PDP_TRACE_ROLLING_BUFFER
-    : capacity(default_buffer_size),
-      provide_bytes(names)
-#endif
-{
-  ptr = Allocate<char>(allocator, default_buffer_size);
+    : ptr(Allocate<char>(allocator, default_buffer_size)), stream(STDIN_FILENO) {
   pdp_assert(ptr);
   begin = ptr;
   end = ptr;
-
-  int flags = fcntl(STDIN_FILENO, F_GETFL, 0);
-  int ret = fcntl(STDIN_FILENO, F_SETFL, flags | O_NONBLOCK);
-  CheckAndTerminate(ret, "fcntl");
 }
 
 ByteStream::~ByteStream() { Deallocate<char>(allocator, ptr); }
@@ -72,7 +59,7 @@ int64_t ByteStream::PopInt64() { return static_cast<int64_t>(PopUint64()); }
 
 void ByteStream::Memcpy(void *dst, size_t n) {
   size_t available = end - begin;
-  if (n <= available) {
+  if (PDP_LIKELY(n <= available)) {
     memcpy(dst, begin, n);
     begin += n;
     return;
@@ -81,116 +68,43 @@ void ByteStream::Memcpy(void *dst, size_t n) {
   memcpy(dst, begin, available);
   begin = ptr;
   end = ptr;
+  dst = static_cast<uint8_t *>(dst) + available;
   n -= available;
   if (PDP_LIKELY(n < in_place_threshold)) {
-    // FetchNew();
-    // TODO here
+    size_t num_read = stream.ReadAtLeast(ptr, n, default_buffer_size, max_wait_ms);
+    if (PDP_UNLIKELY(num_read < n)) {
+      pdp_critical("Failed to read {} bytes within {}ms", n, max_wait_ms);
+      PDP_UNREACHABLE();
+    }
+    memcpy(dst, begin, n);
+    begin += n;
+    end += num_read;
   } else {
-    // TODO poll and write... exact bytes
+    bool success = stream.ReadExactly(dst, n, max_wait_ms);
+    if (PDP_UNLIKELY(!success)) {
+      pdp_critical("Failed to read {} bytes within {}ms", n, max_wait_ms);
+      PDP_UNREACHABLE();
+    }
   }
 }
 
 void ByteStream::RequireAtLeast(size_t n) {
   size_t available = end - begin;
   if (PDP_UNLIKELY(available < n)) {
-    // memcpy(ptr, begin, used_size);
-    // begin -= fragmented_size;
-    // end -= fragmented_size;
-  }
-}
-
-void ByteStream::FetchNew(size_t n) {
-  // memcpy(ptr, begin, used_size);
-  // begin -= fragmented_size;
-  // end -= fragmented_size;
-}
-
-#if 0
-uint8_t ByteStream::PopByte() {
-  if (PDP_TRACE_LIKELY(begin < end)) {
-    uint8_t res = *begin;
-    ++begin;
-    return res;
-  }
-
-  for (;;) {
-    ReserveForRead();
-    const size_t remaining_bytes = limit - end;
-    pdp_assert(remaining_bytes >= min_read_size);
-    ssize_t ret = read(fd, end, remaining_bytes);
-
-    if (ret <= 0) {
-      if (PDP_UNLIKELY(errno != EAGAIN && errno != EWOULDBLOCK)) {
-        Check(ret, "read");
-      }
-      return StringSlice(begin, begin);
-    }
-
-    char *pos = static_cast<char *>(memchr(end, '\n', ret));
-    end += ret;
-    pdp_assert(end <= limit);
-    if (pos) {
-      ++pos;
-      StringSlice res(begin, pos);
-      begin = pos;
-      return res;
-    }
-  }
-}
-#endif
-
-#if 0
-void RollingBuffer::ReserveForRead() {
-  const bool empty = (begin == end);
-  if (PDP_LIKELY(empty)) {
+    [[maybe_unused]]
+    size_t left_padding = begin - ptr;
+    size_t size = end - begin;
+    pdp_assert(left_padding >= size);
+    memcpy(ptr, begin, size);
     begin = ptr;
-    end = ptr;
-#ifdef PDP_TRACE_ROLLING_BUFFER
-    provide_bytes.Count(kEmptyOptimization);
-#endif
-    return;
+    end = ptr + size;
+    size_t num_read = stream.ReadAtLeast(end, n, default_buffer_size - n, max_wait_ms);
+    if (PDP_UNLIKELY(num_read < n)) {
+      pdp_critical("Failed to read {} bytes within {}ms", n, max_wait_ms);
+      PDP_UNREACHABLE();
+    }
+    end += num_read;
   }
-
-  const size_t curr_free = limit - end;
-  if (PDP_LIKELY(curr_free >= min_read_size)) {
-#ifdef PDP_TRACE_ROLLING_BUFFER
-    provide_bytes.Count(kMinSize);
-#endif
-    return;
-  }
-
-  const size_t fragmented_size = begin - ptr;
-  const size_t used_size = end - begin;
-  if (PDP_UNLIKELY(fragmented_size >= used_size)) {
-    memcpy(ptr, begin, used_size);
-    begin -= fragmented_size;
-    end -= fragmented_size;
-#ifdef PDP_TRACE_ROLLING_BUFFER
-    provide_bytes.Count(kMoved);
-#endif
-    return;
-  }
-
-  size_t capacity = limit - ptr;
-  size_t grow_capacity = capacity / 2;
-  [[maybe_unused]]
-  const bool within_limits = max_capacity - grow_capacity >= capacity;
-  pdp_assert(within_limits);
-
-  capacity += grow_capacity;
-  char *new_ptr = Allocate<char>(allocator, capacity);
-  pdp_assert(new_ptr);
-  memcpy(new_ptr, begin, used_size);
-  Deallocate<char>(allocator, ptr);
-
-  ptr = new_ptr;
-  begin = new_ptr;
-  end = new_ptr + used_size;
-  limit = new_ptr + capacity;
-#ifdef PDP_TRACE_ROLLING_BUFFER
-  provide_bytes.Count(kAllocation);
-#endif
 }
-#endif
 
 }  // namespace pdp

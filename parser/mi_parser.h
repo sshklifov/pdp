@@ -1,6 +1,6 @@
 #pragma once
 
-#include "mi_expr.h"
+#include "expr.h"
 
 #include "data/arena.h"
 #include "data/stack.h"
@@ -45,23 +45,23 @@ struct MiFirstPass {
 struct MISecondPass {
   MISecondPass(const StringSlice &s, MiFirstPass &first_pass);
 
-  MiExprBase *Parse();
+  ExprBase *Parse();
 
  private:
-  MiExprBase *ReportError(const StringSlice &msg);
-  MiExprBase *CreateListOrTuple();
+  ExprBase *ReportError(const StringSlice &msg);
+  ExprBase *CreateListOrTuple();
 
-  MiExprBase *ParseResult();
-  MiExprBase *ParseValue();
-  MiExprBase *ParseString();
-  MiExprBase *ParseListOrTuple();
-  MiExprBase *ParseResultOrValue();
+  ExprBase *ParseResult();
+  ExprBase *ParseValue();
+  ExprBase *ParseString();
+  ExprBase *ParseListOrTuple();
+  ExprBase *ParseResultOrValue();
 
   struct MiRecord {
-    MiExprBase *expr;
+    ExprBase *expr;
     union {
-      MiExprBase **list_members;
-      MiExprTuple::Result *tuple_members;
+      ExprBase **list_members;
+      ExprTuple::Result *tuple_members;
     };
     char *string_table_ptr;
     uint32_t *hash_table_ptr;

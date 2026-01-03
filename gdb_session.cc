@@ -27,6 +27,7 @@ GdbSession::~GdbSession() {
 }
 
 void GdbSession::Start() {
+  // TODO use OutputDescriptor here!
   pipe(in);
   pipe(out);
   pipe(err);
@@ -179,7 +180,7 @@ void GdbSession::Process() {
       bool result = first_pass.Parse();
       if (result) {
         MISecondPass final_pass(ddz, first_pass);
-        MiNiceExpr expr = final_pass.Parse();
+        ExprView expr = final_pass.Parse();
         expr.Print();
       } else {
         pdp_error("Parse failed!");

@@ -1,9 +1,9 @@
-// TODO pointless?
-
 #pragma once
 
-#include "string_slice.h"
-#include "tracing/tracing_counter.h"
+#include "data/allocator.h"
+#include "file_descriptor.h"
+
+#include <cstdint>
 
 namespace pdp {
 
@@ -11,6 +11,7 @@ struct ByteStream {
   static constexpr const size_t in_place_threshold = 4_KB;
   static constexpr const size_t default_buffer_size = 1_MB;
   static constexpr const size_t max_capacity = 1_GB;
+  static constexpr const size_t max_wait_ms = 1000;
 
   ByteStream();
   ~ByteStream();
@@ -33,21 +34,14 @@ struct ByteStream {
 
  private:
   void RequireAtLeast(size_t n);
-  void FetchNew(size_t n);
-  // void ReserveForRead();
 
-  char *__restrict__ ptr;
+  char *__restrict__ const ptr;
   char *__restrict__ begin;
   char *__restrict__ end;
 
   DefaultAllocator allocator;
 
-#ifdef PDP_TRACE_ROLLING_BUFFER
-  enum Counters { kEmptyOptimization, kMinSize, kMoved, kAllocation, kTotal };
-  static constexpr std::array<const char *, kTotal> names{"Empty optimization", "Have min size",
-                                                          "Moved", "Allocation"};
-  TracingCounter<kTotal> provide_bytes;
-#endif
+  InputDescriptor stream;
 };
 
 }  // namespace pdp

@@ -1,7 +1,7 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 
-#include "parser/mi_expr.h"
+#include "parser/expr.h"
 #include "parser/mi_parser.h"
 #include "strings/string_slice.h"
 
@@ -14,7 +14,7 @@ TEST_CASE("simple param tuples") {
     REQUIRE(first.Parse());
 
     MISecondPass second(input, first);
-    MiNiceExpr e(second.Parse());
+    ExprView e(second.Parse());
 
     CHECK(e.Count() == 2);
     CHECK(e["param"].StringOr("X") == "pagination");
@@ -27,7 +27,7 @@ TEST_CASE("simple param tuples") {
     REQUIRE(first.Parse());
 
     MISecondPass second(input, first);
-    MiNiceExpr e(second.Parse());
+    ExprView e(second.Parse());
 
     CHECK(e["param"].StringOr("X") == "inferior-tty");
     CHECK(e["value"].StringOr("X") == "/dev/pts/0");
@@ -39,7 +39,7 @@ TEST_CASE("simple param tuples") {
     REQUIRE(first.Parse());
 
     MISecondPass second(input, first);
-    MiNiceExpr e(second.Parse());
+    ExprView e(second.Parse());
 
     CHECK(e["param"].StringOr("X") == "prompt");
     CHECK(e["value"].StringOr("NOT_EMPTY") == "");
@@ -51,7 +51,7 @@ TEST_CASE("simple param tuples") {
     REQUIRE(first.Parse());
 
     MISecondPass second(input, first);
-    MiNiceExpr e(second.Parse());
+    ExprView e(second.Parse());
 
     CHECK(e["param"].StringOr("X") == "max-completions");
     CHECK(e["value"].NumberOr(-1) == 20);
@@ -63,7 +63,7 @@ TEST_CASE("simple param tuples") {
     REQUIRE(first.Parse());
 
     MISecondPass second(input, first);
-    MiNiceExpr e(second.Parse());
+    ExprView e(second.Parse());
 
     CHECK(e["param"].StringOr("X") == "startup-with-shell");
     CHECK(e["value"].StringOr("X") == "off");
@@ -83,7 +83,7 @@ TEST_CASE("bkpt tuple with mixed fields") {
   REQUIRE(first.Parse());
 
   MISecondPass second(input, first);
-  MiNiceExpr e(second.Parse());
+  ExprView e(second.Parse());
 
   auto bkpt = e["bkpt"];
   CHECK(bkpt.Count() > 5);
@@ -110,7 +110,7 @@ TEST_CASE("shared object with ranges list") {
   REQUIRE(first.Parse());
 
   MISecondPass second(input, first);
-  MiNiceExpr e(second.Parse());
+  ExprView e(second.Parse());
 
   CHECK(e["id"].StringOr("X") == "/lib/ld-linux-aarch64.so.1");
   CHECK(e["symbols-loaded"].NumberOr(-1) == 0);
@@ -135,7 +135,7 @@ TEST_CASE("stop reason with nested frame and args") {
   REQUIRE(first.Parse());
 
   MISecondPass second(input, first);
-  MiNiceExpr e(second.Parse());
+  ExprView e(second.Parse());
 
   CHECK(e["reason"].StringOr("X") == "breakpoint-hit");
   CHECK(e["bkptno"].NumberOr(-1) == 1);

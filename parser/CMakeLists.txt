@@ -1,6 +1,6 @@
 add_library(pdp_parser OBJECT
+    expr.cc
     mi_parser.cc
-    mi_expr.cc
     rpc_parser.cc
 )
 
