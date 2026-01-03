@@ -9,6 +9,7 @@ uint32_t ExprView::Count() const {
   switch (expr->kind) {
     case ExprBase::kTuple:
     case ExprBase::kList:
+    case ExprBase::kMap:
       return expr->size;
     default:
       return 0;
@@ -18,40 +19,73 @@ uint32_t ExprView::Count() const {
 ExprView::ExprView(const ExprBase *expr) : expr(expr) {}
 
 ExprView ExprView::operator[](uint32_t index) {
-  if (PDP_UNLIKELY(expr->kind != ExprBase::kList)) {
+  if (PDP_LIKELY(expr->kind == ExprBase::kList)) {
+    if (PDP_LIKELY(index < expr->size)) {
+      ExprBase **elements = reinterpret_cast<ExprBase **>((char *)expr + sizeof(ExprList));
+      return elements[index];
+    }
+    pdp_warning("List access out of range");
+    return nullptr;
+  } else if (PDP_LIKELY(expr->kind == ExprBase::kMap)) {
+    uint32_t hash = ankerl::unordered_dense::hash(index);
+    const ExprMap *map = static_cast<const ExprMap *>(expr);
+    for (size_t i = 0; i < map->size; ++i) {
+      if (PDP_UNLIKELY(map->hashes[i] == hash)) {
+        const ExprMap::Pair *pair = map->pairs + i;
+        if (PDP_LIKELY(pair->key->kind == ExprBase::kInt)) {
+          const ExprInt *integer = static_cast<ExprInt *>(pair->key);
+          if (PDP_LIKELY(integer->value == index)) {
+            return pair->value;
+          }
+        }
+      }
+    }
+    return nullptr;
+  } else {
     pdp_warning("List access on non-list expression");
     return nullptr;
   }
-
-  if (PDP_UNLIKELY(index >= expr->size)) {
-    pdp_warning("List access out of range");
-    return nullptr;
-  }
-  ExprBase **elements = reinterpret_cast<ExprBase **>((char *)expr + sizeof(ExprList));
-  return elements[index];
 }
 
 ExprView ExprView::operator[](const StringSlice &key) {
-  if (PDP_UNLIKELY(expr->kind != ExprBase::kTuple)) {
+  if (PDP_LIKELY(expr->kind == ExprBase::kTuple)) {
+    const ExprTuple *tuple = static_cast<const ExprTuple *>(expr);
+    uint32_t num_elements = tuple->size;
+    uint32_t hash = ankerl::unordered_dense::hash(key.Begin(), key.Size());
+    for (uint32_t i = 0; i < num_elements; ++i) {
+      if (PDP_UNLIKELY(tuple->hashes[i] == hash)) {
+        const ExprTuple::Result *result = tuple->results + i;
+        if (PDP_LIKELY(key == result->key)) {
+          return result->value;
+        }
+      }
+    }
+    return nullptr;
+  } else if (false) {
+    uint32_t hash = ankerl::unordered_dense::hash(key.Begin(), key.Size());
+    const ExprMap *map = static_cast<const ExprMap *>(expr);
+    for (size_t i = 0; i < map->size; ++i) {
+      if (PDP_UNLIKELY(map->hashes[i] == hash)) {
+        const ExprMap::Pair *pair = map->pairs + i;
+        if (PDP_LIKELY(pair->key->kind == ExprBase::kString)) {
+          const char *str = (char *)(pair->key) + sizeof(ExprString);
+          if (PDP_LIKELY(key == StringSlice(str, pair->key->size))) {
+            return pair->value;
+          }
+        }
+      }
+    }
+    return nullptr;
+  } else {
     pdp_warning("Tuple access on non-tuple expression");
     return nullptr;
   }
 
-  const ExprTuple *tuple = static_cast<const ExprTuple *>(expr);
-  uint32_t num_elements = tuple->size;
-  uint32_t hash = ankerl::unordered_dense::hash(key.Begin(), key.Size());
-  for (uint32_t i = 0; i < num_elements; ++i) {
-    if (PDP_UNLIKELY(tuple->hashes[i] == hash)) {
-      ExprTuple::Result *result = tuple->results + i;
-      if (PDP_LIKELY(key == result->key)) {
-        return result->value;
-      }
-    }
-  }
   return nullptr;
 }
 
 StringSlice ExprView::StringOr(const StringSlice &alternative) const {
+  // TODO: Can't return stringslice to memory I do not own.
   if (PDP_UNLIKELY(expr->kind != ExprBase::kString)) {
     pdp_warning("String access on non-string expression");
     return alternative;
@@ -60,27 +94,31 @@ StringSlice ExprView::StringOr(const StringSlice &alternative) const {
   return StringSlice(data, expr->size);
 }
 
-int32_t ExprView::NumberOr(int32_t alternative) const {
-  if (PDP_UNLIKELY(expr->kind != ExprBase::kString)) {
+int64_t ExprView::NumberOr(int64_t alternative) const {
+  if (PDP_LIKELY(expr->kind == ExprBase::kInt)) {
+    const ExprInt *integer = static_cast<const ExprInt *>(expr);
+    return integer->value;
+  } else if (PDP_LIKELY(expr->kind == ExprBase::kString)) {
+    const char *str = (const char *)expr + sizeof(ExprString);
+    const bool negative = (*str == '-');
+    str += negative;
+
+    int32_t res = 0;
+    for (size_t i = 0; i < expr->size; ++i) {
+      if (PDP_UNLIKELY(str[i] < '0' || str[i] > '9')) {
+        return alternative;
+      }
+      res *= 10;
+      res += str[i] - '0';
+    }
+    if (PDP_UNLIKELY(negative)) {
+      return -res;
+    } else {
+      return res;
+    }
+  } else {
     pdp_warning("String access on non-string expression");
     return alternative;
-  }
-  const char *str = (const char *)expr + sizeof(ExprString);
-  const bool negative = (*str == '-');
-  str += negative;
-
-  int32_t res = 0;
-  for (size_t i = 0; i < expr->size; ++i) {
-    if (PDP_UNLIKELY(str[i] < '0' || str[i] > '9')) {
-      return alternative;
-    }
-    res *= 10;
-    res += str[i] - '0';
-  }
-  if (PDP_UNLIKELY(negative)) {
-    return -res;
-  } else {
-    return res;
   }
 }
 
@@ -115,6 +153,23 @@ static void DebugFormatExpr(const ExprBase *expr, StringBuilder<> &builder) {
       }
       builder.Append('}');
     }
+#if 0
+    // TODO Need StringOr() method!
+  } else if (expr->kind == ExprBase::kMap) {
+    if (expr->size == 0) {
+      builder.Append("{}");
+    } else {
+      const ExprMap *map = static_cast<const ExprMap *>(expr);
+      ExprMap::Pair *pairs = map->pairs;
+      builder.AppendFormat("{{}=", StringSlice(pairs[0].key));
+      DebugFormatExpr(pairs[0].value, builder);
+      for (size_t i = 1; i < expr->size; ++i) {
+        builder.AppendFormat(", {}=", StringSlice(pairs[i].key));
+        DebugFormatExpr(pairs[i].value, builder);
+      }
+      builder.Append('}');
+    }
+#endif
   } else {
     pdp_assert(false);
   }

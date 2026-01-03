@@ -14,6 +14,26 @@ struct ExprBase {
   uint32_t size;
 };
 
+inline const char *ExprKindToString(uint8_t kind) {
+  switch (kind) {
+    case ExprBase::kNull:
+      return "Null";
+    case ExprBase::kInt:
+      return "Integer";
+    case ExprBase::kString:
+      return "String";
+    case ExprBase::kList:
+      return "List";
+    case ExprBase::kTuple:
+      return "Tuple";
+    case ExprBase::kMap:
+      return "Map";
+    default:
+      pdp_assert(false);
+      return "???";
+  }
+}
+
 struct ExprInt : public ExprBase {
   int64_t value;
 };
@@ -50,13 +70,12 @@ struct ExprMap : public ExprBase {
     ExprBase *key;
     ExprBase *value;
   };
-
-  // TODO
-  // uint32_t *hashes;
+  uint32_t *hashes;
+  Pair *pairs;
   char payload[0];
 };
 
-static_assert(sizeof(ExprMap) == 8 && alignof(ExprMap) <= 8);
+static_assert(sizeof(ExprMap) == 24 && alignof(ExprMap) <= 8);
 
 struct ExprView {
   ExprView(const ExprBase *expr);
@@ -67,7 +86,7 @@ struct ExprView {
   ExprView operator[](const StringSlice &key);
 
   StringSlice StringOr(const StringSlice &alternative) const;
-  int32_t NumberOr(int32_t alternative) const;
+  int64_t NumberOr(int64_t alternative) const;
 
   void Print();
 

@@ -29,19 +29,20 @@ struct ChunkArray : public AlignmentTraits {
     pdp_assert(bytes % alignment == 0);
 
     if (PDP_TRACE_LIKELY(top_used_bytes + bytes <= chunk_size)) {
+      void *ret = chunks.Top() + top_used_bytes;
       top_used_bytes += bytes;
-      return chunks.Top() + top_used_bytes;
+      return ret;
     }
 
     if (PDP_TRACE_UNLIKELY(bytes >= chunk_size)) {
       pdp_assert(all_used_bytes <= max_capacity - bytes);
-      unsigned char *result = static_cast<unsigned char *>(allocator.AllocateRaw(bytes));
+      unsigned char *big_chunk = static_cast<unsigned char *>(allocator.AllocateRaw(bytes));
       all_used_bytes += bytes;
 
-      auto top_chunk = chunks.Top();
-      chunks.Top() = result;
-      chunks += top_chunk;
-      return result;
+      auto normal_chunk = chunks.Top();
+      chunks.Top() = big_chunk;
+      chunks += normal_chunk;
+      return big_chunk;
     }
 
     pdp_assert(all_used_bytes <= max_capacity - chunk_size);

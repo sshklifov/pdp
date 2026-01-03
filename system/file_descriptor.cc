@@ -37,12 +37,6 @@ bool FileDescriptor::WaitForEvents(int events, Milliseconds timeout) {
     Check(ret, "poll");
     return false;
   }
-
-  if (poll_args.revents & (POLLHUP | POLLERR)) {
-    pdp_critical("Fatal: POLLHUP/POLLERR on critical resource!");
-    PDP_UNREACHABLE();
-  }
-
   return (poll_args.revents & events);
 }
 

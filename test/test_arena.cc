@@ -151,3 +151,47 @@ TEST_CASE("Arena always returns aligned pointers even for garbage sizes") {
     CHECK(reinterpret_cast<uintptr_t>(p) % Arena<>::alignment == 0);
   }
 }
+
+TEST_CASE("Arena preserves data across mixed-size allocations") {
+  constexpr size_t cap = 4096;
+  Arena<> arena(cap);
+
+  struct Block {
+    uint8_t *ptr;
+    size_t size;
+    uint8_t pattern;
+  };
+
+  // Hand-randomized, intentionally hostile order
+  const size_t sizes[] = {
+      64, 3, 512, 1, 31, 128, 7, 1024, 15, 2, 256, 9, 33, 5, 511, 8,
+  };
+
+  std::vector<Block> blocks;
+  blocks.reserve(std::size(sizes));
+
+  // Allocate + poison memory
+  for (size_t i = 0; i < std::size(sizes); ++i) {
+    size_t sz = sizes[i];
+    uint8_t pattern = static_cast<uint8_t>(0xD0 + i);
+
+    uint8_t *p = static_cast<uint8_t *>(arena.Allocate(sz));
+    REQUIRE(p);
+
+    // Alignment must still hold
+    CHECK(reinterpret_cast<uintptr_t>(p) % Arena<>::alignment == 0);
+
+    for (size_t j = 0; j < sz; ++j) {
+      p[j] = pattern;
+    }
+
+    blocks.push_back(Block{p, sz, pattern});
+  }
+
+  // Verify nothing got corrupted
+  for (const Block &b : blocks) {
+    for (size_t j = 0; j < b.size; ++j) {
+      CHECK(b.ptr[j] == b.pattern);
+    }
+  }
+}

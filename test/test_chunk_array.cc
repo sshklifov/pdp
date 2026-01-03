@@ -141,3 +141,43 @@ TEST_CASE("ChunkArray always returns aligned pointers even for garbage sizes") {
     CHECK(reinterpret_cast<uintptr_t>(p) % ChunkArray<>::alignment == 0);
   }
 }
+
+TEST_CASE("ChunkArray preserves data across mixed-size allocations") {
+  ChunkArray<> ca;
+
+  struct Block {
+    uint8_t *ptr;
+    size_t size;
+    uint8_t pattern;
+  };
+
+  // Deliberately ugly sizes: small, medium, near-alignment, and chunk-crossing
+  const size_t sizes[] = {128,  3,  1024, 16,   7, 512, 31,  1, 256, 17,
+                          4096, 15, 64,   8192, 8, 33,  127, 2, 511, 32};
+
+  std::vector<Block> blocks;
+  blocks.reserve(std::size(sizes));
+
+  // Allocate and write distinct patterns
+  for (size_t i = 0; i < std::size(sizes); ++i) {
+    size_t sz = sizes[i];
+    uint8_t pattern = static_cast<uint8_t>(0xA0 + i);
+
+    uint8_t *p = static_cast<uint8_t *>(ca.Allocate(sz));
+    REQUIRE(p);
+
+    // Fill memory
+    for (size_t j = 0; j < sz; ++j) {
+      p[j] = pattern;
+    }
+
+    blocks.push_back(Block{p, sz, pattern});
+  }
+
+  // Now verify *everything* is still intact
+  for (const Block &b : blocks) {
+    for (size_t j = 0; j < b.size; ++j) {
+      CHECK(b.ptr[j] == b.pattern);
+    }
+  }
+}

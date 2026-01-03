@@ -1,6 +1,9 @@
 #include "rpc_parser.h"
+#include "external/ankerl_hash.h"
 
 namespace pdp {
+
+RpcPass::RpcPass(int fd) : stream(fd) {}
 
 ExprBase *RpcPass::Parse() {
   ExprBase *root = BigAssSwitch();
@@ -12,36 +15,52 @@ ExprBase *RpcPass::Parse() {
 
   while (!nesting_stack.Empty()) {
     ExprBase *expr = BigAssSwitch();
-
-    auto &top = nesting_stack.Top();
-    *top.elements = expr;
-    ++top.elements;
-    top.remaining -= 1;
-    if (PDP_UNLIKELY(top.remaining == 0)) {
-      nesting_stack.Pop();
-    }
-
-    if (expr->kind == ExprBase::kList) {
-      auto *record = nesting_stack.NewElement();
-      record->elements = reinterpret_cast<ExprBase **>((uint8_t *)expr + sizeof(ExprBase));
-      record->remaining = expr->size;
-    } else if (expr->kind == ExprBase::kMap) {
-      auto *record = nesting_stack.NewElement();
-      record->elements = reinterpret_cast<ExprBase **>((uint8_t *)expr + sizeof(ExprBase));
-      record->remaining = 2 * expr->size;
-    }
+    AttachExpr(expr);
+    PushNesting(expr);
   }
   return root;
 }
 
+void RpcPass::AttachExpr(ExprBase *expr) {
+  auto &top = nesting_stack.Top();
+
+  *top.elements = expr;
+  ++top.elements;
+
+  if (top.hashes) {
+    if (PDP_LIKELY(expr->kind == ExprBase::kString)) {
+      const char *str = (char *)expr + sizeof(ExprBase);
+      *top.hashes = ankerl::unordered_dense::hash(str, expr->size);
+      ++top.hashes;
+    } else if (PDP_LIKELY(expr->kind == ExprBase::kInt)) {
+      ExprInt *integer = static_cast<ExprInt *>(expr);
+      *top.hashes = ankerl::unordered_dense::hash(integer->value);
+      ++top.hashes;
+    } else {
+      pdp_critical("RPC map has unsupported key type: {}!",
+                   StringSlice(ExprKindToString(expr->kind)));
+      PDP_UNREACHABLE();
+    }
+  }
+
+  top.remaining -= 1;
+  if (PDP_UNLIKELY(top.remaining == 0)) {
+    nesting_stack.Pop();
+  }
+}
+
 void RpcPass::PushNesting(ExprBase *expr) {
-  ExprBase **elements = reinterpret_cast<ExprBase **>((uint8_t *)expr + sizeof(ExprBase));
-  auto *record = nesting_stack.NewElement();
-  record->elements = elements;
   if (expr->kind == ExprBase::kList) {
+    auto *record = nesting_stack.NewElement();
+    record->elements = reinterpret_cast<ExprBase **>((uint8_t *)expr + sizeof(ExprList));
     record->remaining = expr->size;
+    record->hashes = nullptr;
   } else if (expr->kind == ExprBase::kMap) {
-    record->remaining = 2 * expr->size;
+    auto *record = nesting_stack.NewElement();
+    ExprMap *map = static_cast<ExprMap *>(expr);
+    record->elements = (ExprBase **)map->pairs;
+    record->remaining = 2 * map->size;
+    record->hashes = map->hashes;
   }
 }
 
@@ -77,9 +96,11 @@ ExprBase *RpcPass::CreateArray(uint32_t length) {
 }
 
 ExprBase *RpcPass::CreateMap(uint32_t length) {
-  ExprMap *expr = static_cast<ExprMap *>(
-      chunk_array.AllocateUnchecked(sizeof(ExprMap) + sizeof(ExprBase *) * length * 2));
+  ExprMap *expr = static_cast<ExprMap *>(chunk_array.AllocateUnchecked(sizeof(ExprMap)));
   expr->kind = ExprBase::kMap;
+  expr->hashes = static_cast<uint32_t *>(chunk_array.AllocateOrNull(length * sizeof(uint32_t)));
+  expr->pairs =
+      static_cast<ExprMap::Pair *>(chunk_array.AllocateOrNull(length * sizeof(ExprMap::Pair)));
   expr->size = length;
   return expr;
 }

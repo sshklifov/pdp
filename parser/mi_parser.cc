@@ -301,8 +301,7 @@ ExprBase *MISecondPass::CreateListOrTuple() {
     ExprList *list = static_cast<ExprList *>(arena.AllocateUnchecked(sizeof(ExprList)));
     list->kind = ExprBase::kList;
     list->size = size;
-    ExprBase **members =
-        static_cast<ExprBase **>(arena.AllocateOrNull(size * sizeof(ExprBase *)));
+    ExprBase **members = static_cast<ExprBase **>(arena.AllocateOrNull(size * sizeof(ExprBase *)));
 
     auto *expr_record = second_pass_stack.NewElement();
     expr_record->expr = list;

@@ -11,9 +11,12 @@
 namespace pdp {
 
 struct RpcPass {
+  RpcPass(int fd);
+
   ExprBase *Parse();
 
  private:
+  void AttachExpr(ExprBase *expr);
   void PushNesting(ExprBase *expr);
 
   ExprBase *CreateNull();
@@ -30,6 +33,7 @@ struct RpcPass {
 
   struct RpcRecord {
     ExprBase **elements;
+    uint32_t *hashes;
     uint64_t remaining;
   };
 
