@@ -37,3 +37,6 @@ target_link_libraries(test_rpc_parser PRIVATE pdp_parser)
 
 add_executable(show_nvim_api_info show_nvim_api_info.cc)
 target_link_libraries(show_nvim_api_info PRIVATE pdp_parser)
+
+add_executable(test_callback_table test_callback_table.cc)
+target_link_libraries(test_callback_table PRIVATE pdp_data)

@@ -43,6 +43,8 @@ set(_FEATURES
   TRACE_CHUNK_ARRAY
   # Zero initialize values for better debugging
   ENABLE_ZERO_INITIALIZE
+  # Trace search times in CallbackTable<>
+  TRACE_CALLBACK_TABLE
 )
 
 # TODO sanitizer and clang-tidy
@@ -57,6 +59,7 @@ set(_DEBUG_ENABLED_FEATURES
   TRACE_MESSAGES
   ENABLE_EXTERNAL_CODE
   ENABLE_ZERO_INITIALIZE
+  TRACE_CALLBACK_TABLE
 )
 
 set(_RELEASE_ENABLED_FEATURES

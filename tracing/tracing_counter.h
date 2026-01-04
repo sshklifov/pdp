@@ -2,14 +2,11 @@
 
 #include "core/log.h"
 
-#include <array>
-
 namespace pdp {
 
 template <size_t N>
 struct TracingCounter {
-  TracingCounter(const std::array<const char *, N> &names)
-      : names(names), counters{}, next_print(print_every) {}
+  TracingCounter(const char *const (&n)[N]) : names(n), counters{}, next_print(print_every) {}
 
   void Count(size_t i) {
     pdp_assert(i < N);
@@ -23,7 +20,7 @@ struct TracingCounter {
         total += counters[i];
       }
       for (size_t i = 0; i < N; ++i) {
-        pdp_trace("Counter '{}': {}/{}", names[i], counters[i], total);
+        pdp_trace("Counter '{}': {}/{}", StringSlice(names[i]), counters[i], total);
       }
     }
   }
@@ -31,8 +28,8 @@ struct TracingCounter {
  private:
   static constexpr unsigned print_every = 100;
 
-  const std::array<const char *, N> &names;
-  std::array<unsigned, N> counters;
+  const char *const (&names)[N];
+  unsigned counters[N];
   unsigned next_print;
 };
 
