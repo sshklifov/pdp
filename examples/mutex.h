@@ -1,10 +1,11 @@
 #pragma once
 
 #include <pthread.h>
+#include "data/non_copyable.h"
 
 namespace pdp {
 
-struct Mutex {
+struct Mutex : public NonCopyableNonMovable {
   Mutex() {
 #ifdef PDP_CHECK_MUTEX
     pthread_mutexattr_t attr;
@@ -16,14 +17,6 @@ struct Mutex {
     pthread_mutex_init(&mutex, NULL);
 #endif
   }
-
-  Mutex(const Mutex &) = delete;
-
-  Mutex(Mutex &&) = delete;
-
-  void operator=(const Mutex &) = delete;
-
-  void operator=(Mutex &&) = delete;
 
   void Lock() { pthread_mutex_lock(&mutex); }
 

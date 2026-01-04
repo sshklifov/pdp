@@ -1,20 +1,17 @@
 #pragma once
 
-#include "allocator.h"
+#include "data/allocator.h"
+#include "data/non_copyable.h"
 
 #include <type_traits>
 
 namespace pdp {
 
 template <typename T, typename Alloc = DefaultAllocator>
-struct ScopedPtr {
+struct ScopedPtr : public NonCopyable {
   ScopedPtr(T *ptr = nullptr) noexcept : ptr(ptr) {}
 
-  ScopedPtr(const ScopedPtr &rhs) = delete;
-
   ScopedPtr(ScopedPtr &&rhs) noexcept : ptr(rhs.ptr) { rhs.ptr = nullptr; }
-
-  void operator=(const ScopedPtr &rhs) = delete;
 
   ScopedPtr &operator=(ScopedPtr &&rhs) noexcept {
     static_assert(std::is_trivially_destructible_v<T>);

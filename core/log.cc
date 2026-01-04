@@ -43,13 +43,13 @@ static constexpr size_t EstimateLogLevelSize() {
   return max;
 }
 
-static void Pad2Unchecked(unsigned char value, StringBuilder<> &out) {
+static void Pad2Unchecked(unsigned char value, StringBuilder<OneShotAllocator> &out) {
   pdp_assert(value <= 99);
   out.AppendUnchecked(static_cast<char>('0' + value / 10));
   out.AppendUnchecked(static_cast<char>('0' + value % 10));
 }
 
-static void Pad3Unchecked(unsigned value, StringBuilder<> &out) {
+static void Pad3Unchecked(unsigned value, StringBuilder<OneShotAllocator> &out) {
   pdp_assert(value <= 999);
   auto dig3 = value / 100;
   out.AppendUnchecked(static_cast<char>('0' + dig3));
@@ -57,7 +57,7 @@ static void Pad3Unchecked(unsigned value, StringBuilder<> &out) {
 }
 
 static void WriteLogHeader(const StringSlice &filename, unsigned line, Level level,
-                           StringBuilder<> &out) {
+                           StringBuilder<OneShotAllocator> &out) {
   // Capture current wall-clock time with nanosecond precision.
   timespec ts;
   memset(&ts, 0, sizeof(timespec));
@@ -107,7 +107,7 @@ static void WriteLogHeader(const StringSlice &filename, unsigned line, Level lev
   out.AppendUnchecked(' ');
 }
 
-static void FlushMessage(const StringBuilder<> &msg) {
+static void FlushMessage(const StringBuilder<OneShotAllocator> &msg) {
   // Safeguard against blasting the terminal with output.
   const ssize_t max_length = 65535;
 
@@ -135,7 +135,7 @@ void Log(const char *f, unsigned line, Level level, const StringSlice &fmt, Pack
     return;
   }
   StringSlice filename(f);
-  StringBuilder builder;
+  StringBuilder<OneShotAllocator> builder;
 
   constexpr EstimateSize estimator;
   constexpr size_t est = estimator("[2026-01-02 11:42:27.380] [] [:] \n") + EstimateLogLevelSize();

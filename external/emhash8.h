@@ -30,6 +30,7 @@
 
 #include "core/internals.h"
 #include "data/allocator.h"
+#include "data/non_copyable.h"
 
 #include <cstdint>
 #include <utility>
@@ -54,7 +55,7 @@ struct Hash;
 namespace emhash8 {
 
 template <typename K, typename V, typename Alloc = pdp::DefaultAllocator>
-class Map {
+class Map : public pdp::NonCopyable {
   struct Index {
     uint32_t next;
     uint32_t slot;
@@ -87,8 +88,6 @@ class Map {
     Init(bucket, mlf);
   }
 
-  Map(const Map &rhs) = delete;
-
   Map(Map &&rhs) noexcept {
     Init(0);
     *this = std::move(rhs);
@@ -99,8 +98,6 @@ class Map {
     pdp::Deallocate<Entry>(allocator, _pairs);
     pdp::Deallocate<Index>(allocator, _index);
   }
-
-  void operator=(const Map &rhs);
 
   Map &operator=(Map &&rhs) noexcept {
     if (this != &rhs) {

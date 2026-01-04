@@ -1,6 +1,7 @@
 #pragma once
 
 #include "allocator.h"
+#include "non_copyable.h"
 #include "core/check.h"
 
 #include <cstring>
@@ -9,7 +10,7 @@
 namespace pdp {
 
 template <typename T, typename Alloc = DefaultAllocator>
-struct Vector {
+struct Vector : public NonCopyable {
   static_assert(std::is_nothrow_move_constructible_v<T>, "T must be noexcept move constructible");
   static_assert(std::is_nothrow_copy_constructible_v<T>, "T must be noexcept copy constructible");
   static_assert(std::is_nothrow_destructible_v<T>, "T must be noexcept destructible");
@@ -27,8 +28,6 @@ struct Vector {
     other.ptr = nullptr;
   }
 
-  Vector(const Vector &) = delete;
-
   Vector &operator=(Vector &&other) {
     pdp_assert(this != &other);
     if (this != &other) {
@@ -42,8 +41,6 @@ struct Vector {
     }
     return (*this);
   }
-
-  void operator=(const Vector &) = delete;
 
   ~Vector() {
     // TODO check disassembly here

@@ -1,21 +1,15 @@
 #pragma once
 
+#include "data/non_copyable.h"
 #include "time_units.h"
 
 #include <cstddef>
 
 namespace pdp {
 
-struct FileDescriptor {
+struct FileDescriptor : public NonCopyableNonMovable {
   FileDescriptor();
   FileDescriptor(int descriptor);
-
-  FileDescriptor(FileDescriptor &&) = delete;
-  FileDescriptor(const FileDescriptor &) = delete;
-
-  void operator=(const FileDescriptor &) = delete;
-  void operator=(FileDescriptor &&) = delete;
-
   ~FileDescriptor();
 
   bool IsValid() const;
