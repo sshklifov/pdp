@@ -4,6 +4,11 @@
 #include "data/stack.h"
 #include "tracing/trace_likely.h"
 
+// TODO: optimize be knowing the structure of returned messages, so you can instead do something
+// like:
+// struct Response{ int msgid, struct {int buffer_id, int ... } }
+// you know? and not use an allocator
+
 namespace pdp {
 
 template <typename Alloc = DefaultAllocator>

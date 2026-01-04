@@ -181,7 +181,7 @@ void GdbSession::Process() {
       if (result) {
         MISecondPass final_pass(ddz, first_pass);
         ExprView expr = final_pass.Parse();
-        expr.Print();
+        // TODO from here? expr.ToJson();
       } else {
         pdp_error("Parse failed!");
       }

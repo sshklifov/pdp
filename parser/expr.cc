@@ -84,6 +84,19 @@ ExprView ExprView::operator[](const StringSlice &key) {
   return nullptr;
 }
 
+bool ExprView::operator==(const StringSlice &str) const {
+  if (PDP_LIKELY(expr->kind == ExprBase::kString)) {
+    return str == StringSlice((char *)expr + sizeof(ExprString), expr->size);
+  } else if (PDP_LIKELY(expr->kind == ExprBase::kInt)) {
+    const ExprInt *integer = static_cast<const ExprInt *>(expr);
+    return IsEqualDigits10(integer->value, str);
+  } else {
+    return false;
+  }
+}
+
+bool ExprView::operator!=(const StringSlice &str) const { return !(*this == str); }
+
 StringSlice ExprView::StringOr(const StringSlice &alternative) const {
   // TODO: Can't return stringslice to memory I do not own.
   if (PDP_UNLIKELY(expr->kind != ExprBase::kString)) {
@@ -122,20 +135,22 @@ int64_t ExprView::NumberOr(int64_t alternative) const {
   }
 }
 
-static void DebugFormatExpr(const ExprBase *expr, StringBuilder<> &builder) {
+static void RecursiveToJson(const ExprBase *expr, StringBuilder<> &builder) {
   if (expr->kind == ExprBase::kString) {
     StringSlice s((char *)expr + sizeof(ExprString), expr->size);
+    builder.Append('"');
     builder.Append(s);
+    builder.Append('"');
   } else if (expr->kind == ExprBase::kList) {
     if (expr->size == 0) {
       builder.Append("[]");
     } else {
       builder.Append('[');
       ExprBase **elements = reinterpret_cast<ExprBase **>((char *)expr + sizeof(ExprList));
-      DebugFormatExpr(elements[0], builder);
+      RecursiveToJson(elements[0], builder);
       for (size_t i = 1; i < expr->size; ++i) {
         builder.Append(", ");
-        DebugFormatExpr(elements[i], builder);
+        RecursiveToJson(elements[i], builder);
       }
       builder.Append(']');
     }
@@ -145,11 +160,11 @@ static void DebugFormatExpr(const ExprBase *expr, StringBuilder<> &builder) {
     } else {
       const ExprTuple *tuple = static_cast<const ExprTuple *>(expr);
       ExprTuple::Result *results = tuple->results;
-      builder.AppendFormat("{{}=", StringSlice(results[0].key));
-      DebugFormatExpr(results[0].value, builder);
+      builder.AppendFormat("{\"{}\":", StringSlice(results[0].key));
+      RecursiveToJson(results[0].value, builder);
       for (size_t i = 1; i < expr->size; ++i) {
-        builder.AppendFormat(", {}=", StringSlice(results[i].key));
-        DebugFormatExpr(results[i].value, builder);
+        builder.AppendFormat(",\"{}\":", StringSlice(results[i].key));
+        RecursiveToJson(results[i].value, builder);
       }
       builder.Append('}');
     }
@@ -159,11 +174,11 @@ static void DebugFormatExpr(const ExprBase *expr, StringBuilder<> &builder) {
     } else {
       const ExprMap *map = static_cast<const ExprMap *>(expr);
       ExprMap::Pair *pairs = map->pairs;
-      builder.AppendFormat("{{}=", ExprView(pairs[0].key).StringOr("??"));
-      DebugFormatExpr(pairs[0].value, builder);
+      builder.AppendFormat("{\"{}\":", ExprView(pairs[0].key).StringOr("??"));
+      RecursiveToJson(pairs[0].value, builder);
       for (size_t i = 1; i < expr->size; ++i) {
-        builder.AppendFormat(", {}=", ExprView(pairs[i].key).StringOr("??"));
-        DebugFormatExpr(pairs[i].value, builder);
+        builder.AppendFormat(",\"{}\":", ExprView(pairs[i].key).StringOr("??"));
+        RecursiveToJson(pairs[i].value, builder);
       }
       builder.Append('}');
     }
@@ -171,16 +186,12 @@ static void DebugFormatExpr(const ExprBase *expr, StringBuilder<> &builder) {
     const ExprInt *integer = static_cast<const ExprInt *>(expr);
     builder.Append(integer->value);
   } else if (expr->kind == ExprBase::kNull) {
-    builder.Append("(nil)");
+    builder.Append("null");
   } else {
     pdp_assert(false);
   }
 }
 
-void ExprView::Print() {
-  StringBuilder builder;
-  DebugFormatExpr(expr, builder);
-  pdp_info("NiceExpr={}", builder.GetSlice());
-}
+void ExprView::ToJson(StringBuilder<> &out) { RecursiveToJson(expr, out); }
 
 }  // namespace pdp

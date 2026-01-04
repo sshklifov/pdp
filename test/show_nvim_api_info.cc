@@ -5,7 +5,7 @@
 
 using namespace pdp;
 
-int main() {
+int main(int argc, char **argv) {
   int fds[2];
   pdp_assert(pipe(fds) == 0);
 
@@ -33,6 +33,22 @@ int main() {
   waitpid(pid, &status, 0);
   pdp_assert(WIFEXITED(status));
 
-  // ---- debug dump (THIS is why we did this) ----
-  e.Print();
+  // ---- debug dump ----
+  StringBuilder msg;
+  if (argc > 1) {
+    auto functions = e["functions"];
+    for (size_t i = 0; i < functions.Count(); ++i) {
+      auto name = functions[i]["name"];
+      if (name == argv[1]) {
+        functions[i].ToJson(msg);
+        break;
+      }
+    }
+  } else {
+    e.ToJson(msg);
+  }
+
+  msg.Append('\n');
+  write(STDOUT_FILENO, msg.Data(), msg.Size());
+  return 0;
 }

@@ -72,6 +72,43 @@ inline uint32_t CountDigits16(uint64_t n) {
   return (bits >> 2) + 1;
 }
 
+template <typename U, std::enable_if_t<std::is_unsigned_v<U>, int> = 0>
+bool IsEqualDigits10(U unsigned_value, StringSlice str) {
+  const uint64_t digits = CountDigits10(unsigned_value);
+  if (PDP_LIKELY(str.Size() != digits)) {
+    return false;
+  }
+  pdp_assert(!str.Empty());
+
+  const char *__restrict__ it = str.End() - 1;
+  do {
+    char digit = '0' + (unsigned_value % 10);
+    if (PDP_LIKELY(digit != *it)) {
+      return false;
+    }
+    --it;
+    unsigned_value /= 10;
+  } while (unsigned_value > 0);
+
+  return true;
+}
+
+template <typename T, std::enable_if_t<std::is_signed_v<T>, int> = 0>
+bool IsEqualDigits10(T signed_value, StringSlice str) {
+  using U = std::make_unsigned_t<T>;
+  if (signed_value < 0) {
+    if (PDP_LIKELY(!str.StartsWith('-'))) {
+      return false;
+    }
+    U magnitude = ~static_cast<U>(signed_value) + 1;
+    str.DropLeft(1);
+    return IsEqualDigits10(magnitude, str);
+  } else {
+    U magnitude = static_cast<U>(signed_value);
+    return IsEqualDigits10(magnitude, str);
+  }
+}
+
 // Type erase classes
 
 union PackedValue {
@@ -361,10 +398,10 @@ struct StringBuilder {
       pdp_assert(end < limit);
       *end = '-';
       ++end;
-      size_t magnitude = ~static_cast<U>(signed_value) + 1;
+      U magnitude = ~static_cast<U>(signed_value) + 1;
       AppendUnchecked(magnitude);
     } else {
-      size_t magnitude = static_cast<U>(signed_value);
+      U magnitude = static_cast<U>(signed_value);
       AppendUnchecked(magnitude);
     }
   }

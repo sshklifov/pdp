@@ -1,5 +1,6 @@
 #pragma once
 
+#include "string_builder.h"
 #include "strings/string_slice.h"
 
 #include <cstdint>
@@ -85,10 +86,13 @@ struct ExprView {
   ExprView operator[](uint32_t index);
   ExprView operator[](const StringSlice &key);
 
+  bool operator==(const StringSlice &str) const;
+  bool operator!=(const StringSlice &str) const;
+
   StringSlice StringOr(const StringSlice &alternative) const;
   int64_t NumberOr(int64_t alternative) const;
 
-  void Print();
+  void ToJson(StringBuilder<> &out);
 
  private:
   const ExprBase *expr;
