@@ -5,6 +5,9 @@
 #include "core/log.h"
 #include "tracing/tracing_counter.h"
 
+// TODO: add an optimization where you cache the last bucket found
+// because a lot of times, i will just queue 100 request and these can be sequential
+
 namespace pdp {
 
 template <typename Context>

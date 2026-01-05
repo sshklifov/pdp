@@ -1,0 +1,2 @@
+add_executable(perf_callback_table perf_callback_table.cc)
+target_link_libraries(perf_callback_table PRIVATE pdp_data)

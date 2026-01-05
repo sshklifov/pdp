@@ -57,6 +57,7 @@ namespace emhash8 {
 
 template <typename K, typename V, typename Alloc = pdp::DefaultAllocator>
 class Map : public pdp::NonCopyable {
+ protected:
   struct Index {
     uint32_t next;
     uint32_t slot;
@@ -594,7 +595,7 @@ class Map : public pdp::NonCopyable {
     return (uint32_t)hasher(_pairs[slot].key) & _mask;
   }
 
- private:
+ protected:
   Index *_index;
   Entry *_pairs;
 

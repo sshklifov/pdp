@@ -1,6 +1,6 @@
 #pragma once
 
-#include "string_builder.h"
+#include "strings/string_builder.h"
 #include "strings/string_slice.h"
 
 #include <cstdint>

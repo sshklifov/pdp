@@ -4,7 +4,6 @@ target_link_libraries(test_vector PRIVATE pdp_data)
 add_executable(test_stack test_stack.cc)
 target_link_libraries(test_stack PRIVATE pdp_data)
 
-
 add_executable(test_core test_core.cc)
 target_link_libraries(test_core PRIVATE pdp_core)
 

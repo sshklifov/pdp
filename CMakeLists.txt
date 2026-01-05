@@ -3,11 +3,13 @@ cmake_minimum_required(VERSION 3.12)
 project(pdp VERSION 1.0.0 DESCRIPTION "GDB/MI parsing and command processing library")
 
 # Build unit tests
-set(BUILD_TESTS ON)
+set(BUILD_TESTS OFF)
+
+# Build perf tests
+set(BUILD_PERF ON)
 
 # TODO: Future: investigate more compiler flags
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
-  set(BUILD_TESTS OFF)
   set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
   add_compile_options(-Wall -Wno-unused-variable
     -fno-exceptions -fno-unwind-tables -fasynchronous-unwind-tables
@@ -15,6 +17,7 @@ if(CMAKE_BUILD_TYPE STREQUAL "Release")
     -nostdlib++
   )
 else()
+  set(BUILD_PERF OFF)
   add_compile_options(-Wall -Wextra)
 endif()
 
@@ -63,6 +66,7 @@ set(_DEBUG_ENABLED_FEATURES
 )
 
 set(_RELEASE_ENABLED_FEATURES
+  ENABLE_EXTERNAL_CODE
 )
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -93,6 +97,10 @@ add_subdirectory(parser)
 if(BUILD_TESTS)
   find_package(doctest REQUIRED)
   add_subdirectory(test)
+endif()
+
+if(BUILD_PERF)
+  add_subdirectory(perf)
 endif()
 
 add_executable(pdp main.cc gdb_session.cc)

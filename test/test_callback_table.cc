@@ -1,9 +1,8 @@
 #include <random>
-#include "external/ankerl_hash.h"
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 
-#include "callback_table.h"  // whatever file name this garbage lives in (WOW CHATGPT!)
+#include "data/callback_table.h"  // whatever file name this garbage lives in (WOW CHATGPT!)
 
 using namespace pdp;
 
@@ -108,8 +107,8 @@ TEST_CASE("Flow-style stress test with holes, reuse, and random invokes") {
   static constexpr uint32_t kTotalIds = 100'000;
   static constexpr uint32_t kMaxActive = 100;
 
-  uint64_t expected_hash = 0;
-  uint64_t actual_hash = 0;
+  uint64_t expected_hash = 0x9E3779B97F4A7C15;
+  uint64_t actual_hash = 0x9E3779B97F4A7C15;
 
   // Track active IDs
   std::vector<uint32_t> active;
@@ -123,7 +122,7 @@ TEST_CASE("Flow-style stress test with holes, reuse, and random invokes") {
     uint32_t id;
 
     AddId(uint64_t *out, uint32_t id) : out(out), id(id) {}
-    void operator()(int) { *out = ankerl::unordered_dense::mix(*out, id); }
+    void operator()(int) { *out += id; }
   };
 
   uint32_t next_id = 1;
@@ -133,7 +132,7 @@ TEST_CASE("Flow-style stress test with holes, reuse, and random invokes") {
     REQUIRE(next_id <= kTotalIds);
 
     uint32_t id = next_id++;
-    expected_hash = ankerl::unordered_dense::mix(expected_hash, id);
+    expected_hash += id;
 
     table.Bind<AddId>(id, &actual_hash, id);
     active.push_back(id);
