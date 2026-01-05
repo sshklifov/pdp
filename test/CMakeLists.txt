@@ -40,3 +40,6 @@ target_link_libraries(show_nvim_api_info PRIVATE pdp_parser)
 
 add_executable(test_callback_table test_callback_table.cc)
 target_link_libraries(test_callback_table PRIVATE pdp_data)
+
+add_executable(test_emhash test_emhash.cc)
+target_link_libraries(test_emhash PRIVATE external)

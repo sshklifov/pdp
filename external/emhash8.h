@@ -29,6 +29,7 @@
 #include "ankerl_hash.h"
 
 #include "core/internals.h"
+#include "core/log.h"
 #include "data/allocator.h"
 #include "data/non_copyable.h"
 
@@ -88,9 +89,19 @@ class Map : public pdp::NonCopyable {
     Init(bucket, mlf);
   }
 
-  Map(Map &&rhs) noexcept {
-    Init(0);
-    *this = std::move(rhs);
+  Map(Map &&rhs) noexcept
+      : _index(rhs._index),
+        _pairs(rhs._pairs),
+        _mlf(rhs._mlf),
+        _mask(rhs._mask),
+        _num_buckets(rhs._num_buckets),
+        _num_filled(rhs._num_filled),
+        _last(rhs._last),
+        _etail(rhs._etail),
+        allocator(rhs.allocator) {
+    rhs._pairs = nullptr;
+    rhs._index = nullptr;
+    rhs._num_filled = 0;
   }
 
   ~Map() noexcept {
@@ -116,6 +127,7 @@ class Map : public pdp::NonCopyable {
     std::swap(_mlf, rhs._mlf);
     std::swap(_last, rhs._last);
     std::swap(_etail, rhs._etail);
+    std::swap(allocator, rhs.allocator);
   }
 
   Entry *Begin() { return _pairs; }
@@ -215,7 +227,8 @@ class Map : public pdp::NonCopyable {
 
   void Clearkv() {
     if (!std::is_trivially_destructible_v<Entry>) {
-      pdp_trace_once("Found non trivially destructible object in {}", __PRETTY_FUNCTION__);
+      pdp_trace_once("Found non trivially destructible object in {}",
+                     pdp::StringSlice(__PRETTY_FUNCTION__));
       while (_num_filled--) _pairs[_num_filled].~Entry();
     }
   }
@@ -348,7 +361,7 @@ class Map : public pdp::NonCopyable {
 
     if (EMH_EQHASH(bucket, key_hash)) {
       const uint32_t slot = _index[bucket].slot & _mask;
-      if (PDP_LIKELY(_pairs[slot].first == key)) {
+      if (PDP_LIKELY(_pairs[slot].key == key)) {
         return bucket;
       }
     }
@@ -359,7 +372,7 @@ class Map : public pdp::NonCopyable {
     while (true) {
       if (EMH_EQHASH(next_bucket, key_hash)) {
         const uint32_t slot = _index[next_bucket].slot & _mask;
-        if (PDP_LIKELY(_pairs[slot].first == key)) {
+        if (PDP_LIKELY(_pairs[slot].key == key)) {
           return next_bucket;
         }
       }

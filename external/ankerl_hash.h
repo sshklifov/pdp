@@ -29,6 +29,7 @@
 #pragma once
 
 #include "core/internals.h"
+#include "strings/string_slice.h"
 
 #include <cstdint>
 #include <cstring>
@@ -143,6 +144,33 @@ struct Hash<T *> {
   uint64_t operator()(T *ptr) const {
     return ankerl::unordered_dense::hash(reinterpret_cast<uint64_t>(ptr));
   }
+};
+
+template <>
+struct Hash<StringSlice> {
+  uint64_t operator()(const StringSlice &s) const {
+    return ankerl::unordered_dense::hash(s.Begin(), s.Size());
+  }
+};
+
+template <>
+struct Hash<uint64_t> {
+  uint64_t operator()(uint32_t value) const { return ankerl::unordered_dense::hash(value); }
+};
+
+template <>
+struct Hash<int64_t> {
+  uint64_t operator()(uint32_t value) const { return ankerl::unordered_dense::hash(value); }
+};
+
+template <>
+struct Hash<uint32_t> {
+  uint64_t operator()(uint32_t value) const { return ankerl::unordered_dense::hash(value); }
+};
+
+template <>
+struct Hash<int32_t> {
+  uint64_t operator()(uint32_t value) const { return ankerl::unordered_dense::hash(value); }
 };
 
 }  // namespace pdp
