@@ -49,6 +49,16 @@ ExprView ExprView::operator[](uint32_t index) {
   }
 }
 
+ExprView ExprView::operator[](int index) {
+  if (PDP_UNLIKELY(index < 0)) {
+    return nullptr;
+  }
+  uint32_t magnitude = static_cast<int>(index);
+  return (*this)[magnitude];
+}
+
+ExprView ExprView::operator[](const char *key) { return (*this)[StringSlice(key)]; }
+
 ExprView ExprView::operator[](const StringSlice &key) {
   if (PDP_LIKELY(expr->kind == ExprBase::kTuple)) {
     const ExprTuple *tuple = static_cast<const ExprTuple *>(expr);

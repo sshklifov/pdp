@@ -59,9 +59,9 @@ StringSlice RollingBuffer::ReadLine(Milliseconds timeout) {
         Check(ret, "read");
       }
     }
-    next_wait = now.ElapsedMilli() - timeout;
+    next_wait = timeout - now.ElapsedMilli();
   }
-  return StringSlice("\n", 1);
+  return StringSlice(nullptr, nullptr);
 }
 
 void RollingBuffer::ReserveForRead() {

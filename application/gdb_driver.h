@@ -22,8 +22,6 @@ inline bool IsResultMarker(char c) { return c == '^'; }
 using Session = void *;
 
 struct GdbDriver {
-  using ResponseFun = CallbackTable<Session>::InvokeFun;
-
   GdbDriver();
 
   void Start();

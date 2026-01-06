@@ -12,14 +12,14 @@ struct Milliseconds {
 
   constexpr int64_t GetMilli() const { return value; };
 
-  bool operator<(const Milliseconds &other) { return value < other.value; }
-  bool operator>(const Milliseconds &other) { return value > other.value; }
+  bool operator<(const Milliseconds &other) const { return value < other.value; }
+  bool operator>(const Milliseconds &other) const { return value > other.value; }
 
-  bool operator<=(const Milliseconds &other) { return value <= other.value; }
-  bool operator>=(const Milliseconds &other) { return value >= other.value; }
+  bool operator<=(const Milliseconds &other) const { return value <= other.value; }
+  bool operator>=(const Milliseconds &other) const { return value >= other.value; }
 
-  bool operator==(const Milliseconds &other) { return value == other.value; }
-  bool operator!=(const Milliseconds &other) { return value != other.value; }
+  bool operator==(const Milliseconds &other) const { return value == other.value; }
+  bool operator!=(const Milliseconds &other) const { return value != other.value; }
 
   Milliseconds &operator-=(const Milliseconds &other) {
     value -= other.value;

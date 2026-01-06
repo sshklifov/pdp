@@ -12,24 +12,23 @@
 
 namespace pdp {
 
-template <typename Context>
-struct SmallCallback {
+template <typename... FunArgs>
+struct SmallCapture {
   static constexpr unsigned StorageSize = 24;
-  using InvokeFun = void (*)(void *, Context);
+  using InvokeFun = void (*)(void *, FunArgs...);
 
-  static_assert(std::is_integral_v<Context> || std::is_pointer_v<Context>);
-
-  void operator()(Context ctx) {
+  template <typename... A>
+  void operator()(A &&...args) {
     pdp_assert(invoke);
-    invoke((void *)storage, ctx);
+    invoke((void *)storage, std::forward<A>(args)...);
 #ifdef PDP_ENABLE_ASSERT
     invoke = nullptr;
 #endif
   }
 
   template <typename Callable>
-  static void InvokeImpl(void *obj, Context ctx) {
-    (*static_cast<Callable *>(obj))(ctx);
+  static void InvokeImpl(void *obj, FunArgs... args) {
+    (*static_cast<Callable *>(obj))(args...);
     (*static_cast<Callable *>(obj)).~Callable();
   }
 
@@ -37,12 +36,13 @@ struct SmallCallback {
   InvokeFun invoke;
 };
 
-template <typename Context>
+template <typename... FunArgs>
 struct CallbackTable {
   static constexpr const size_t max_elements = 16'384;
   static constexpr const size_t default_elements = 8;
 
-  using InvokeFun = typename SmallCallback<Context>::InvokeFun;
+  using Capture = SmallCapture<FunArgs...>;
+  // using InvokeFun = typename Capture::InvokeFun;
 
 #ifdef PDP_TRACE_CALLBACK_TABLE
   CallbackTable() : trace_search(names) {
@@ -50,7 +50,7 @@ struct CallbackTable {
   CallbackTable() {
 #endif
     capacity = default_elements;
-    table = Allocate<SmallCallback<Context>>(allocator, capacity);
+    table = Allocate<Capture>(allocator, capacity);
     indices = Allocate<uint32_t>(allocator, capacity);
     memset(indices, -1, capacity * sizeof(uint32_t));
   }
@@ -65,14 +65,13 @@ struct CallbackTable {
       }
     }
 #endif
-    Deallocate<SmallCallback<Context>>(allocator, table);
+    Deallocate<Capture>(allocator, table);
     Deallocate<uint32_t>(allocator, indices);
   }
 
-  template <typename Callable, typename... Args>
-  void Bind(uint32_t id, Args &&...capture_args) {
-    static_assert(sizeof(Callable) <= SmallCallback<Context>::StorageSize,
-                  "Callback object too large");
+  template <typename C, typename... A>
+  void Bind(uint32_t id, A &&...args) {
+    static_assert(sizeof(C) <= Capture::StorageSize, "Callback object too large");
 #ifdef PDP_ENABLE_ASSERT
     for (size_t i = 0; i < capacity; ++i) {
       pdp_assert(indices[i] != id);
@@ -89,21 +88,22 @@ struct CallbackTable {
       Grow();
     }
     auto *cb = table + i;
-    new (cb->storage) Callable(std::forward<Args>(capture_args)...);
+    new (cb->storage) C(std::forward<A>(args)...);
     indices[i] = id;
-    cb->invoke = &SmallCallback<Context>::template InvokeImpl<Callable>;
+    cb->invoke = &Capture::template InvokeImpl<C>;
 #ifdef PDP_TRACE_CALLBACK_TABLE
     AccumulateHitPosition(i);
 #endif
   }
 
-  bool Invoke(uint32_t id, Context ctx) {
+  template <typename... A>
+  bool Invoke(uint32_t id, A &&...args) {
     for (size_t i = 0; i < capacity; ++i) {
       if (PDP_UNLIKELY(indices[i] == id)) {
 #ifdef PDP_TRACE_CALLBACK_TABLE
         AccumulateHitPosition(i);
 #endif
-        table[i](ctx);
+        table[i](std::forward<A>(args)...);
         indices[i] = invalid_id;
         return true;
       }
@@ -129,7 +129,7 @@ struct CallbackTable {
     size_t half_capacity = capacity / 2;
 
     pdp_assert(capacity + half_capacity <= max_elements);
-    table = Reallocate<SmallCallback<Context>>(allocator, table, capacity + half_capacity);
+    table = Reallocate<Capture>(allocator, table, capacity + half_capacity);
     indices = Reallocate<uint32_t>(allocator, indices, capacity + half_capacity);
     memset(indices + capacity, -1, sizeof(uint32_t) * half_capacity);
     capacity += half_capacity;
@@ -137,7 +137,7 @@ struct CallbackTable {
     pdp_assert(indices);
   }
 
-  SmallCallback<Context> *table;
+  Capture *table;
   uint32_t *indices;
   size_t capacity;
   DefaultAllocator allocator;

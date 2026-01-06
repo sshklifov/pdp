@@ -37,7 +37,7 @@ int main(int argc, char **argv) {
   StringBuilder msg;
   if (argc > 1) {
     auto functions = e["functions"];
-    for (size_t i = 0; i < functions.Count(); ++i) {
+    for (uint32_t i = 0; i < functions.Count(); ++i) {
       auto name = functions[i]["name"];
       if (name == argv[1]) {
         functions[i].ToJson(msg);

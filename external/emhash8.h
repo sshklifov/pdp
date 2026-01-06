@@ -83,7 +83,7 @@ class Map : public pdp::NonCopyable {
 
   Map(Alloc alloc = Alloc(), uint32_t bucket = 2, float mlf = EMH_DEFAULT_LOAD_FACTOR) noexcept
       : allocator(alloc) {
-#ifndef PDP_ENABLE_EXTERNAL_CODE
+#ifndef PDP_DEBUG_BUILD
     pdp_error("Dynamic usage of emhas8::Map detected!");
     std::terminate();
 #endif

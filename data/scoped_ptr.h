@@ -26,6 +26,9 @@ struct ScopedPtr : public NonCopyable {
 
   const T *operator->() const { return ptr; }
 
+  T *Get() { return ptr; }
+  const T *Get() const { return ptr; }
+
  private:
   T *ptr;
   Alloc allocator;

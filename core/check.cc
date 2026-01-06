@@ -47,11 +47,15 @@ void OnAssertFailed(const char *what, const char *context, size_t n) {
 
 static StringSlice GetErrorDescription() { return StringSlice(strerrordesc_np(errno)); }
 
+// Similar to OnAssertFailed, for easier debugging.
+void OnCheckFailed() {}
+
 bool Check(int result, const char *operation) {
   bool is_successful = (0 <= result);
   if (PDP_UNLIKELY(!is_successful)) {
     pdp_error("'{}' returned '{}'. Error '{}': '{}'.", StringSlice(operation), result, errno,
               GetErrorDescription());
+    OnCheckFailed();
   }
   return is_successful;
 }
@@ -61,6 +65,7 @@ bool Check(void *pointer, const char *operation) {
   if (PDP_UNLIKELY(!is_successful)) {
     pdp_error("'{}' returned '{}'. Error '{}': '{}'.", StringSlice(operation), pointer, errno,
               GetErrorDescription());
+    OnCheckFailed();
   }
   return is_successful;
 }

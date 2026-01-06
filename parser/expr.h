@@ -85,8 +85,10 @@ struct ExprView {
 
   operator bool() const;
 
+  ExprView operator[](int index);
   ExprView operator[](uint32_t index);
   ExprView operator[](const StringSlice &key);
+  ExprView operator[](const char *key);
 
   bool operator==(const StringSlice &str) const;
   bool operator!=(const StringSlice &str) const;

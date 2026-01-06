@@ -3,13 +3,14 @@ cmake_minimum_required(VERSION 3.12)
 project(pdp VERSION 1.0.0 DESCRIPTION "GDB/MI parsing and command processing library")
 
 # Build unit tests
-set(BUILD_TESTS OFF)
+set(BUILD_TESTS ON)
 
 # Build perf tests
 set(BUILD_PERF ON)
 
 # TODO: Future: investigate more compiler flags
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
+  set(BUILD_TESTS OFF)
   set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
   add_compile_options(-Wall -Wno-unused-variable
     -fno-exceptions -fno-unwind-tables -fasynchronous-unwind-tables
@@ -38,8 +39,6 @@ set(_FEATURES
   TRACE_MESSAGES
   # Report branch mispredictions originating from PDP_TRACE_LIKELY 
   TRACE_BRANCH
-  # Allow use of external, unverified code 
-  ENABLE_EXTERNAL_CODE
   # Trace RollingBuffer reallocation statistics 
   TRACE_ROLLING_BUFFER
   # Trace ChunkArray memory fragmentation 
@@ -48,6 +47,8 @@ set(_FEATURES
   ENABLE_ZERO_INITIALIZE
   # Trace search times in CallbackTable<>
   TRACE_CALLBACK_TABLE
+  # Various convenience settings which should always run on debug builds only
+  DEBUG_BUILD
 )
 
 # TODO sanitizer and clang-tidy
@@ -60,13 +61,12 @@ set(_DEBUG_ENABLED_FEATURES
   CHECK_MUTEX
   ENABLE_ASSERT
   TRACE_MESSAGES
-  ENABLE_EXTERNAL_CODE
+  DEBUG_BUILD
   ENABLE_ZERO_INITIALIZE
   TRACE_CALLBACK_TABLE
 )
 
 set(_RELEASE_ENABLED_FEATURES
-  ENABLE_EXTERNAL_CODE
 )
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")

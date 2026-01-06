@@ -101,6 +101,37 @@ TEST_CASE("table grows correctly") {
   CHECK(sum == N);
 }
 
+TEST_CASE("Callback capture reference") {
+  CallbackTable<> table;
+
+  int value = 0;
+  struct IncrementCallback {
+    IncrementCallback(int &v) : v(v) {}
+
+    void operator()() { v += 1; }
+
+   private:
+    int &v;
+  };
+
+  table.Bind<IncrementCallback>(4, value);
+
+  struct IncrementTwiceCallback {
+    IncrementTwiceCallback(int &v) : v(v) {}
+
+    void operator()() { v += 2; }
+
+   private:
+    int &v;
+  };
+
+  table.Bind<IncrementTwiceCallback>(5, value);
+
+  table.Invoke(4);
+  table.Invoke(5);
+  CHECK(value == 3);
+}
+
 TEST_CASE("Flow-style stress test with holes, reuse, and random invokes") {
   CallbackTable<int> table;
 
