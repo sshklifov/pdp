@@ -21,6 +21,7 @@ inline constexpr size_t ConstexprLength(const char *s) {
 }
 
 struct StringSlice {
+  constexpr StringSlice() : ptr(""), size(0) {}
   constexpr StringSlice(const char *p, size_t sz) : ptr(p), size(sz) {}
 
   constexpr StringSlice(const char *begin, const char *end) : ptr(begin), size(end - begin) {

@@ -10,13 +10,29 @@
 
 namespace pdp {
 
-inline bool IsStreamMessage(const StringSlice &s) {
-  return s[0] == '~' || s[0] == '@' || s[0] == '&';
-}
+inline bool IsStreamMarker(char c) { return c == '~' || c == '@' || c == '&'; }
 
 inline bool IsAsyncMarker(char c) { return c == '*' || c == '+' || c == '='; }
 
 inline bool IsResultMarker(char c) { return c == '^'; }
+
+enum class AsyncKind {
+  kStopped,
+  kRunning,
+  kCmdParamChanged,
+  kBreakpointCreated,
+  kBreakpointDeleted,
+  kBreakpointModified,
+  kThreadCreated,
+  kThreadSelected,
+  kThreadExited,
+  kThreadGroupStarted,
+  kLibraryLoaded,
+  kLibraryUnloaded,
+  kUnknown
+};
+
+AsyncKind ClassifyAsync(StringSlice name);
 
 // TODO?
 using Session = void *;
@@ -43,8 +59,8 @@ struct GdbDriver {
   static void MonitorGdbStderr(std::atomic_bool *is_running, int fd);
 
   void OnStreamMessage(const StringSlice &message);
-  void OnAsyncMessage(const StringSlice &class_name, ScopedPtr<ExprBase> &&expr);
-  void OnResultMessage(uint32_t token, const StringSlice &class_name, ScopedPtr<ExprBase> &&expr);
+  void OnAsyncMessage(const StringSlice &class_name, ScopedPtr<ExprBase> expr);
+  void OnResultMessage(uint32_t token, const StringSlice &class_name, ScopedPtr<ExprBase> expr);
 
   OutputDescriptor gdb_stdin;
   RollingBuffer gdb_stdout;

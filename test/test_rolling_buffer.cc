@@ -14,6 +14,8 @@ constexpr pdp::Milliseconds timeout(100);
 
 namespace {
 
+pdp::StringSlice SS(pdp::MutableLine m) { return pdp::StringSlice(m.begin, m.end); }
+
 int MakePipe(int fds[2]) {
   int rc = pipe(fds);
   REQUIRE(rc == 0);
@@ -51,7 +53,7 @@ TEST_CASE("RollingBuffer: single short line") {
 
   RollingBuffer buf;
   buf.SetDescriptor(fds[0]);
-  StringSlice line = buf.ReadLine(timeout);
+  StringSlice line = SS(buf.ReadLine(timeout));
 
   CHECK(line == "hello\n");
 }
@@ -67,11 +69,11 @@ TEST_CASE("RollingBuffer: multiple lines in one write") {
   RollingBuffer buf;
   buf.SetDescriptor(fds[0]);
 
-  auto line = buf.ReadLine(timeout);
+  auto line = SS(buf.ReadLine(timeout));
   CHECK(line == "a\n");
-  line = buf.ReadLine(timeout);
+  line = SS(buf.ReadLine(timeout));
   CHECK(line == "b\n");
-  line = buf.ReadLine(timeout);
+  line = SS(buf.ReadLine(timeout));
   CHECK(line == "c\n");
 }
 
@@ -85,7 +87,7 @@ TEST_CASE("RollingBuffer: line split across reads") {
 
   RollingBuffer buf;
   buf.SetDescriptor(fds[0]);
-  auto line = buf.ReadLine(timeout);
+  auto line = SS(buf.ReadLine(timeout));
 
   CHECK(line == "hello world\n");
 }
@@ -97,7 +99,7 @@ TEST_CASE("RollingBuffer: empty input returns empty slice") {
 
   RollingBuffer buf;
   buf.SetDescriptor(fds[0]);
-  auto line = buf.ReadLine(timeout);
+  auto line = SS(buf.ReadLine(timeout));
 
   CHECK(line.Empty());
 }
@@ -136,7 +138,7 @@ TEST_CASE("RollingBuffer: long line > default buffer size") {
   buf.SetDescriptor(fds[0]);
 
   pdp::Stopwatch watch;
-  auto line = buf.ReadLine(timeout);
+  auto line = SS(buf.ReadLine(timeout));
 
   CHECK(line.Size() == line_size);
   CHECK(line.Find('\n') == line.End() - 1);
@@ -161,7 +163,7 @@ TEST_CASE("RollingBuffer: many small lines trigger rollover") {
   });
 
   for (int i = 0; i < lines; ++i) {
-    auto s = buf.ReadLine(timeout);
+    auto s = SS(buf.ReadLine(timeout));
     CHECK(s == "Test line\n");
   }
 
@@ -179,7 +181,7 @@ TEST_CASE("RollingBuffer: final line without newline") {
 
   RollingBuffer buf;
   buf.SetDescriptor(fds[0]);
-  auto line = buf.ReadLine(timeout);
+  auto line = SS(buf.ReadLine(timeout));
 
   CHECK(line.Empty());
 }
@@ -194,20 +196,20 @@ TEST_CASE("RollingBuffer: wait for newline") {
 
   WriteAll(fds[1], "No newline");
 
-  auto line = buf.ReadLine(timeout);
+  auto line = SS(buf.ReadLine(timeout));
   CHECK(line.Empty());
 
   WriteAll(fds[1], " and still nothing");
-  line = buf.ReadLine(timeout);
+  line = SS(buf.ReadLine(timeout));
   CHECK(line.Empty());
 
   WriteAll(fds[1], " but then\nThere is light\n");
   close(fds[1]);
 
-  line = buf.ReadLine(timeout);
+  line = SS(buf.ReadLine(timeout));
   CHECK(line == "No newline and still nothing but then\n");
 
-  line = buf.ReadLine(timeout);
+  line = SS(buf.ReadLine(timeout));
   CHECK(line == "There is light\n");
 }
 
@@ -221,10 +223,10 @@ TEST_CASE("RollingBuffer: nonblocking behavior") {
 
   WriteAll(fds[1], "Final thing.\n");
 
-  auto line = buf.ReadLine(timeout);
+  auto line = SS(buf.ReadLine(timeout));
   CHECK(line == "Final thing.\n");
 
-  line = buf.ReadLine(timeout);
+  line = SS(buf.ReadLine(timeout));
   CHECK(line.Empty());
 
   close(fds[1]);

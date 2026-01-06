@@ -26,12 +26,12 @@ RollingBuffer::~RollingBuffer() { Deallocate<char>(allocator, ptr); }
 
 void RollingBuffer::SetDescriptor(int fd) { input.SetValue(fd); }
 
-StringSlice RollingBuffer::ReadLine(Milliseconds timeout) {
+MutableLine RollingBuffer::ReadLine(Milliseconds timeout) {
   if (PDP_TRACE_UNLIKELY(begin != end)) {
     char *pos = static_cast<char *>(memchr(begin, '\n', end - begin));
     if (pos) {
       ++pos;
-      StringSlice res(begin, pos);
+      MutableLine res(begin, pos);
       begin = pos;
       return res;
     }
@@ -50,7 +50,7 @@ StringSlice RollingBuffer::ReadLine(Milliseconds timeout) {
       pdp_assert(end <= limit);
       if (PDP_TRACE_LIKELY(pos)) {
         ++pos;
-        StringSlice res(begin, pos);
+        MutableLine res(begin, pos);
         begin = pos;
         return res;
       }
@@ -61,7 +61,7 @@ StringSlice RollingBuffer::ReadLine(Milliseconds timeout) {
     }
     next_wait = timeout - now.ElapsedMilli();
   }
-  return StringSlice(nullptr, nullptr);
+  return MutableLine{};
 }
 
 void RollingBuffer::ReserveForRead() {

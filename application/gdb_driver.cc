@@ -37,6 +37,87 @@ StringSlice ProcessCstringInPlace(char *begin, char *end) {
   return StringSlice(begin, write_head);
 }
 
+AsyncKind ClassifyAsync(StringSlice name) {
+  StringSlice prefix;
+  switch (name[0]) {
+    case 's':
+      if (PDP_LIKELY(name == "stopped")) {
+        return AsyncKind::kStopped;
+      }
+      break;
+    case 'r':
+      if (PDP_LIKELY(name == "running")) {
+        return AsyncKind::kRunning;
+      }
+    case 'c':
+      if (PDP_LIKELY(name == "cmd-param-changed")) {
+        return AsyncKind::kCmdParamChanged;
+      }
+    case 'b':
+      prefix = "breakpoint-";
+      if (PDP_LIKELY(name.Size() >= prefix.Size() + 1 && name.MemCmp(prefix) == 0)) {
+        name.DropLeft(prefix.Size());
+        switch (name[0]) {
+          case 'c':
+            if (PDP_LIKELY(name == "created")) {
+              return AsyncKind::kBreakpointCreated;
+            }
+            break;
+          case 'd':
+            if (PDP_LIKELY(name == "deleted")) {
+              return AsyncKind::kBreakpointDeleted;
+            }
+            break;
+          case 'm':
+            if (PDP_LIKELY(name == "modified")) {
+              return AsyncKind::kBreakpointModified;
+            }
+            break;
+        }
+      }
+      break;
+    case 't':
+      prefix = "thread-";
+      if (PDP_LIKELY(name.Size() >= prefix.Size() + 1 && name.MemCmp(prefix) == 0)) {
+        name.DropLeft(prefix.Size());
+        switch (name[7]) {
+          case 'c':
+            if (PDP_LIKELY(name == "created")) {
+              return AsyncKind::kThreadCreated;
+            }
+            break;
+          case 's':
+            if (PDP_LIKELY(name == "selected")) {
+              return AsyncKind::kThreadSelected;
+            }
+            break;
+          case 'e':
+            if (PDP_LIKELY(name == "exitted")) {
+              return AsyncKind::kThreadExited;
+            }
+          case 'g':
+            if (name == "group-started") {
+              return AsyncKind::kThreadGroupStarted;
+            }
+            break;
+        }
+      }
+      break;
+    case 'l':
+      prefix = "library-";
+      if (PDP_LIKELY(name.Size() >= prefix.Size() + 1 && name.MemCmp(prefix) == 0)) {
+        name.DropLeft(prefix.Size());
+        if (PDP_LIKELY(name == "loaded")) {
+          return AsyncKind::kLibraryLoaded;
+        } else if (PDP_LIKELY(name == "unloaded")) {
+          return AsyncKind::kLibraryLoaded;
+        }
+      }
+      break;
+  }
+  return AsyncKind::kUnknown;
+}
+
 GdbDriver::GdbDriver() : token_counter(1) {}
 
 void GdbDriver::Start() {
@@ -92,18 +173,17 @@ void GdbDriver::MonitorGdbStderr(std::atomic_bool *is_running, int fd) {
 }
 
 void GdbDriver::Poll(Milliseconds timeout) {
-  StringSlice str = gdb_stdout.ReadLine(timeout);
-  if (PDP_TRACE_LIKELY(str.Size() <= 1)) {
+  MutableLine line = gdb_stdout.ReadLine(timeout);
+  size_t length = line.end - line.begin;
+  if (PDP_TRACE_LIKELY(length <= 1)) {
     return;
   }
-  pdp_assert(str[str.Size() - 1] == '\n');
+  pdp_assert(line.begin[length - 1] == '\n');
 
-  if (IsStreamMessage(str)) {
-    // TODO const_cast
-    OnStreamMessage(ProcessCstringInPlace(const_cast<char *>(str.Begin() + 1),
-                                          const_cast<char *>(str.End() - 1)));
+  if (IsStreamMarker(*line.begin)) {
+    OnStreamMessage(ProcessCstringInPlace(line.begin + 1, line.end - 1));
   } else {
-    const char *it = str.Begin();
+    const char *it = line.begin;
     uint32_t token = 0;
     while (*it >= '0' && *it <= '9') {
       token *= 10;
@@ -114,12 +194,12 @@ void GdbDriver::Poll(Milliseconds timeout) {
     char marker = *it;
     ++it;
 
-    const char *class_begin = it;
+    const char *name_begin = it;
     while (*it != '\n' && *it != ',') {
       ++it;
     }
-    StringSlice class_name(class_begin, it);
-    StringSlice record(it + 1, str.End());
+    StringSlice name(name_begin, it);
+    StringSlice record(it + 1, line.end);
     if (!record.Empty()) {
       record.DropRight(1);
     }
@@ -135,12 +215,12 @@ void GdbDriver::Poll(Milliseconds timeout) {
       return;
     }
 
-    if (PDP_UNLIKELY(class_name.Empty())) {
+    if (PDP_UNLIKELY(name.Empty())) {
       pdp_warning("Missing class name for message with token {}", token);
     } else if (IsResultMarker(marker)) {
-      OnResultMessage(token, class_name, std::move(expr));
+      OnResultMessage(token, name, std::move(expr));
     } else if (PDP_LIKELY(IsAsyncMarker(marker))) {
-      OnAsyncMessage(class_name, std::move(expr));
+      OnAsyncMessage(name, std::move(expr));
     }
   }
 }
@@ -164,84 +244,15 @@ void GdbDriver::OnStreamMessage(const StringSlice &message) { LogUnformatted(mes
 
 // TODO first pass -> second pass is creating a lot of empty objects. bad?
 
-void GdbDriver::OnAsyncMessage(const StringSlice &class_name, ScopedPtr<ExprBase> &&expr) {
-  switch (class_name[0]) {
-    case 's':
-      if (PDP_LIKELY(class_name == "stopped")) {
-        // TODO
-      }
-      break;
-    case 'r':
-      if (PDP_LIKELY(class_name == "running")) {
-        // TODO
-      }
-    case 'c':
-      if (PDP_LIKELY(class_name == "cmd-param-changed")) {
-        // TODO
-      }
-    case 'b':
-      if (PDP_LIKELY(class_name.Size() >= 12 && class_name.MemCmp("breakpoint-") == 0)) {
-        switch (class_name[11]) {
-          case 'c':
-            if (PDP_LIKELY(class_name.Substr(class_name.Begin() + 11) == "created")) {
-              // TODO
-            }
-            break;
-          case 'd':
-            if (PDP_LIKELY(class_name.Substr(class_name.Begin() + 11) == "deleted")) {
-              // TODO
-            }
-            break;
-          case 'm':
-            if (PDP_LIKELY(class_name.Substr(class_name.Begin() + 11) == "modified")) {
-              // TODO
-            }
-            break;
-        }
-      }
-      break;
-    case 't':
-      if (PDP_LIKELY(class_name.Size() >= 8 && class_name.MemCmp("thread-") == 0)) {
-        switch (class_name[7]) {
-          case 'c':
-            if (PDP_LIKELY(class_name.Substr(class_name.Begin() + 7) == "created")) {
-              // TODO
-            }
-            break;
-          case 's':
-            if (PDP_LIKELY(class_name.Substr(class_name.Begin() + 7) == "selected")) {
-              // TODO
-            }
-            break;
-          case 'e':
-            if (PDP_LIKELY(class_name.Substr(class_name.Begin() + 7) == "exitted")) {
-              // TODO
-            }
-          case 'g':
-            if (class_name.Substr(class_name.Begin() + 7) == "group-started") {
-              // TODO
-            }
-            break;
-        }
-      }
-      break;
-    case 'l':
-      if (PDP_LIKELY(class_name.Size() >= 9 && class_name.MemCmp("library-") == 0)) {
-        if (PDP_LIKELY(class_name.Substr(class_name.Begin() + 8) == "loaded")) {
-          // TODO
-        } else if (PDP_LIKELY(class_name.Substr(class_name.Begin() + 8) == "unloaded")) {
-          // TODO
-        }
-      }
-      break;
-  }
+void GdbDriver::OnAsyncMessage(const StringSlice &name, ScopedPtr<ExprBase> expr) {
+  auto async_class = ClassifyAsync(name);
 }
 
-void GdbDriver::OnResultMessage(uint32_t token, const StringSlice &class_name,
-                                ScopedPtr<ExprBase> &&expr) {
-  if (PDP_LIKELY(class_name == "done")) {
+void GdbDriver::OnResultMessage(uint32_t token, const StringSlice &name,
+                                ScopedPtr<ExprBase> expr) {
+  if (PDP_LIKELY(name == "done")) {
     // callbacks.Invoke(token, ...);
-  } else if (PDP_LIKELY(class_name == "error")) {
+  } else if (PDP_LIKELY(name == "error")) {
     // TODO
   }
 }

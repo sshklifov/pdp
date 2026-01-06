@@ -1,10 +1,17 @@
 #pragma once
 
-#include "string_slice.h"
 #include "system/file_descriptor.h"
 #include "tracing/tracing_counter.h"
 
 namespace pdp {
+
+struct MutableLine {
+  MutableLine() : begin(nullptr), end(nullptr) {}
+  MutableLine(char *b, char *e) : begin(b), end(e) {}
+
+  char *begin;
+  char *end;
+};
 
 struct RollingBuffer {
   static constexpr size_t min_read_size = 4_KB;
@@ -16,7 +23,7 @@ struct RollingBuffer {
 
   void SetDescriptor(int fd);
 
-  StringSlice ReadLine(Milliseconds timeout);
+  MutableLine ReadLine(Milliseconds timeout);
 
  private:
   void ReserveForRead();
