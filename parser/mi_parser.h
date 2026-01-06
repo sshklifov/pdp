@@ -1,5 +1,6 @@
 #pragma once
 
+#include "data/scoped_ptr.h"
 #include "expr.h"
 
 #include "data/arena.h"
@@ -12,8 +13,10 @@ namespace pdp {
 
 bool IsMiIdentifier(char c);
 
+char ReverseEscapeCharacter(char c);
+
 struct MiFirstPass {
-  friend struct MISecondPass;
+  friend struct MiSecondPass;
 
   MiFirstPass(const StringSlice &s);
 
@@ -42,10 +45,10 @@ struct MiFirstPass {
   uint32_t total_bytes;
 };
 
-struct MISecondPass {
-  MISecondPass(const StringSlice &s, MiFirstPass &first_pass);
+struct MiSecondPass {
+  MiSecondPass(const StringSlice &s, MiFirstPass &first_pass);
 
-  ExprBase *Parse();
+  ScopedPtr<ExprBase> Parse();
 
  private:
   ExprBase *ReportError(const StringSlice &msg);

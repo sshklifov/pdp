@@ -107,24 +107,6 @@ static void WriteLogHeader(const StringSlice &filename, unsigned line, Level lev
   out.AppendUnchecked(' ');
 }
 
-static void FlushMessage(const StringBuilder<OneShotAllocator> &msg) {
-  // Safeguard against blasting the terminal with output.
-  const ssize_t max_length = 65535;
-
-  // Write buffer in a loop to handle partial writes from write(2).
-  ssize_t num_written = 0;
-  ssize_t remaining = msg.Size() > max_length ? max_length : msg.Size();
-  do {
-    ssize_t ret = write(STDOUT_FILENO, msg.Data() + num_written, remaining);
-    if (PDP_UNLIKELY(ret < 0)) {
-      // Not much you can do except accepting the partial write and moving on.
-      return;
-    }
-    num_written += ret;
-    remaining -= ret;
-  } while (PDP_UNLIKELY(remaining));
-}
-
 static bool ShouldLogAt(Level level) {
   return console_level.load(std::memory_order_relaxed) <= static_cast<int>(level);
 }
@@ -146,7 +128,25 @@ void Log(const char *f, unsigned line, Level level, const StringSlice &fmt, Pack
   WriteLogHeader(filename, line, level, builder);
   builder.AppendPackUnchecked(fmt, args, type_bits);
   builder.AppendUnchecked('\n');
-  FlushMessage(builder);
+  LogUnformatted(builder.GetSlice());
+}
+
+void LogUnformatted(const StringSlice &str) {
+  // Safeguard against blasting the terminal with output.
+  const ssize_t max_length = 65535;
+
+  // Write buffer in a loop to handle partial writes from write(2).
+  ssize_t num_written = 0;
+  ssize_t remaining = str.Size() > max_length ? max_length : str.Size();
+  do {
+    ssize_t ret = write(STDOUT_FILENO, str.Data() + num_written, remaining);
+    if (PDP_UNLIKELY(ret < 0)) {
+      // Not much you can do except accepting the partial write and moving on.
+      return;
+    }
+    num_written += ret;
+    remaining -= ret;
+  } while (PDP_UNLIKELY(remaining));
 }
 
 /// @brief Changes the log level process wide of console messages

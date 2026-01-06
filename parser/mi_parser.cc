@@ -9,6 +9,21 @@ bool IsMiIdentifier(char c) {
   return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' || c == '-';
 }
 
+char ReverseEscapeCharacter(char c) {
+  switch (c) {
+    case 'n':
+    case 'r':
+      return '\n';
+    case 't':
+      return ' ';
+    case '\\':
+      return '\\';
+    case '"':
+    default:
+      return c;
+  }
+}
+
 MiFirstPass::MiFirstPass(const StringSlice &s)
     : input(s), nesting_stack(50), sizes_stack(500), total_bytes(0) {}
 
@@ -157,20 +172,20 @@ bool MiFirstPass::Parse() {
   return false;
 }
 
-MISecondPass::MISecondPass(const StringSlice &s, MiFirstPass &first_pass)
+MiSecondPass::MiSecondPass(const StringSlice &s, MiFirstPass &first_pass)
     : input(s),
       first_pass_stack(std::move(first_pass.sizes_stack)),
       first_pass_marker(0),
       arena(first_pass.total_bytes),
       second_pass_stack(50) {}
 
-ExprBase *MISecondPass::ReportError(const StringSlice &msg) {
+ExprBase *MiSecondPass::ReportError(const StringSlice &msg) {
   auto context_len = input.Size() > 50 ? 50 : input.Size();
   pdp_error("{} at {}", msg, input.GetLeft(context_len));
   return nullptr;
 }
 
-ExprBase *MISecondPass::ParseResult() {
+ExprBase *MiSecondPass::ParseResult() {
   pdp_assert(!input.Empty());
 
   pdp_assert(!second_pass_stack.Empty());
@@ -202,7 +217,7 @@ ExprBase *MISecondPass::ParseResult() {
   return ParseValue();
 }
 
-ExprBase *MISecondPass::ParseValue() {
+ExprBase *MiSecondPass::ParseValue() {
   if (PDP_UNLIKELY(input.Empty())) {
     return ReportError("Expecting value but got empty string");
   }
@@ -217,7 +232,7 @@ ExprBase *MISecondPass::ParseValue() {
   }
 }
 
-ExprBase *MISecondPass::ParseString() {
+ExprBase *MiSecondPass::ParseString() {
   uint32_t length = first_pass_stack[first_pass_marker].num_elements;
   pdp_assert(first_pass_stack[first_pass_marker].total_string_size == 0);
   ++first_pass_marker;
@@ -239,21 +254,7 @@ ExprBase *MISecondPass::ParseString() {
       ++it;
     } else {
       pdp_assert(it + 1 < input.End());
-      switch (it[1]) {
-        case 'n':
-        case 'r':
-          *payload = '\n';
-          break;
-        case 't':
-          *payload = ' ';
-          break;
-        case '\\':
-          *payload = '\\';
-          break;
-        case '"':
-        default:
-          *payload = it[1];
-      }
+      *payload = ReverseEscapeCharacter(it[1]);
       ++payload;
       it += 2;
     }
@@ -266,7 +267,7 @@ ExprBase *MISecondPass::ParseString() {
   return expr;
 }
 
-ExprBase *MISecondPass::CreateListOrTuple() {
+ExprBase *MiSecondPass::CreateListOrTuple() {
   uint32_t size = first_pass_stack[first_pass_marker].num_elements;
   uint32_t string_table_size = first_pass_stack[first_pass_marker].total_string_size;
   const bool is_tuple = string_table_size > 0;
@@ -317,14 +318,14 @@ ExprBase *MISecondPass::CreateListOrTuple() {
   }
 }
 
-ExprBase *MISecondPass::ParseListOrTuple() {
+ExprBase *MiSecondPass::ParseListOrTuple() {
   pdp_assert(input.StartsWith('[') || input.StartsWith('{'));
   input.DropLeft(1);
 
   return CreateListOrTuple();
 }
 
-ExprBase *MISecondPass::ParseResultOrValue() {
+ExprBase *MiSecondPass::ParseResultOrValue() {
   auto parent_pos = second_pass_stack.Size() - 1;
 
   ExprBase *expr = nullptr;
@@ -354,13 +355,16 @@ ExprBase *MISecondPass::ParseResultOrValue() {
   return expr;
 }
 
-ExprBase *MISecondPass::Parse() {
+ScopedPtr<ExprBase> MiSecondPass::Parse() {
   if (PDP_UNLIKELY(input.Empty())) {
     ExprTuple *tuple = static_cast<ExprTuple *>(arena.AllocateUnchecked(sizeof(ExprTuple)));
     tuple->kind = ExprBase::kTuple;
     tuple->size = 0;
     tuple->hashes = nullptr;
     tuple->results = nullptr;
+
+    void *raw_mem = arena.Release();
+    pdp_assert(raw_mem == tuple);
     return tuple;
   }
 
@@ -394,6 +398,8 @@ ExprBase *MISecondPass::Parse() {
   pdp_assert(first_pass_marker == first_pass_stack.Size());
   pdp_assert(second_pass_stack.Size() == 1);
   if (PDP_LIKELY(okay)) {
+    void *raw_mem = arena.Release();
+    pdp_assert(root == raw_mem);
     return root;
   }
   return nullptr;

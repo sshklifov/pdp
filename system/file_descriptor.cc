@@ -28,6 +28,7 @@ void FileDescriptor::SetValue(int init_fd) {
 }
 
 bool FileDescriptor::WaitForEvents(int events, Milliseconds timeout) {
+  pdp_assert(timeout.GetMilli() > 0);
   struct pollfd poll_args;
   poll_args.fd = fd;
   poll_args.events = events;
@@ -61,7 +62,7 @@ size_t InputDescriptor::ReadAtLeast(void *buf, size_t required_bytes, size_t fre
     WaitForInput(next_wait > 5_ms ? next_wait : 5_ms);
     size_t n = 0;
     do {
-      n = Read((char *)buf + num_read, free_bytes - num_read);
+      n = ReadOnce((char *)buf + num_read, free_bytes - num_read);
       num_read += n;
       if (num_read >= required_bytes) {
         return num_read;
@@ -77,7 +78,21 @@ bool InputDescriptor::ReadExactly(void *buf, size_t size, Milliseconds timeout) 
   return num_read == size;
 }
 
-size_t InputDescriptor::Read(void *buf, size_t size) {
+size_t InputDescriptor::ReadAvailable(void *buf, size_t max_bytes) {
+  pdp_assert(max_bytes > 0);
+  size_t num_read = 0;
+  do {
+    size_t s = ReadOnce((char *)buf + num_read, max_bytes - num_read);
+    if (s == 0) {
+      return num_read;
+    }
+    num_read += s;
+  } while (num_read < max_bytes);
+  pdp_assert(num_read == max_bytes);
+  return num_read;
+}
+
+size_t InputDescriptor::ReadOnce(void *buf, size_t size) {
   pdp_assert(size > 0);
   ssize_t ret = read(fd, buf, size);
   if (ret <= 0) {
@@ -93,7 +108,7 @@ bool OutputDescriptor::WaitForOutput(Milliseconds timeout) {
   return WaitForEvents(POLLOUT, timeout);
 }
 
-bool OutputDescriptor::WriteExactly(void *buf, size_t bytes, Milliseconds timeout) {
+bool OutputDescriptor::WriteExactly(const void *buf, size_t bytes, Milliseconds timeout) {
   pdp_assert(bytes > 0);
 
   Milliseconds next_wait = timeout;
@@ -104,7 +119,7 @@ bool OutputDescriptor::WriteExactly(void *buf, size_t bytes, Milliseconds timeou
     WaitForOutput(next_wait > 5_ms ? next_wait : 5_ms);
     size_t n = 0;
     do {
-      n = Write((char *)buf + num_written, bytes - num_written);
+      n = WriteOnce((char *)buf + num_written, bytes - num_written);
       num_written += n;
       if (num_written >= bytes) {
         return true;
@@ -115,7 +130,7 @@ bool OutputDescriptor::WriteExactly(void *buf, size_t bytes, Milliseconds timeou
   return num_written == bytes;
 }
 
-size_t OutputDescriptor::Write(void *buf, size_t size) {
+size_t OutputDescriptor::WriteOnce(const void *buf, size_t size) {
   pdp_assert(size > 0);
   ssize_t ret = write(fd, buf, size);
   if (ret <= 0) {

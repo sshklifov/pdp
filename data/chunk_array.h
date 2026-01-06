@@ -12,7 +12,7 @@
 namespace pdp {
 
 template <typename Alloc = DefaultAllocator>
-struct ChunkArray : public AlignmentTraits {
+struct ChunkArray : public AlignmentTraits, public NonCopyableNonMovable {
   ChunkArray() : chunks(16) {
     chunks += static_cast<unsigned char *>(allocator.AllocateRaw(chunk_size));
     top_used_bytes = 0;

@@ -13,7 +13,7 @@ TEST_CASE("simple param tuples") {
     MiFirstPass first(input);
     REQUIRE(first.Parse());
 
-    MISecondPass second(input, first);
+    MiSecondPass second(input, first);
     ExprView e(second.Parse());
 
     CHECK(e.Count() == 2);
@@ -26,7 +26,7 @@ TEST_CASE("simple param tuples") {
     MiFirstPass first(input);
     REQUIRE(first.Parse());
 
-    MISecondPass second(input, first);
+    MiSecondPass second(input, first);
     ExprView e(second.Parse());
 
     CHECK(e["param"].StringOr("X") == "inferior-tty");
@@ -38,7 +38,7 @@ TEST_CASE("simple param tuples") {
     MiFirstPass first(input);
     REQUIRE(first.Parse());
 
-    MISecondPass second(input, first);
+    MiSecondPass second(input, first);
     ExprView e(second.Parse());
 
     CHECK(e["param"].StringOr("X") == "prompt");
@@ -50,7 +50,7 @@ TEST_CASE("simple param tuples") {
     MiFirstPass first(input);
     REQUIRE(first.Parse());
 
-    MISecondPass second(input, first);
+    MiSecondPass second(input, first);
     ExprView e(second.Parse());
 
     CHECK(e["param"].StringOr("X") == "max-completions");
@@ -62,7 +62,7 @@ TEST_CASE("simple param tuples") {
     MiFirstPass first(input);
     REQUIRE(first.Parse());
 
-    MISecondPass second(input, first);
+    MiSecondPass second(input, first);
     ExprView e(second.Parse());
 
     CHECK(e["param"].StringOr("X") == "startup-with-shell");
@@ -82,7 +82,7 @@ TEST_CASE("bkpt tuple with mixed fields") {
   MiFirstPass first(input);
   REQUIRE(first.Parse());
 
-  MISecondPass second(input, first);
+  MiSecondPass second(input, first);
   ExprView e(second.Parse());
 
   auto bkpt = e["bkpt"];
@@ -109,7 +109,7 @@ TEST_CASE("shared object with ranges list") {
   MiFirstPass first(input);
   REQUIRE(first.Parse());
 
-  MISecondPass second(input, first);
+  MiSecondPass second(input, first);
   ExprView e(second.Parse());
 
   CHECK(e["id"].StringOr("X") == "/lib/ld-linux-aarch64.so.1");
@@ -134,7 +134,7 @@ TEST_CASE("stop reason with nested frame and args") {
   MiFirstPass first(input);
   REQUIRE(first.Parse());
 
-  MISecondPass second(input, first);
+  MiSecondPass second(input, first);
   ExprView e(second.Parse());
 
   CHECK(e["reason"].StringOr("X") == "breakpoint-hit");

@@ -83,6 +83,8 @@ struct ExprView {
 
   uint32_t Count() const;
 
+  operator bool() const;
+
   ExprView operator[](uint32_t index);
   ExprView operator[](const StringSlice &key);
 

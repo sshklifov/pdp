@@ -93,6 +93,7 @@ add_subdirectory(data)
 add_subdirectory(strings)
 add_subdirectory(external)
 add_subdirectory(parser)
+add_subdirectory(application)
 
 if(BUILD_TESTS)
   find_package(doctest REQUIRED)
@@ -103,12 +104,5 @@ if(BUILD_PERF)
   add_subdirectory(perf)
 endif()
 
-add_executable(pdp main.cc gdb_session.cc)
-target_link_libraries(pdp PRIVATE
-  pdp_core
-  pdp_system
-  pdp_tracing
-  pdp_data
-  pdp_strings
-  pdp_parser
-)
+add_executable(pdp main.cc)
+target_link_libraries(pdp PRIVATE pdp_application)

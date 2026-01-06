@@ -32,18 +32,20 @@ struct InputDescriptor : public FileDescriptor {
   size_t ReadAtLeast(void *buf, size_t required_bytes, size_t free_bytes, Milliseconds timeout);
   bool ReadExactly(void *buf, size_t size, Milliseconds timeout);
 
+  size_t ReadAvailable(void *buf, size_t max_bytes);
+
+  size_t ReadOnce(void *buf, size_t size);
+
  private:
-  size_t Read(void *buf, size_t size);
 };
 
 struct OutputDescriptor : public FileDescriptor {
   using FileDescriptor::FileDescriptor;
 
   bool WaitForOutput(Milliseconds timeout);
-  bool WriteExactly(void *buf, size_t bytes, Milliseconds timeout);
+  bool WriteExactly(const void *buf, size_t bytes, Milliseconds timeout);
 
- private:
-  size_t Write(void *buf, size_t size);
+  size_t WriteOnce(const void *buf, size_t size);
 };
 
 }  // namespace pdp

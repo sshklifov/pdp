@@ -24,7 +24,9 @@ RollingBuffer::RollingBuffer()
 
 RollingBuffer::~RollingBuffer() { Deallocate<char>(allocator, ptr); }
 
-StringSlice RollingBuffer::ReadLine(int fd) {
+void RollingBuffer::SetDescriptor(int fd) { input.SetValue(fd); }
+
+StringSlice RollingBuffer::ReadLine(Milliseconds timeout) {
   if (PDP_TRACE_UNLIKELY(begin != end)) {
     char *pos = static_cast<char *>(memchr(begin, '\n', end - begin));
     if (pos) {
@@ -35,29 +37,31 @@ StringSlice RollingBuffer::ReadLine(int fd) {
     }
   }
 
-  for (;;) {
+  Stopwatch now;
+  Milliseconds next_wait = timeout;
+  while (next_wait.GetMilli() > 0 && input.WaitForInput(next_wait)) {
     ReserveForRead();
     const size_t remaining_bytes = limit - end;
     pdp_assert(remaining_bytes >= min_read_size);
-    ssize_t ret = read(fd, end, remaining_bytes);
-
-    if (ret <= 0) {
+    ssize_t ret = input.ReadOnce(end, remaining_bytes);
+    if (PDP_LIKELY(ret > 0)) {
+      char *pos = static_cast<char *>(memchr(end, '\n', ret));
+      end += ret;
+      pdp_assert(end <= limit);
+      if (PDP_TRACE_LIKELY(pos)) {
+        ++pos;
+        StringSlice res(begin, pos);
+        begin = pos;
+        return res;
+      }
+    } else {
       if (PDP_UNLIKELY(errno != EAGAIN && errno != EWOULDBLOCK)) {
         Check(ret, "read");
       }
-      return StringSlice(begin, begin);
     }
-
-    char *pos = static_cast<char *>(memchr(end, '\n', ret));
-    end += ret;
-    pdp_assert(end <= limit);
-    if (pos) {
-      ++pos;
-      StringSlice res(begin, pos);
-      begin = pos;
-      return res;
-    }
+    next_wait = now.ElapsedMilli() - timeout;
   }
+  return StringSlice("\n", 1);
 }
 
 void RollingBuffer::ReserveForRead() {

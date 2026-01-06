@@ -60,6 +60,11 @@ struct StringSlice {
     }
   }
 
+  int MemCmp(const StringSlice &other) const {
+    pdp_assert(other.Size() <= Size());
+    return memcmp(Begin(), other.Begin(), other.Size());
+  }
+
   constexpr const char *MemReverseChar(char c) const {
     if (PDP_CONSTEXPR_EVALUATED()) {
       const char *it = End() - 1;
@@ -91,6 +96,11 @@ struct StringSlice {
   constexpr void DropLeft(size_t n) {
     pdp_assert_non_constexpr(n <= Size());
     ptr += n;
+    size -= n;
+  }
+
+  constexpr void DropRight(size_t n) {
+    pdp_assert_non_constexpr(n <= Size());
     size -= n;
   }
 

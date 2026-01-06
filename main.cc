@@ -1,18 +1,14 @@
+#include "application/gdb_driver.h"
 #include "core/log.h"
-#include "gdb_session.h"
-
-void DefaultStreamCallback(const pdp::StringSlice &s) { pdp_info(s); }
-
-void DefaultAsyncCallback(const pdp::StringSlice &s) { pdp_info(s); }
 
 int main() {
   pdp::SetConsoleLogLevel(pdp::Level::kInfo);
 
-  pdp::GdbSession session(DefaultAsyncCallback, DefaultStreamCallback);
-  session.Start();
-  session.SendCommand("-exec-run --start", nullptr);
+  pdp::GdbDriver driver;
+  driver.Start();
+  driver.Request("-exec-run --start");
   while (true) {
-    session.Poll(std::chrono::seconds(1));
+    driver.Poll(pdp::Milliseconds(1000));
   }
 
   return 0;

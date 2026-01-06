@@ -5,6 +5,8 @@
 
 namespace pdp {
 
+ExprView::operator bool() const { return expr != nullptr; }
+
 uint32_t ExprView::Count() const {
   switch (expr->kind) {
     case ExprBase::kTuple:

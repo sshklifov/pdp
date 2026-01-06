@@ -37,6 +37,10 @@ void Log(const char *filename, unsigned line, Level level, const StringSlice &fm
   Log(filename, line, level, fmt, packed_args.slots, packed_args.type_bits);
 }
 
+#ifdef PDP_TRACE_MESSAGES
+void LogUnformatted(const StringSlice &str);
+#endif
+
 }  // namespace pdp
 
 // The constexpr variable is forced so GetBasename is computed at compile time and loaded directly

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "string_slice.h"
+#include "system/file_descriptor.h"
 #include "tracing/tracing_counter.h"
 
 namespace pdp {
@@ -13,7 +14,9 @@ struct RollingBuffer {
   RollingBuffer();
   ~RollingBuffer();
 
-  StringSlice ReadLine(int fd);
+  void SetDescriptor(int fd);
+
+  StringSlice ReadLine(Milliseconds timeout);
 
  private:
   void ReserveForRead();
@@ -23,6 +26,7 @@ struct RollingBuffer {
   char *__restrict__ end;
   const char *__restrict__ limit;
 
+  InputDescriptor input;
   DefaultAllocator allocator;
 
 #ifdef PDP_TRACE_ROLLING_BUFFER

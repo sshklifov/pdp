@@ -13,21 +13,14 @@ struct ScopedPtr : public NonCopyable {
 
   ScopedPtr(ScopedPtr &&rhs) noexcept : ptr(rhs.ptr) { rhs.ptr = nullptr; }
 
-  ScopedPtr &operator=(ScopedPtr &&rhs) noexcept {
-    static_assert(std::is_trivially_destructible_v<T>);
-    pdp_assert(this != &rhs);
-    if (this != &rhs) {
-      allocator.Deallocate(ptr);
-      ptr = rhs.ptr;
-      rhs.ptr = nullptr;
-    }
-    return (*this);
-  }
+  void operator=(ScopedPtr &&rhs) = delete;
 
   ~ScopedPtr() {
-    static_assert(std::is_trivially_destructible_v<T>);
-    allocator.Deallocate(ptr);
+    static_assert(std::is_void_v<T> || std::is_trivially_destructible_v<T>);
+    allocator.DeallocateRaw(ptr);
   }
+
+  operator bool() { return ptr != nullptr; }
 
   T *operator->() { return ptr; }
 

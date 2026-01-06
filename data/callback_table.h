@@ -7,13 +7,15 @@
 
 // TODO: add an optimization where you cache the last bucket found
 // because a lot of times, i will just queue 100 request and these can be sequential
+// TODO: also idea: allow only queue like entering -> exitting. process things in order
+// and use this for a more optimal container.
 
 namespace pdp {
 
 template <typename Context>
 struct SmallCallback {
   static constexpr unsigned StorageSize = 24;
-  using InvokeFn = void (*)(void *, Context);
+  using InvokeFun = void (*)(void *, Context);
 
   static_assert(std::is_integral_v<Context> || std::is_pointer_v<Context>);
 
@@ -25,20 +27,22 @@ struct SmallCallback {
 #endif
   }
 
-  template <typename F>
+  template <typename Callable>
   static void InvokeImpl(void *obj, Context ctx) {
-    (*static_cast<F *>(obj))(ctx);
-    (*static_cast<F *>(obj)).~F();
+    (*static_cast<Callable *>(obj))(ctx);
+    (*static_cast<Callable *>(obj)).~Callable();
   }
 
   alignas(std::max_align_t) unsigned char storage[StorageSize];
-  InvokeFn invoke;
+  InvokeFun invoke;
 };
 
 template <typename Context>
 struct CallbackTable {
   static constexpr const size_t max_elements = 16'384;
   static constexpr const size_t default_elements = 8;
+
+  using InvokeFun = typename SmallCallback<Context>::InvokeFun;
 
 #ifdef PDP_TRACE_CALLBACK_TABLE
   CallbackTable() : trace_search(names) {
@@ -65,9 +69,10 @@ struct CallbackTable {
     Deallocate<uint32_t>(allocator, indices);
   }
 
-  template <typename T, typename... Args>
+  template <typename Callable, typename... Args>
   void Bind(uint32_t id, Args &&...capture_args) {
-    static_assert(sizeof(T) <= SmallCallback<Context>::StorageSize, "Callback object too large");
+    static_assert(sizeof(Callable) <= SmallCallback<Context>::StorageSize,
+                  "Callback object too large");
 #ifdef PDP_ENABLE_ASSERT
     for (size_t i = 0; i < capacity; ++i) {
       pdp_assert(indices[i] != id);
@@ -84,9 +89,9 @@ struct CallbackTable {
       Grow();
     }
     auto *cb = table + i;
-    new (cb->storage) T(std::forward<Args>(capture_args)...);
+    new (cb->storage) Callable(std::forward<Args>(capture_args)...);
     indices[i] = id;
-    cb->invoke = &SmallCallback<Context>::template InvokeImpl<T>;
+    cb->invoke = &SmallCallback<Context>::template InvokeImpl<Callable>;
 #ifdef PDP_TRACE_CALLBACK_TABLE
     AccumulateHitPosition(i);
 #endif

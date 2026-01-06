@@ -2,13 +2,14 @@
 
 #include "core/check.h"
 #include "data/allocator.h"
+#include "data/non_copyable.h"
 
 #include <cstdint>
 
 namespace pdp {
 
 template <typename Alloc = DefaultAllocator>
-struct Arena : public AlignmentTraits {
+struct Arena : public AlignmentTraits, public NonCopyableNonMovable {
   Arena(size_t cap) {
     pdp_assert(cap < max_capacity);
     chunk = static_cast<unsigned char *>(allocator.AllocateRaw(cap));
@@ -21,9 +22,13 @@ struct Arena : public AlignmentTraits {
 #endif
   }
 
-  ~Arena() {
+  ~Arena() { allocator.DeallocateRaw(chunk); }
+
+  void *Release() {
     pdp_assert(chunk);
-    allocator.DeallocateRaw(chunk);
+    void *ret = chunk;
+    chunk = nullptr;
+    return ret;
   }
 
   void *Allocate(uint32_t bytes) {
@@ -31,6 +36,7 @@ struct Arena : public AlignmentTraits {
   }
 
   void *AllocateUnchecked(uint32_t bytes) {
+    pdp_assert(chunk);
     pdp_assert(bytes > 0);
     pdp_assert(bytes % alignment == 0);
     pdp_assert(uint32_t(head - chunk) + bytes <= capacity);
