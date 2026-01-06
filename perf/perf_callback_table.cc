@@ -125,7 +125,6 @@ struct WeirdHashMap : private emhash8::Map<uint32_t, V> {
       SwitchEmhash();
     }
     return emhash8::Map<uint32_t, V>::EmplaceUnique(key, std::forward<Types>(args)...);
-    // PDP_UNREACHABLE();
   }
 
   Entry *Find(uint32_t key) {
@@ -138,7 +137,6 @@ struct WeirdHashMap : private emhash8::Map<uint32_t, V> {
     } else {
       return emhash8::Map<uint32_t, V>::Find(key);
     }
-    PDP_UNREACHABLE();
   }
 
   void Erase(Entry *it) {
@@ -210,7 +208,7 @@ int main() {
     uint64_t res2 = StressTable<Wrapper<int, EmHashCallback>>(max_active);
     auto elapsed_hash = watch.LapClocks();
     if (res1 != res2) {
-      PDP_UNREACHABLE();
+      PDP_UNREACHABLE("Hash error");
     }
     pdp_info("Got the same result: {}", res1);
     pdp_info("Weird  took {} cycles with max_active {}", elapsed_linear, max_active);

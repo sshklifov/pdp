@@ -120,6 +120,8 @@ AsyncKind ClassifyAsync(StringSlice name) {
 
 GdbDriver::GdbDriver() : token_counter(1) {}
 
+GdbDriver::~GdbDriver() { monitor_thread.Stop(); }
+
 void GdbDriver::Start() {
   int in[2], out[2], err[2];
   pipe(in);

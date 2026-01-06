@@ -69,6 +69,8 @@ static void *ThreadEntry(void *user) {
 struct Thread {
   Thread() : is_joinable(false) {}
 
+  ~Thread() { pdp_assert(!is_joinable); }
+
   template <typename Fun, typename... Args>
   void Start(Fun &&f, Args &&...args) {
     static_assert(std::is_invocable_v<std::decay_t<Fun>, std::decay_t<Args>...>,
@@ -82,18 +84,25 @@ struct Thread {
 
     int s = pthread_create(&thread, NULL, ThreadEntry<std::decay_t<Fun>, std::decay_t<Args>...>, p);
     if (PDP_LIKELY(s == 0)) {
+#ifdef PDP_ENABLE_ASSERT
       is_joinable = true;
+#endif
     } else {
       // 'p' will leak if not aborted.
-      PDP_UNREACHABLE();
+      PDP_UNREACHABLE("Spawn thread failed");
     }
   }
 
-  void Wait() { pthread_join(thread, NULL); }
+  void Wait() {
+    pdp_assert(is_joinable);
+    pthread_join(thread, NULL);
+  }
 
  private:
   pthread_t thread;
+#if PDP_ENABLE_ASSERT
   bool is_joinable;
+#endif
   DefaultAllocator allocator;
 };
 
@@ -102,34 +111,21 @@ struct StoppableThread {
 
   template <typename Fun, typename... Args>
   void Start(Fun &&f, Args &&...args) {
-    static_assert(std::is_invocable_v<std::decay_t<Fun>, std::atomic_bool *, std::decay_t<Args>...>,
-                  "Thread function must accept std::atomic_bool* as first argument");
     pdp_assert(!is_running.load());
-
-    using Data = PthreadData<std::decay_t<Fun>, std::atomic_bool *, std::decay_t<Args>...>;
-    Data *p = (Data *)allocator.AllocateRaw(sizeof(Data));
-    new (p) Data(std::forward<Fun>(f), &is_running, std::forward<Args>(args)...);
-
-    is_running.store(true);
-    int s = pthread_create(
-        &thread, NULL, ThreadEntry<std::decay_t<Fun>, std::atomic_bool *, std::decay_t<Args>...>,
-        p);
-
-    // 'p' will leak if not aborted. Also 'is_running' will store the wrong value.
-    if (PDP_UNLIKELY(s != 0)) {
-      PDP_UNREACHABLE();
+    if (is_running.exchange(true)) {
+      thread.Start(f, &is_running, std::forward<Args>(args)...);
     }
   }
 
-  void Wait() {
-    is_running.store(false);
-    pthread_join(thread, NULL);
+  void Stop() {
+    if (is_running.exchange(false)) {
+      thread.Wait();
+    }
   }
 
  private:
-  pthread_t thread;
   std::atomic_bool is_running;
-  DefaultAllocator allocator;
+  Thread thread;
 };
 
 };  // namespace pdp

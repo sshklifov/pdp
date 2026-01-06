@@ -40,6 +40,8 @@ using Session = void *;
 struct GdbDriver {
   GdbDriver();
 
+  ~GdbDriver();
+
   void Start();
 
   template <typename Callable, typename... Args>

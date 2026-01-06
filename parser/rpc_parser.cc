@@ -9,8 +9,7 @@ ExprBase *RpcPass::Parse() {
   ExprBase *root = BigAssSwitch();
   PushNesting(root);
   if (PDP_UNLIKELY(nesting_stack.Empty())) {
-    pdp_critical("Top level RPC record is not an array or map!");
-    PDP_UNREACHABLE();
+    PDP_UNREACHABLE("Top level RPC record is not an array or map!");
   }
 
   while (!nesting_stack.Empty()) {
@@ -40,7 +39,7 @@ void RpcPass::AttachExpr(ExprBase *expr) {
     } else {
       pdp_critical("RPC map has unsupported key type: {}!",
                    StringSlice(ExprKindToString(expr->kind)));
-      PDP_UNREACHABLE();
+      PDP_UNREACHABLE("Cannot parse rpc");
     }
   }
 
@@ -181,7 +180,7 @@ ExprBase *RpcPass::BigAssSwitch() {
     return CreateMap(byte & 0xf);
   }
   pdp_critical("Unsupported RPC byte: {}", byte);
-  PDP_UNREACHABLE();
+  PDP_UNREACHABLE("Cannot parse rpc");
 }
 
 }  // namespace pdp
