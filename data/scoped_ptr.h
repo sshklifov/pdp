@@ -9,9 +9,11 @@ namespace pdp {
 
 template <typename T, typename Alloc = DefaultAllocator>
 struct ScopedPtr : public NonCopyable {
-  ScopedPtr(T *ptr = nullptr) noexcept : ptr(ptr) {}
+  ScopedPtr(T *ptr = nullptr, Alloc a = Alloc()) noexcept : ptr(ptr), allocator(a) {}
 
-  ScopedPtr(ScopedPtr &&rhs) noexcept : ptr(rhs.ptr) { rhs.ptr = nullptr; }
+  ScopedPtr(ScopedPtr &&rhs) noexcept : ptr(rhs.ptr), allocator(rhs.allocator) {
+    rhs.ptr = nullptr;
+  }
 
   void operator=(ScopedPtr &&rhs) = delete;
 
@@ -20,7 +22,7 @@ struct ScopedPtr : public NonCopyable {
     allocator.DeallocateRaw(ptr);
   }
 
-  operator bool() { return ptr != nullptr; }
+  operator bool() const { return ptr != nullptr; }
 
   T *operator->() { return ptr; }
 
@@ -33,16 +35,5 @@ struct ScopedPtr : public NonCopyable {
   T *ptr;
   Alloc allocator;
 };
-
-// TODO move as a constructor ><
-// template <typename T, typename... Args>
-// ScopedPtr<T> MakeScopedPtr(Args &&...args) {
-//   static_assert(std::is_nothrow_constructible_v<T, Args...>);
-
-//   T *ptr = static_cast<T *>(malloc(sizeof(T)));
-//   pdp_assert(ptr);
-//   new (ptr) T(std::forward<Args>(args)...);
-//   return ScopedPtr<T>(ptr);
-// }
 
 }  // namespace pdp

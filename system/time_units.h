@@ -1,7 +1,5 @@
 #pragma once
 
-// TODO: rename file
-
 #include <cstdint>
 #include <ctime>
 
@@ -46,9 +44,7 @@ struct Milliseconds {
 struct Stopwatch {
   Stopwatch() { Reset(); }
 
-  void Reset() {
-    clock_gettime(CLOCK_MONOTONIC, &last_checkpoint);
-  }
+  void Reset() { clock_gettime(CLOCK_MONOTONIC, &last_checkpoint); }
 
   Milliseconds ElapsedMilli() const {
     struct timespec now;
@@ -63,7 +59,7 @@ struct Stopwatch {
   struct timespec last_checkpoint;
 };
 
-// @brief Gigabytes (GB)
+// @brief Milliseconds (ms)
 constexpr Milliseconds operator""_ms(unsigned long long time) { return Milliseconds(time); }
 
 };  // namespace pdp

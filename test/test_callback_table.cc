@@ -3,6 +3,7 @@
 #include <doctest/doctest.h>
 
 #include "data/callback_table.h"  // whatever file name this garbage lives in (WOW CHATGPT!)
+#include "data/vector.h"
 
 using namespace pdp;
 
@@ -29,7 +30,6 @@ TEST_CASE("basic bind + invoke (integral context)") {
   CHECK(table.Invoke(42, 5));
   CHECK(result == 5);
 }
-
 TEST_CASE("destructor is called exactly once") {
   CallbackTable<int> table;
 
@@ -130,6 +130,119 @@ TEST_CASE("Callback capture reference") {
   table.Invoke(4);
   table.Invoke(5);
   CHECK(value == 3);
+}
+
+TEST_CASE("CallbackTable with two arguments") {
+  CallbackTable<int, int> table;
+
+  int result = 0;
+
+  struct Add {
+    int *out;
+    Add(int *p) : out(p) {}
+    void operator()(int a, int b) { *out = a + b; }
+  };
+
+  table.Bind<Add>(1, &result);
+
+  bool invoked = table.Invoke(1, 3, 4);
+  CHECK(invoked);
+  CHECK(result == 7);
+
+  // Second invoke must fail
+  invoked = table.Invoke(1, 10, 20);
+  CHECK_FALSE(invoked);
+  CHECK(result == 7);
+}
+
+TEST_CASE("CallbackTable multiple callbacks with same signature") {
+  CallbackTable<int, int> table;
+
+  int a = 0;
+  int b = 0;
+
+  struct Mul {
+    int *out;
+    Mul(int *p) : out(p) {}
+    void operator()(int x, int y) { *out = x * y; }
+  };
+
+  table.Bind<Mul>(1, &a);
+  table.Bind<Mul>(2, &b);
+
+  CHECK(table.Invoke(1, 2, 3));
+  CHECK(table.Invoke(2, 4, 5));
+
+  CHECK(a == 6);
+  CHECK(b == 20);
+
+  CHECK_FALSE(table.Invoke(1, 1, 1));
+  CHECK_FALSE(table.Invoke(2, 1, 1));
+}
+
+TEST_CASE("CallbackTable captures pdp::Vector by move using TrackingAllocator") {
+  TrackingAllocator::Stats stats;
+  TrackingAllocator alloc(&stats);
+
+  // Build a vector with allocator
+  Vector<int, TrackingAllocator> vec(alloc);
+  vec += 1;
+  vec += 2;
+  vec += 3;
+
+  CHECK(vec.Size() == 3);
+  CHECK(stats.GetActiveAllocations() > 0);
+
+  CallbackTable<Vector<int, TrackingAllocator>> table;
+
+  int result = 0;
+
+  struct ConsumeVector {
+    int *out;
+
+    ConsumeVector(int *p) : out(p) {}
+    void operator()(pdp::Vector<int, TrackingAllocator> v) {
+      int sum = 0;
+      for (size_t i = 0; i < v.Size(); ++i) {
+        sum += v[i];
+      }
+      *out = sum;
+    }
+  };
+
+  table.Bind<ConsumeVector>(1, &result);
+
+  bool invoked = table.Invoke(1, std::move(vec));
+  CHECK(invoked);
+  // Vector must be moved-from
+  CHECK(vec.Data() == nullptr);
+  CHECK(result == (1 + 2 + 3));
+
+  // After callback destruction, allocator must be clean
+  CHECK(stats.GetActiveAllocations() == 0);
+  CHECK_FALSE(stats.HasLeaks());
+}
+
+TEST_CASE("CallbackTable captures references without move") {
+  struct Consumer {
+    void operator()(NonCopyableNonMovable &&_) {};
+    void operator()(NonCopyableNonMovable &_) {};
+  };
+
+  {
+    CallbackTable<NonCopyableNonMovable &&> table;
+    table.Bind<Consumer>(1);
+    bool invoked = table.Invoke(1, NonCopyableNonMovable{});
+    CHECK(invoked);
+  }
+
+  {
+    CallbackTable<NonCopyableNonMovable &> table;
+    table.Bind<Consumer>(1);
+    NonCopyableNonMovable ref;
+    bool invoked = table.Invoke(1, ref);
+    CHECK(invoked);
+  }
 }
 
 TEST_CASE("Flow-style stress test with holes, reuse, and random invokes") {

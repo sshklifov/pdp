@@ -57,11 +57,19 @@ struct PthreadData {
   Pack<Args...> args;
 };
 
-template <typename Fun, typename... Args>
+template <typename Fun, typename T, typename... Args>
 static void *ThreadEntry(void *user) {
-  using Data = PthreadData<Fun, Args...>;
+  using Data = PthreadData<Fun, T, Args...>;
   Data *p = (Data *)user;
   Invoke(p->fun, p->args);
+  free(p);
+  return NULL;
+}
+
+template <typename Fun>
+static void *ThreadEntry(void *user) {
+  Fun *p = (Fun *)user;
+  (*p)();
   free(p);
   return NULL;
 }
@@ -71,6 +79,8 @@ struct Thread {
 
   ~Thread() { pdp_assert(!is_joinable); }
 
+  // TODO does not work with references but it could.
+
   template <typename Fun, typename... Args>
   void Start(Fun &&f, Args &&...args) {
     static_assert(std::is_invocable_v<std::decay_t<Fun>, std::decay_t<Args>...>,
@@ -78,7 +88,9 @@ struct Thread {
 
     pdp_assert(!is_joinable);
 
-    using Data = PthreadData<std::decay_t<Fun>, std::decay_t<Args>...>;
+    using Data = std::conditional_t<(sizeof...(Args) > 0),
+                                    PthreadData<std::decay_t<Fun>, std::decay_t<Args>...>,
+                                    std::decay_t<Fun>>;
     Data *p = (Data *)allocator.AllocateRaw(sizeof(Data));
     new (p) Data(std::forward<Fun>(f), std::forward<Args>(args)...);
 
@@ -96,6 +108,7 @@ struct Thread {
   void Wait() {
     pdp_assert(is_joinable);
     pthread_join(thread, NULL);
+    is_joinable = false;
   }
 
  private:
@@ -112,7 +125,7 @@ struct StoppableThread {
   template <typename Fun, typename... Args>
   void Start(Fun &&f, Args &&...args) {
     pdp_assert(!is_running.load());
-    if (is_running.exchange(true)) {
+    if (!is_running.exchange(true)) {
       thread.Start(f, &is_running, std::forward<Args>(args)...);
     }
   }

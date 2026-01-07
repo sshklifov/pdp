@@ -15,7 +15,7 @@ struct Vector : public NonCopyable {
   static_assert(std::is_nothrow_copy_constructible_v<T>, "T must be noexcept copy constructible");
   static_assert(std::is_nothrow_destructible_v<T>, "T must be noexcept destructible");
 
-  Vector() noexcept : ptr(nullptr), size(0), capacity(0) {}
+  Vector(Alloc alloc = Alloc()) noexcept : ptr(nullptr), size(0), capacity(0), allocator(alloc) {}
 
   Vector(size_t cap, Alloc alloc = Alloc()) noexcept : size(0), capacity(cap), allocator(alloc) {
     pdp_assert(cap > 0);

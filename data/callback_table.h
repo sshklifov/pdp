@@ -28,7 +28,7 @@ struct SmallCapture {
 
   template <typename Callable>
   static void InvokeImpl(void *obj, FunArgs... args) {
-    (*static_cast<Callable *>(obj))(args...);
+    (*static_cast<Callable *>(obj))(static_cast<FunArgs &&>(args)...);
     (*static_cast<Callable *>(obj)).~Callable();
   }
 
@@ -42,7 +42,6 @@ struct CallbackTable {
   static constexpr const size_t default_elements = 8;
 
   using Capture = SmallCapture<FunArgs...>;
-  // using InvokeFun = typename Capture::InvokeFun;
 
 #ifdef PDP_TRACE_CALLBACK_TABLE
   CallbackTable() : trace_search(names) {

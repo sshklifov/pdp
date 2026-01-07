@@ -42,3 +42,12 @@ target_link_libraries(test_callback_table PRIVATE pdp_data)
 
 add_executable(test_emhash test_emhash.cc)
 target_link_libraries(test_emhash PRIVATE external)
+
+add_executable(test_scoped_ptr test_scoped_ptr.cc)
+target_link_libraries(test_scoped_ptr PRIVATE pdp_data)
+
+add_executable(test_time_units test_time_units.cc)
+target_link_libraries(test_time_units PRIVATE pdp_system)
+
+add_executable(test_thread test_thread.cc)
+target_link_libraries(test_thread PRIVATE pdp_system)

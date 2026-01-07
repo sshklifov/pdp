@@ -138,9 +138,9 @@ struct TrackingAllocator {
 
   void *ReallocateRaw(void *ptr, size_t new_bytes) {
     if (ptr == nullptr && new_bytes > 0) {
-      stats->deallocations_made.fetch_add(1);
-    } else if (ptr != nullptr && new_bytes == 0) {
       stats->allocations_made.fetch_add(1);
+    } else if (ptr != nullptr && new_bytes == 0) {
+      stats->deallocations_made.fetch_add(1);
     }
     stats->bytes_used.fetch_sub(helper_alloc.GetAllocationSize(ptr));
     ptr = realloc(ptr, new_bytes);
