@@ -9,7 +9,7 @@
 namespace pdp {
 
 template <typename Alloc = DefaultAllocator>
-struct Arena : public AlignmentTraits, public NonCopyableNonMovable {
+struct Arena : public AlignmentTraits, public NonCopyable {
   Arena(size_t cap) {
     pdp_assert(cap < max_capacity);
     chunk = static_cast<unsigned char *>(allocator.AllocateRaw(cap));
@@ -22,7 +22,16 @@ struct Arena : public AlignmentTraits, public NonCopyableNonMovable {
 #endif
   }
 
+  Arena(Arena &&other) : chunk(other.chunk), head(other.head), allocator(other.allocator) {
+#ifdef PDP_ENABLE_ASSERT
+    capacity = other.capacity;
+#endif
+    other.chunk = nullptr;
+  }
+
   ~Arena() { allocator.DeallocateRaw(chunk); }
+
+  void operator=(const Arena &other) = delete;
 
   void *Release() {
     pdp_assert(chunk);

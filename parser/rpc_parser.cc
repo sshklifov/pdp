@@ -1,11 +1,16 @@
 #include "rpc_parser.h"
+#include "core/log.h"
 #include "external/ankerl_hash.h"
 
 namespace pdp {
 
-RpcPass::RpcPass(int fd) : stream(fd) {}
+namespace impl {
 
-ExprBase *RpcPass::Parse() {
+template <typename A>
+_RpcPassHelper<A>::_RpcPassHelper(int fd) : stream(fd) {}
+
+template <typename A>
+ExprBase *_RpcPassHelper<A>::Parse() {
   ExprBase *root = BigAssSwitch();
   PushNesting(root);
   if (PDP_UNLIKELY(nesting_stack.Empty())) {
@@ -20,7 +25,8 @@ ExprBase *RpcPass::Parse() {
   return root;
 }
 
-void RpcPass::AttachExpr(ExprBase *expr) {
+template <typename A>
+void _RpcPassHelper<A>::AttachExpr(ExprBase *expr) {
   auto &top = nesting_stack.Top();
 
   *top.elements = expr;
@@ -49,7 +55,8 @@ void RpcPass::AttachExpr(ExprBase *expr) {
   }
 }
 
-void RpcPass::PushNesting(ExprBase *expr) {
+template <typename A>
+void _RpcPassHelper<A>::PushNesting(ExprBase *expr) {
   if (PDP_LIKELY(expr->size > 0)) {
     if (expr->kind == ExprBase::kList) {
       auto *record = nesting_stack.NewElement();
@@ -66,48 +73,54 @@ void RpcPass::PushNesting(ExprBase *expr) {
   }
 }
 
-ExprBase *RpcPass::CreateNull() {
-  ExprBase *expr = static_cast<ExprBase *>(chunk_array.AllocateUnchecked(sizeof(ExprBase)));
+template <typename A>
+ExprBase *_RpcPassHelper<A>::CreateNull() {
+  ExprBase *expr = static_cast<ExprBase *>(allocator.AllocateUnchecked(sizeof(ExprBase)));
   expr->kind = ExprBase::kNull;
   return expr;
 }
 
-ExprBase *RpcPass::CreateInteger(int64_t value) {
+template <typename A>
+ExprBase *_RpcPassHelper<A>::CreateInteger(int64_t value) {
   ExprInt *expr =
-      static_cast<ExprInt *>(chunk_array.AllocateUnchecked(sizeof(ExprBase) + sizeof(int64_t)));
+      static_cast<ExprInt *>(allocator.AllocateUnchecked(sizeof(ExprBase) + sizeof(int64_t)));
   expr->kind = ExprBase::kInt;
   expr->value = value;
   return expr;
 }
 
-ExprBase *RpcPass::CreateString(uint32_t length) {
-  ExprString *expr = static_cast<ExprString *>(chunk_array.Allocate(sizeof(ExprBase) + length));
+template <typename A>
+ExprBase *_RpcPassHelper<A>::CreateString(uint32_t length) {
+  ExprString *expr = static_cast<ExprString *>(allocator.Allocate(sizeof(ExprBase) + length));
   expr->kind = ExprBase::kString;
   expr->size = length;
   stream.Memcpy(expr->payload, length);
   return expr;
 }
 
-ExprBase *RpcPass::CreateArray(uint32_t length) {
+template <typename A>
+ExprBase *_RpcPassHelper<A>::CreateArray(uint32_t length) {
   ExprList *expr = static_cast<ExprList *>(
-      chunk_array.AllocateUnchecked(sizeof(ExprList) + sizeof(ExprBase *) * length));
+      allocator.AllocateUnchecked(sizeof(ExprList) + sizeof(ExprBase *) * length));
   expr->kind = ExprBase::kList;
   expr->size = length;
 
   return expr;
 }
 
-ExprBase *RpcPass::CreateMap(uint32_t length) {
-  ExprMap *expr = static_cast<ExprMap *>(chunk_array.AllocateUnchecked(sizeof(ExprMap)));
+template <typename A>
+ExprBase *_RpcPassHelper<A>::CreateMap(uint32_t length) {
+  ExprMap *expr = static_cast<ExprMap *>(allocator.AllocateUnchecked(sizeof(ExprMap)));
   expr->kind = ExprBase::kMap;
-  expr->hashes = static_cast<uint32_t *>(chunk_array.AllocateOrNull(length * sizeof(uint32_t)));
+  expr->hashes = static_cast<uint32_t *>(allocator.AllocateOrNull(length * sizeof(uint32_t)));
   expr->pairs =
-      static_cast<ExprMap::Pair *>(chunk_array.AllocateOrNull(length * sizeof(ExprMap::Pair)));
+      static_cast<ExprMap::Pair *>(allocator.AllocateOrNull(length * sizeof(ExprMap::Pair)));
   expr->size = length;
   return expr;
 }
 
-ExprBase *RpcPass::BigAssSwitch() {
+template <typename A>
+ExprBase *_RpcPassHelper<A>::BigAssSwitch() {
   unsigned char byte = stream.PopByte();
   switch (byte) {
       // 8bit signed
@@ -182,5 +195,14 @@ ExprBase *RpcPass::BigAssSwitch() {
   pdp_critical("Unsupported RPC byte: {}", byte);
   PDP_UNREACHABLE("Cannot parse rpc");
 }
+
+template <typename A>
+A &_RpcPassHelper<A>::GetAllocator() {
+  return allocator;
+}
+
+}  // namespace impl
+
+template struct impl::_RpcPassHelper<ChunkArray>;
 
 }  // namespace pdp

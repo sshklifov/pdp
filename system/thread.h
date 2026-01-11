@@ -74,12 +74,11 @@ static void *ThreadEntry(void *user) {
   return NULL;
 }
 
+// TODO: add template of arguments?
 struct Thread {
   Thread() : is_joinable(false) {}
 
   ~Thread() { pdp_assert(!is_joinable); }
-
-  // TODO does not work with references but it could.
 
   template <typename Fun, typename... Args>
   void Start(Fun &&f, Args &&...args) {

@@ -1,4 +1,4 @@
-#include <cstdint>
+#pragma once
 
 #include "allocator.h"
 #include "core/check.h"
@@ -9,6 +9,8 @@
 // because a lot of times, i will just queue 100 request and these can be sequential
 // TODO: also idea: allow only queue like entering -> exitting. process things in order
 // and use this for a more optimal container.
+// TODO: also idea: i split the bind call into two calls: one which does the binding and the other
+// which constructs the callback.
 
 namespace pdp {
 

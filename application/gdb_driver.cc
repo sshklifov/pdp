@@ -8,6 +8,12 @@
 
 namespace pdp {
 
+inline bool IsStreamMarker(char c) { return c == '~' || c == '@' || c == '&'; }
+
+inline bool IsAsyncMarker(char c) { return c == '*' || c == '+' || c == '='; }
+
+inline bool IsResultMarker(char c) { return c == '^'; }
+
 StringSlice ProcessCstringInPlace(char *begin, char *end) {
   if (PDP_UNLIKELY(end - begin < 2 || begin[0] != '\"' || end[-1] != '\"')) {
     pdp_error("Unexpected start/end of stream message");
@@ -95,6 +101,7 @@ AsyncKind ClassifyAsync(StringSlice name) {
             if (PDP_LIKELY(name == "exitted")) {
               return AsyncKind::kThreadExited;
             }
+            break;
           case 'g':
             if (name == "group-started") {
               return AsyncKind::kThreadGroupStarted;
@@ -118,7 +125,50 @@ AsyncKind ClassifyAsync(StringSlice name) {
   return AsyncKind::kUnknown;
 }
 
-GdbDriver::GdbDriver() : token_counter(1) {}
+ResultKind ClassifyResult(StringSlice name) {
+  switch (name[0]) {
+    case 'd':
+      if (PDP_LIKELY(name == "done")) {
+        return ResultKind::kDone;
+      }
+      break;
+    case 'r':
+      if (PDP_LIKELY(name == "running")) {
+        return ResultKind::kDone;
+      }
+    case 'e':
+      if (PDP_LIKELY(name == "error" || name == "exit")) {
+        return ResultKind::kError;
+      }
+      break;
+  }
+  return ResultKind::kUnknown;
+}
+
+RecordKind GdbRecord::SetStream(const StringSlice &msg) {
+  stream.message = msg;
+  return RecordKind::kStream;
+}
+
+RecordKind GdbRecord::SetAsync(AsyncKind kind, const StringSlice &results) {
+  result_or_async.kind = static_cast<uint32_t>(kind);
+  result_or_async.results = results;
+  return RecordKind::kAsync;
+}
+
+RecordKind GdbRecord::SetResult(ResultKind kind, const StringSlice &results) {
+  result_or_async.kind = static_cast<uint32_t>(kind);
+  result_or_async.results = results;
+  return RecordKind::kResult;
+}
+
+GdbDriver::GdbDriver()
+    :
+#ifdef PDP_ENABLE_ASSERT
+      last_token(0)
+#endif
+{
+}
 
 GdbDriver::~GdbDriver() { monitor_thread.Stop(); }
 
@@ -151,7 +201,7 @@ void GdbDriver::Start() {
   close(out[1]);
   close(err[1]);
 
-  gdb_stdin.SetValue(in[1]);
+  gdb_stdin.SetDescriptor(in[1]);
   gdb_stdout.SetDescriptor(out[0]);
   monitor_thread.Start(MonitorGdbStderr, err[0]);
 }
@@ -174,89 +224,97 @@ void GdbDriver::MonitorGdbStderr(std::atomic_bool *is_running, int fd) {
   }
 }
 
-void GdbDriver::Poll(Milliseconds timeout) {
+RecordKind GdbDriver::Poll(Milliseconds timeout, GdbRecord *res) {
   MutableLine line = gdb_stdout.ReadLine(timeout);
   size_t length = line.end - line.begin;
   if (PDP_TRACE_LIKELY(length <= 1)) {
-    return;
+    return RecordKind::kNone;
   }
   pdp_assert(line.begin[length - 1] == '\n');
 
   if (IsStreamMarker(*line.begin)) {
-    OnStreamMessage(ProcessCstringInPlace(line.begin + 1, line.end - 1));
-  } else {
-    const char *it = line.begin;
-    uint32_t token = 0;
-    while (*it >= '0' && *it <= '9') {
-      token *= 10;
-      token += (*it - '0');
-      ++it;
-    }
-
-    char marker = *it;
-    ++it;
-
-    const char *name_begin = it;
-    while (*it != '\n' && *it != ',') {
-      ++it;
-    }
-    StringSlice name(name_begin, it);
-    StringSlice record(it + 1, line.end);
-    if (!record.Empty()) {
-      record.DropRight(1);
-    }
-    MiFirstPass first_pass(record);
-    if (PDP_UNLIKELY(!first_pass.Parse())) {
-      pdp_error("Parsing {} failed!", record);
-      return;
-    }
-    MiSecondPass second_pass(record, first_pass);
-    ScopedPtr<ExprBase> expr(second_pass.Parse());
-    if (PDP_UNLIKELY(!expr)) {
-      pdp_error("Parsing {} failed!", record);
-      return;
-    }
-
-    if (PDP_UNLIKELY(name.Empty())) {
-      pdp_warning("Missing class name for message with token {}", token);
-    } else if (IsResultMarker(marker)) {
-      OnResultMessage(token, name, std::move(expr));
-    } else if (PDP_LIKELY(IsAsyncMarker(marker))) {
-      OnAsyncMessage(name, std::move(expr));
-    }
+    return res->SetStream(ProcessCstringInPlace(line.begin + 1, line.end - 1));
   }
+
+  const char *it = line.begin;
+  uint32_t token = 0;
+  while (*it >= '0' && *it <= '9') {
+    token *= 10;
+    token += (*it - '0');
+    ++it;
+  }
+
+  char marker = *it;
+  ++it;
+
+  const char *name_begin = it;
+  while (*it != '\n' && *it != ',') {
+    ++it;
+  }
+  const char *name_end = it;
+
+  StringSlice results(it + 1, line.end);
+  if (!results.Empty()) {
+    results.DropRight(1);
+  }
+
+  if (PDP_UNLIKELY(name_begin == name_end)) {
+    pdp_warning("Missing class name for message with token {}", token);
+  } else if (IsResultMarker(marker)) {
+    ResultKind kind = ClassifyResult(StringSlice(name_begin, name_end));
+    return res->SetResult(kind, results);
+  } else if (PDP_LIKELY(IsAsyncMarker(marker))) {
+    AsyncKind kind = ClassifyAsync(StringSlice(name_begin, name_end));
+    return res->SetAsync(kind, results);
+  }
+  return RecordKind::kNone;
 }
 
-bool GdbDriver::Request(const StringSlice &command) {
-  StringBuilder builder;
-  builder.Append(token_counter);
-  builder.Append(command);
-  builder.Append('\n');
+bool GdbDriver::Send(uint32_t token, const StringSlice &fmt, PackedValue *args,
+                     uint64_t type_bits) {
+#ifdef PDP_ENABLE_ASSERT
+  pdp_assert(token > last_token);
+  last_token = token;
+#endif
 
-  ++token_counter;
+  StringBuilder<OneShotAllocator> builder;
+
+  constexpr EstimateSize estimator;
+  size_t capacity = estimator(token) + RunEstimator(args, type_bits) + 1;
+  builder.ReserveFor(capacity);
+
+  builder.AppendUnchecked(token);
+  builder.AppendPackUnchecked(fmt, args, type_bits);
+  builder.AppendUnchecked('\n');
 
   bool success = gdb_stdin.WriteExactly(builder.Data(), builder.Size(), Milliseconds(1000));
   if (PDP_UNLIKELY(!success)) {
-    pdp_warning("Failed to submit request {}", command);
+    pdp_warning("Failed to submit request {}", builder.GetSlice());
   }
   return success;
 }
 
-void GdbDriver::OnStreamMessage(const StringSlice &message) { LogUnformatted(message); }
+bool GdbDriver::Send(uint32_t token, const StringSlice &msg) {
+#ifdef PDP_ENABLE_ASSERT
+  pdp_assert(token > last_token);
+  last_token = token;
+#endif
 
-// TODO first pass -> second pass is creating a lot of empty objects. bad?
+  StringBuilder<OneShotAllocator> builder;
 
-void GdbDriver::OnAsyncMessage(const StringSlice &name, ScopedPtr<ExprBase> expr) {
-  auto async_class = ClassifyAsync(name);
-}
+  constexpr EstimateSize estimator;
+  size_t capacity = estimator(token) + estimator(msg) + 1;
+  builder.ReserveFor(capacity);
 
-void GdbDriver::OnResultMessage(uint32_t token, const StringSlice &name,
-                                ScopedPtr<ExprBase> expr) {
-  if (PDP_LIKELY(name == "done")) {
-    // callbacks.Invoke(token, ...);
-  } else if (PDP_LIKELY(name == "error")) {
-    // TODO
+  builder.AppendUnchecked(token);
+  builder.AppendUnchecked(msg);
+  builder.AppendUnchecked('\n');
+
+  bool success = gdb_stdin.WriteExactly(builder.Data(), builder.Size(), Milliseconds(1000));
+  if (PDP_UNLIKELY(!success)) {
+    pdp_warning("Failed to submit request {}", builder.GetSlice());
   }
+  return success;
 }
 
 };  // namespace pdp

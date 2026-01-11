@@ -53,7 +53,7 @@ ExprView ExprView::operator[](int index) {
   if (PDP_UNLIKELY(index < 0)) {
     return nullptr;
   }
-  uint32_t magnitude = static_cast<int>(index);
+  uint32_t magnitude = BitCast(index);
   return (*this)[magnitude];
 }
 

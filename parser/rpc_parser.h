@@ -6,14 +6,17 @@
 #include "data/stack.h"
 #include "strings/byte_stream.h"
 
-#include <cstdint>
-
 namespace pdp {
 
-struct RpcPass {
-  RpcPass(int fd);
+namespace impl {
+
+template <typename Alloc>
+struct _RpcPassHelper {
+  _RpcPassHelper(int fd);
 
   ExprBase *Parse();
+
+  Alloc &GetAllocator();
 
  private:
   void AttachExpr(ExprBase *expr);
@@ -38,8 +41,29 @@ struct RpcPass {
   };
 
   ByteStream stream;
-  ChunkArray<DefaultAllocator> chunk_array;
+  Alloc allocator;
   Stack<RpcRecord> nesting_stack;
 };
+
+}  // namespace impl
+
+struct RpcChunkArrayPass {
+  RpcChunkArrayPass(int fd) : helper(fd) {}
+
+  ExprBase *Parse() { return helper.Parse(); }
+
+  [[nodiscard]] ChunkHandle ReleaseChunks() { return helper.GetAllocator().ReleaseChunks(); }
+
+ private:
+  impl::_RpcPassHelper<ChunkArray> helper;
+};
+
+// TODO
+// struct RpcArenaPass {
+//   RpcArenaPass(int fd) : helper(fd),  {}
+//   ExprBase *Parse() { return helper.Parse(); }
+//   private:
+//    impl::_RpcPassHelper<Arena<DefaultAllocator>> helper;
+// };
 
 }  // namespace pdp

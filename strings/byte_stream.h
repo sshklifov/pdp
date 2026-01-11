@@ -36,9 +36,9 @@ struct ByteStream {
  private:
   void RequireAtLeast(size_t n);
 
-  char *__restrict__ const ptr;
-  char *__restrict__ begin;
-  char *__restrict__ end;
+  byte *__restrict__ const ptr;
+  byte *__restrict__ begin;
+  byte *__restrict__ end;
 
   DefaultAllocator allocator;
 

@@ -7,13 +7,13 @@
 
 namespace pdp {
 
-ByteStream::ByteStream(int fd) : ptr(Allocate<char>(allocator, default_buffer_size)), stream(fd) {
+ByteStream::ByteStream(int fd) : ptr(Allocate<byte>(allocator, default_buffer_size)), stream(fd) {
   pdp_assert(ptr);
   begin = ptr;
   end = ptr;
 }
 
-ByteStream::~ByteStream() { Deallocate<char>(allocator, ptr); }
+ByteStream::~ByteStream() { Deallocate<byte>(allocator, ptr); }
 
 uint8_t ByteStream::PopByte() {
   RequireAtLeast(1);
@@ -24,7 +24,7 @@ uint8_t ByteStream::PopByte() {
 
 uint8_t ByteStream::PopUint8() { return PopByte(); }
 
-int8_t ByteStream::PopInt8() { return static_cast<int8_t>(PopByte()); }
+int8_t ByteStream::PopInt8() { return BitCast(PopByte()); }
 
 uint16_t ByteStream::PopUint16() {
   RequireAtLeast(2);
@@ -33,7 +33,7 @@ uint16_t ByteStream::PopUint16() {
   return res;
 }
 
-int16_t ByteStream::PopInt16() { return static_cast<int16_t>(PopUint16()); }
+int16_t ByteStream::PopInt16() { return BitCast(PopUint16()); }
 
 uint32_t ByteStream::PopUint32() {
   RequireAtLeast(4);
@@ -43,7 +43,7 @@ uint32_t ByteStream::PopUint32() {
   return res;
 }
 
-int32_t ByteStream::PopInt32() { return static_cast<int32_t>(PopUint32()); }
+int32_t ByteStream::PopInt32() { return BitCast(PopUint32()); }
 
 uint64_t ByteStream::PopUint64() {
   RequireAtLeast(8);
@@ -55,7 +55,7 @@ uint64_t ByteStream::PopUint64() {
   return res;
 }
 
-int64_t ByteStream::PopInt64() { return static_cast<int64_t>(PopUint64()); }
+int64_t ByteStream::PopInt64() { return BitCast(PopUint64()); }
 
 void ByteStream::Memcpy(void *dst, size_t n) {
   size_t available = end - begin;
@@ -68,7 +68,7 @@ void ByteStream::Memcpy(void *dst, size_t n) {
   memcpy(dst, begin, available);
   begin = ptr;
   end = ptr;
-  dst = static_cast<uint8_t *>(dst) + available;
+  dst = static_cast<byte *>(dst) + available;
   n -= available;
   if (PDP_LIKELY(n < in_place_threshold)) {
     size_t num_read = stream.ReadAtLeast(ptr, n, default_buffer_size, max_wait);

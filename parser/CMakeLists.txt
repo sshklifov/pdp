@@ -2,6 +2,7 @@ add_library(pdp_parser STATIC
     expr.cc
     mi_parser.cc
     rpc_parser.cc
+    rpc_builder.cc
 )
 
 target_include_directories(pdp_parser PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

@@ -21,7 +21,7 @@ bool FileDescriptor::IsValid() const { return fd >= 0; }
 
 int FileDescriptor::Value() const { return fd; }
 
-void FileDescriptor::SetValue(int init_fd) {
+void FileDescriptor::SetDescriptor(int init_fd) {
   pdp_assert(fd < 0);
   fd = init_fd;
   SetNonBlocking();
@@ -139,7 +139,7 @@ size_t OutputDescriptor::WriteOnce(const void *buf, size_t size) {
     }
     return 0;
   }
-  return static_cast<size_t>(ret);
+  return BitCast(ret);
 }
 
 }  // namespace pdp

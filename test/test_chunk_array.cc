@@ -6,17 +6,17 @@
 using namespace pdp;
 
 TEST_CASE("ChunkArray basic allocation returns aligned pointers") {
-  ChunkArray<> ca;
+  ChunkArray ca;
 
   void *p = ca.Allocate(8);
   REQUIRE(p);
 
-  CHECK(reinterpret_cast<uintptr_t>(p) % ChunkArray<>::alignment == 0);
+  CHECK(reinterpret_cast<uintptr_t>(p) % ChunkArray::alignment == 0);
 }
 
 TEST_CASE("ChunkArray allocations inside a chunk advance by exact alignment") {
-  ChunkArray<> ca;
-  auto a = ChunkArray<>::alignment;
+  ChunkArray ca;
+  auto a = ChunkArray::alignment;
 
   void *p1 = ca.Allocate(1);
   void *p2 = ca.Allocate(1);
@@ -32,8 +32,8 @@ TEST_CASE("ChunkArray allocations inside a chunk advance by exact alignment") {
 }
 
 TEST_CASE("ChunkArray rounds up misaligned sizes correctly") {
-  ChunkArray<> ca;
-  auto a = ChunkArray<>::alignment;
+  ChunkArray ca;
+  auto a = ChunkArray::alignment;
 
   void *p1 = ca.Allocate(3);
   void *p2 = ca.Allocate(5);
@@ -48,9 +48,9 @@ TEST_CASE("ChunkArray rounds up misaligned sizes correctly") {
 }
 
 TEST_CASE("ChunkArray fills chunk exactly then allocates new chunk") {
-  ChunkArray<> ca;
+  ChunkArray ca;
 
-  constexpr size_t chunk = ChunkArray<>::chunk_size;
+  constexpr size_t chunk = ChunkArray::chunk_size;
   constexpr size_t stride = 16;
 
   static_assert(chunk % stride == 0);
@@ -80,8 +80,8 @@ TEST_CASE("ChunkArray fills chunk exactly then allocates new chunk") {
 }
 
 TEST_CASE("ChunkArray allocates large blocks directly") {
-  ChunkArray<> ca;
-  auto a = ChunkArray<>::alignment;
+  ChunkArray ca;
+  auto a = ChunkArray::alignment;
 
   constexpr size_t big = 128_KB;
 
@@ -99,8 +99,8 @@ TEST_CASE("ChunkArray allocates large blocks directly") {
 }
 
 TEST_CASE("ChunkArray survives small-large-small allocation sequence") {
-  ChunkArray<> ca;
-  auto a = ChunkArray<>::alignment;
+  ChunkArray ca;
+  auto a = ChunkArray::alignment;
 
   CHECK(ca.NumChunks() == 1);
   void *s1 = ca.Allocate(8);
@@ -124,26 +124,26 @@ TEST_CASE("ChunkArray survives small-large-small allocation sequence") {
 }
 
 TEST_CASE("ChunkArray AllocateOrNull returns nullptr for zero") {
-  ChunkArray<> ca;
+  ChunkArray ca;
 
   void *p = ca.AllocateOrNull(0);
   CHECK(p == nullptr);
 }
 
 TEST_CASE("ChunkArray always returns aligned pointers even for garbage sizes") {
-  ChunkArray<> arena;
+  ChunkArray arena;
 
   uint32_t sizes[] = {1, 2, 3, 5, 7, 9, 15, 31};
 
   for (uint32_t sz : sizes) {
     void *p = arena.Allocate(sz);
     REQUIRE(p);
-    CHECK(reinterpret_cast<uintptr_t>(p) % ChunkArray<>::alignment == 0);
+    CHECK(reinterpret_cast<uintptr_t>(p) % ChunkArray::alignment == 0);
   }
 }
 
 TEST_CASE("ChunkArray preserves data across mixed-size allocations") {
-  ChunkArray<> ca;
+  ChunkArray ca;
 
   struct Block {
     uint8_t *ptr;

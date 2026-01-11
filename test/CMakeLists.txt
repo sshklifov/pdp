@@ -51,3 +51,6 @@ target_link_libraries(test_time_units PRIVATE pdp_system)
 
 add_executable(test_thread test_thread.cc)
 target_link_libraries(test_thread PRIVATE pdp_system)
+
+add_executable(test_rpc_builder test_rpc_builder.cc)
+target_link_libraries(test_rpc_builder PRIVATE pdp_parser)

@@ -28,7 +28,7 @@ TEST_CASE("rpc notification: simple mode change") {
   WriteAll(fds[1], msg, sizeof(msg));
   close(fds[1]);
 
-  RpcPass pass(fds[0]);
+  RpcChunkArrayPass pass(fds[0]);
   ExprView e(pass.Parse());
 
   CHECK(e[0].NumberOr(-1) == 2);
@@ -50,7 +50,7 @@ TEST_CASE("rpc notification: buffer lines event") {
   WriteAll(fds[1], msg, sizeof(msg));
   close(fds[1]);
 
-  RpcPass pass(fds[0]);
+  RpcChunkArrayPass pass(fds[0]);
   ExprView e(pass.Parse());
 
   auto params = e[2];
@@ -73,7 +73,7 @@ TEST_CASE("rpc request from neovim") {
   WriteAll(fds[1], msg, sizeof(msg));
   close(fds[1]);
 
-  RpcPass pass(fds[0]);
+  RpcChunkArrayPass pass(fds[0]);
   ExprView e(pass.Parse());
 
   CHECK(e[0].NumberOr(-1) == 0);
@@ -97,7 +97,7 @@ TEST_CASE("rpc response with error") {
   WriteAll(fds[1], msg, sizeof(msg));
   close(fds[1]);
 
-  RpcPass pass(fds[0]);
+  RpcChunkArrayPass pass(fds[0]);
   ExprView e(pass.Parse());
 
   CHECK(e[0].NumberOr(-1) == 1);
@@ -120,7 +120,7 @@ TEST_CASE("rpc back-to-back notifications") {
   WriteAll(fds[1], msg, sizeof(msg));
   close(fds[1]);
 
-  RpcPass pass(fds[0]);
+  RpcChunkArrayPass pass(fds[0]);
 
   ExprView e1(pass.Parse());
   ExprView e2(pass.Parse());
@@ -153,7 +153,7 @@ TEST_CASE("rpc response with error as fixmap") {
   WriteAll(fds[1], msg, sizeof(msg));
   close(fds[1]);
 
-  RpcPass pass(fds[0]);
+  RpcChunkArrayPass pass(fds[0]);
   ExprView e(pass.Parse());
 
   CHECK(e[0].NumberOr(-1) == 1);
@@ -184,7 +184,7 @@ TEST_CASE("rpc request for which vim is dropping me") {
   WriteAll(fds[1], msg, sizeof(msg));
   close(fds[1]);
 
-  RpcPass pass(fds[0]);
+  RpcChunkArrayPass pass(fds[0]);
   ExprView e(pass.Parse());
 
   CHECK(e[0].NumberOr(-1) == 0);
@@ -210,7 +210,7 @@ TEST_CASE("rpc notification: empty args array") {
   WriteAll(fds[1], msg, sizeof(msg));
   close(fds[1]);
 
-  RpcPass pass(fds[0]);
+  RpcChunkArrayPass pass(fds[0]);
   ExprView e(pass.Parse());
 
   CHECK(e[0].NumberOr(-1) == 2);

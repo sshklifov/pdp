@@ -94,17 +94,39 @@ bool IsEqualDigits10(U unsigned_value, StringSlice str) {
 }
 
 template <typename T, std::enable_if_t<std::is_signed_v<T>, int> = 0>
+std::make_unsigned_t<T> BitCast(T signed_value) {
+  using U = std::make_unsigned_t<T>;
+  U result;
+  memcpy(&result, &signed_value, sizeof(T));
+  return result;
+}
+
+template <typename U, std::enable_if_t<std::is_unsigned_v<U>, int> = 0>
+std::make_signed_t<U> BitCast(U unsigned_value) {
+  using T = std::make_signed_t<U>;
+  T result;
+  memcpy(&result, &unsigned_value, sizeof(T));
+  return result;
+}
+
+template <typename T, std::enable_if_t<std::is_signed_v<T>, int> = 0>
+std::make_unsigned_t<T> NegativeToUnsigned(T negative_value) {
+  auto magnitude = BitCast(negative_value);
+  return ~magnitude + 1;
+}
+
+template <typename T, std::enable_if_t<std::is_signed_v<T>, int> = 0>
 bool IsEqualDigits10(T signed_value, StringSlice str) {
   using U = std::make_unsigned_t<T>;
   if (signed_value < 0) {
     if (PDP_LIKELY(!str.StartsWith('-'))) {
       return false;
     }
-    U magnitude = ~static_cast<U>(signed_value) + 1;
+    U magnitude = NegativeToUnsigned(signed_value);
     str.DropLeft(1);
     return IsEqualDigits10(magnitude, str);
   } else {
-    U magnitude = static_cast<U>(signed_value);
+    U magnitude = BitCast(signed_value);
     return IsEqualDigits10(magnitude, str);
   }
 }
@@ -280,8 +302,6 @@ inline size_t RunEstimator(PackedValue *args, uint64_t type_bits) {
   return bytes;
 }
 
-// TODO comment
-
 template <typename Alloc = DefaultAllocator>
 struct StringBuilder {
   StringBuilder() : begin(buffer), end(buffer), limit(buffer + sizeof(buffer)) {
@@ -313,6 +333,11 @@ struct StringBuilder {
 
   StringSlice GetSlice() const { return StringSlice(begin, end); }
 
+  void SetByte(size_t pos, byte b) {
+    pdp_assert(pos < Size());
+    memcpy(begin + pos, &b, sizeof(b));
+  }
+
   // Append methods.
 
   void AppendUnchecked(bool b) {
@@ -329,17 +354,9 @@ struct StringBuilder {
     ++end;
   }
 
-  void AppendUnchecked(unsigned char c) {
-    pdp_assert(end + 4 <= limit);
-
-    const char *lookup = "0123456789abcdef";
-    *end = '0';
-    ++end;
-    *end = 'x';
-    ++end;
-    *end = lookup[c >> 4];
-    ++end;
-    *end = lookup[c & 0xf];
+  void AppendByteUnchecked(byte b) {
+    pdp_assert(end < limit);
+    memcpy(end, &b, sizeof(b));
     ++end;
   }
 
@@ -398,15 +415,25 @@ struct StringBuilder {
       pdp_assert(end < limit);
       *end = '-';
       ++end;
-      U magnitude = ~static_cast<U>(signed_value) + 1;
+      U magnitude = NegativeToUnsigned(signed_value);
       AppendUnchecked(magnitude);
     } else {
-      U magnitude = static_cast<U>(signed_value);
+      U magnitude = BitCast(signed_value);
       AppendUnchecked(magnitude);
     }
   }
 
   // Safe Append version.
+
+  void Append(char c) {
+    ReserveFor(1);
+    AppendUnchecked(c);
+  }
+
+  void AppendByte(byte b) {
+    ReserveFor(1);
+    AppendByteUnchecked(b);
+  }
 
   template <typename T, std::enable_if_t<std::is_integral_v<T>, int> = 0>
   void Append(T integral) {

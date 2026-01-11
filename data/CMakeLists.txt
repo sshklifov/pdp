@@ -1,5 +1,7 @@
-add_library(pdp_data INTERFACE)
+add_library(pdp_data STATIC
+  chunk_array.cc
+)
 
-#target_include_directories(pdp_data INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(pdp_data PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
-target_link_libraries(pdp_data INTERFACE pdp_core pdp_tracing)
+target_link_libraries(pdp_data PUBLIC pdp_core pdp_tracing)

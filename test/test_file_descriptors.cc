@@ -48,7 +48,7 @@ TEST_CASE("FileDescriptor default state and ownership") {
   }
 
   CHECK(close(fds[0]) < 0);
-  fd.SetValue(fds[1]);
+  fd.SetDescriptor(fds[1]);
 }
 
 // -----------------------------------------------------------------------------
@@ -60,7 +60,7 @@ TEST_CASE("FileDescriptor SetValue sets non-blocking flag") {
   int fds[2];
   REQUIRE(pipe(fds) == 0);
 
-  fd.SetValue(fds[0]);
+  fd.SetDescriptor(fds[0]);
   CHECK(fd.IsValid());
   CHECK(fd.Value() == fds[0]);
 

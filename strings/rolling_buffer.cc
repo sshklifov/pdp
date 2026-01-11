@@ -24,7 +24,7 @@ RollingBuffer::RollingBuffer()
 
 RollingBuffer::~RollingBuffer() { Deallocate<char>(allocator, ptr); }
 
-void RollingBuffer::SetDescriptor(int fd) { input.SetValue(fd); }
+void RollingBuffer::SetDescriptor(int fd) { input.SetDescriptor(fd); }
 
 MutableLine RollingBuffer::ReadLine(Milliseconds timeout) {
   if (PDP_TRACE_UNLIKELY(begin != end)) {

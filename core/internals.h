@@ -8,6 +8,12 @@
 #define PDP_CLZ(x) __builtin_clz(x)
 #define PDP_CLZLL(x) __builtin_clzll(x)
 
-#define PDP_UNREACHABLE(msg) pdp::OnAssertFailed(__FILE__, __LINE__, msg)
+#define PDP_UNREACHABLE(msg) ::pdp::OnAssertFailed(__FILE__, __LINE__, msg)
 
 #define PDP_ASSUME_ALIGNED(x, a) __builtin_assume_aligned(x, a)
+
+namespace pdp {
+
+using byte = unsigned char;
+
+}  // namespace pdp

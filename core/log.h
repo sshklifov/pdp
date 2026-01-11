@@ -45,10 +45,10 @@ void LogUnformatted(const StringSlice &str);
 
 // The constexpr variable is forced so GetBasename is computed at compile time and loaded directly
 // to a register.
-#define PDP_LOG(level, ...)                                 \
-  do {                                                      \
-    constexpr const char *_bn = pdp::GetBasename(__FILE__); \
-    pdp::Log(_bn, __LINE__, level, __VA_ARGS__);            \
+#define PDP_LOG(level, ...)                                   \
+  do {                                                        \
+    constexpr const char *_bn = ::pdp::GetBasename(__FILE__); \
+    ::pdp::Log(_bn, __LINE__, level, __VA_ARGS__);            \
   } while (0)
 
 /// @brief Disable atrace calls on macro level
@@ -58,28 +58,28 @@ void LogUnformatted(const StringSlice &str);
 /// optimization is to remove the calls on macro level. This reduces code size and avoids the
 /// dynamic calls. As a downside, enabling 'atrace' is more complicated. See also 'SetConsoleLevel'.
 #ifdef PDP_TRACE_MESSAGES
-#define pdp_trace(...)                                        \
-  do {                                                        \
-    constexpr const char *_bn = pdp::GetBasename(__FILE__);   \
-    pdp::Log(_bn, __LINE__, pdp::Level::kTrace, __VA_ARGS__); \
+#define pdp_trace(...)                                            \
+  do {                                                            \
+    constexpr const char *_bn = ::pdp::GetBasename(__FILE__);     \
+    ::pdp::Log(_bn, __LINE__, ::pdp::Level::kTrace, __VA_ARGS__); \
   } while (0)
-#define pdp_trace_once(...)                                     \
-  do {                                                          \
-    static std::atomic_bool _once = false;                      \
-    if (_once.exchange(true) == false) {                        \
-      constexpr const char *_bn = pdp::GetBasename(__FILE__);   \
-      pdp::Log(_bn, __LINE__, pdp::Level::kTrace, __VA_ARGS__); \
-    }                                                           \
+#define pdp_trace_once(...)                                         \
+  do {                                                              \
+    static std::atomic_bool _once = false;                          \
+    if (_once.exchange(true) == false) {                            \
+      constexpr const char *_bn = ::pdp::GetBasename(__FILE__);     \
+      ::pdp::Log(_bn, __LINE__, ::pdp::Level::kTrace, __VA_ARGS__); \
+    }                                                               \
   } while (0)
 #else
 #define pdp_trace(...) (void)0
 #define pdp_trace_once(...) (void)0
 #endif
 
-#define pdp_info(fmt, ...) PDP_LOG(pdp::Level::kInfo, fmt, ##__VA_ARGS__)
+#define pdp_info(fmt, ...) PDP_LOG(::pdp::Level::kInfo, fmt, ##__VA_ARGS__)
 
-#define pdp_warning(fmt, ...) PDP_LOG(pdp::Level::kWarn, fmt, ##__VA_ARGS__)
+#define pdp_warning(fmt, ...) PDP_LOG(::pdp::Level::kWarn, fmt, ##__VA_ARGS__)
 
-#define pdp_error(fmt, ...) PDP_LOG(pdp::Level::kError, fmt, ##__VA_ARGS__)
+#define pdp_error(fmt, ...) PDP_LOG(::pdp::Level::kError, fmt, ##__VA_ARGS__)
 
-#define pdp_critical(fmt, ...) PDP_LOG(pdp::Level::kCrit, fmt, ##__VA_ARGS__)
+#define pdp_critical(fmt, ...) PDP_LOG(::pdp::Level::kCrit, fmt, ##__VA_ARGS__)
