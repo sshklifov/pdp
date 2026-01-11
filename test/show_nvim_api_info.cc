@@ -25,7 +25,8 @@ int main(int argc, char **argv) {
   // parent
   close(fds[1]);
 
-  RpcChunkArrayPass pass(fds[0]);
+  ByteStream stream(fds[0]);
+  RpcChunkArrayPass pass(stream);
   ExprView e(pass.Parse());
 
   // wait for nvim to exit
@@ -40,18 +41,18 @@ int main(int argc, char **argv) {
     for (uint32_t i = 0; i < functions.Count(); ++i) {
       auto name = functions[i]["name"];
       auto str = name.StringOr("");
-#if 0
       if (memmem(str.Data(), str.Size(), argv[1], strlen(argv[1]))) {
         functions[i].ToJson(msg);
         msg.Append('\n');
       }
-#endif
+#if 0
       auto ret = functions[i]["return_type"];
       if (ret) {
         msg.AppendFormat("{}: ", str);
         ret.ToJson(msg);
         msg.Append('\n');
       }
+#endif
     }
   } else {
     e.ToJson(msg);

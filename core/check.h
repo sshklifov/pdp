@@ -5,11 +5,11 @@
 #include <exception>
 
 #ifdef PDP_ENABLE_ASSERT
-#define pdp_assert(x)                              \
-  do {                                             \
-    if (PDP_UNLIKELY(!((x)))) {                    \
-      pdp::OnAssertFailed(__FILE__, __LINE__, #x); \
-    }                                              \
+#define pdp_assert(x)                                                   \
+  do {                                                                  \
+    if (PDP_UNLIKELY(!((x)))) {                                         \
+      pdp::OnFatalError(__FILE__, __LINE__, "Assertion " #x " failed"); \
+    }                                                                   \
   } while (0)
 #define pdp_assert_non_constexpr(x)   \
   do {                                \
@@ -29,18 +29,11 @@ namespace pdp {
 /// the regular logger may recurse, allocate, or otherwise be unsafe (e.g. during
 /// allocator failure, shutdown, or other fatal paths).
 [[noreturn]]
-void OnAssertFailed(const char *file, unsigned line, const char *what);
+void OnFatalError(const char *file, unsigned line, const char *what);
 
-/// @brief Unconditionally terminates execution with a custom assertion message.
-///
-/// This function is intended for fatal internal invariants that cannot be
-/// expressed as a boolean condition in an assertion (e.g. unreachable code
-/// paths or logically impossible states).
-///
-/// This is functionally equivalent to:
-///   assert(false && message);
+// TODO comment
 [[noreturn]]
-void OnAssertFailed(const char *what, const char *context, size_t context_size);
+void OnFatalError(const char *what, const char *value, size_t value_length);
 
 /// @brief Checks the outcome of a C-style function returning a negative status on failure.
 /// If the result is negative reports an `errno` style error code.

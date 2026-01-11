@@ -7,13 +7,15 @@
 
 namespace pdp {
 
-ByteStream::ByteStream(int fd) : ptr(Allocate<byte>(allocator, default_buffer_size)), stream(fd) {
+ByteStream::ByteStream(int fd) : ptr(Allocate<byte>(allocator, buffer_size)), stream(fd) {
   pdp_assert(ptr);
   begin = ptr;
   end = ptr;
 }
 
 ByteStream::~ByteStream() { Deallocate<byte>(allocator, ptr); }
+
+bool ByteStream::WaitForInput(Milliseconds timeout) { return stream.WaitForInput(timeout); }
 
 uint8_t ByteStream::PopByte() {
   RequireAtLeast(1);
@@ -71,7 +73,7 @@ void ByteStream::Memcpy(void *dst, size_t n) {
   dst = static_cast<byte *>(dst) + available;
   n -= available;
   if (PDP_LIKELY(n < in_place_threshold)) {
-    size_t num_read = stream.ReadAtLeast(ptr, n, default_buffer_size, max_wait);
+    size_t num_read = stream.ReadAtLeast(ptr, n, buffer_size, max_wait);
     if (PDP_UNLIKELY(num_read < n)) {
       pdp_critical("Failed to read {} bytes within {}ms", n, max_wait.GetMilli());
       PDP_UNREACHABLE("RPC stream timeout");
@@ -98,7 +100,7 @@ void ByteStream::RequireAtLeast(size_t n) {
     memcpy(ptr, begin, size);
     begin = ptr;
     end = ptr + size;
-    size_t num_read = stream.ReadAtLeast(end, n, default_buffer_size - n, max_wait);
+    size_t num_read = stream.ReadAtLeast(end, n, buffer_size - n, max_wait);
     if (PDP_UNLIKELY(num_read < n)) {
       pdp_critical("Failed to read {} bytes within {}ms", n, max_wait.GetMilli());
       PDP_UNREACHABLE("RPC stream timeout");

@@ -5,6 +5,8 @@
 #include "system/thread.h"
 #include "system/time_units.h"
 
+#include <unistd.h>
+
 namespace pdp {
 
 enum class AsyncKind {
@@ -53,7 +55,46 @@ struct GdbDriver {
 
   ~GdbDriver();
 
-  void Start();
+  template <typename... Args>
+  void Start(const char *path, Args... argv) {
+    static_assert((std::is_same_v<Args, const char *> && ...),
+                  "All exec arguments must be exactly const char*");
+
+    int in[2], out[2], err[2];
+    pipe(in);
+    pipe(out);
+    pipe(err);
+
+    pid_t pid = fork();
+    if (pid == 0) {
+      // child: GDB
+      dup2(in[0], STDIN_FILENO);
+      dup2(out[1], STDOUT_FILENO);
+      dup2(err[1], STDERR_FILENO);
+
+      close(in[1]);
+      close(out[0]);
+      close(err[0]);
+
+      int ret = execl(path, path, argv..., (char *)0);
+      Check(ret, "execlp");
+      _exit(1);
+    }
+
+    // parent
+    Start(in[0], out[1], err[1]);
+  }
+
+  void Start() {
+    Start("/usr/bin/gdb", "--quiet", "-iex", "set pagination off", "-iex", "set prompt", "-iex",
+          "set startup-with-shell off", "--interpreter=mi2", "Debug/pdp");
+  }
+
+  void Start(int input_fd, int output_fd, int error_fd) {
+    gdb_stdin.SetDescriptor(input_fd);
+    gdb_stdout.SetDescriptor(output_fd);
+    monitor_thread.Start(MonitorGdbStderr, error_fd);
+  }
 
   template <typename T, typename... Args>
   bool Send(uint32_t token, const StringSlice &fmt, Args &&...args) {

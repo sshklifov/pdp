@@ -55,10 +55,12 @@ AsyncKind ClassifyAsync(StringSlice name) {
       if (PDP_LIKELY(name == "running")) {
         return AsyncKind::kRunning;
       }
+      break;
     case 'c':
       if (PDP_LIKELY(name == "cmd-param-changed")) {
         return AsyncKind::kCmdParamChanged;
       }
+      break;
     case 'b':
       prefix = "breakpoint-";
       if (PDP_LIKELY(name.Size() >= prefix.Size() + 1 && name.MemCmp(prefix) == 0)) {
@@ -136,6 +138,7 @@ ResultKind ClassifyResult(StringSlice name) {
       if (PDP_LIKELY(name == "running")) {
         return ResultKind::kDone;
       }
+      break;
     case 'e':
       if (PDP_LIKELY(name == "error" || name == "exit")) {
         return ResultKind::kError;
@@ -171,40 +174,6 @@ GdbDriver::GdbDriver()
 }
 
 GdbDriver::~GdbDriver() { monitor_thread.Stop(); }
-
-void GdbDriver::Start() {
-  int in[2], out[2], err[2];
-  pipe(in);
-  pipe(out);
-  pipe(err);
-
-  pid_t pid = fork();
-  if (pid == 0) {
-    // child: GDB
-    dup2(in[0], STDIN_FILENO);
-    dup2(out[1], STDOUT_FILENO);
-    dup2(err[1], STDERR_FILENO);
-
-    close(in[1]);
-    close(out[0]);
-    close(err[0]);
-
-    int ret =
-        execlp("gdb", "gdb", "--quiet", "-iex", "set pagination off", "-iex", "set prompt", "-iex",
-               "set startup-with-shell off", "--interpreter=mi2", "Debug/pdp", nullptr);
-    Check(ret, "execlp");
-    _exit(1);
-  }
-
-  // parent
-  close(in[0]);
-  close(out[1]);
-  close(err[1]);
-
-  gdb_stdin.SetDescriptor(in[1]);
-  gdb_stdout.SetDescriptor(out[0]);
-  monitor_thread.Start(MonitorGdbStderr, err[0]);
-}
 
 void GdbDriver::MonitorGdbStderr(std::atomic_bool *is_running, int fd) {
   InputDescriptor gdb_stderr(fd);

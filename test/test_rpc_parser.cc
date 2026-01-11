@@ -17,6 +17,19 @@ static void WriteAll(int fd, const void *buf, size_t size) {
   }
 }
 
+struct ParseResult {
+  ExprView expr;
+  ChunkHandle chunks;
+};
+
+static ParseResult ParseFromFd(int fd) {
+  ByteStream stream(fd);
+  RpcChunkArrayPass pass(stream);
+  ExprView expr = pass.Parse();
+  auto chunks = pass.ReleaseChunks();
+  return {expr, std::move(chunks)};
+}
+
 TEST_CASE("rpc notification: simple mode change") {
   int fds[2];
   REQUIRE(pipe(fds) == 0);
@@ -28,8 +41,7 @@ TEST_CASE("rpc notification: simple mode change") {
   WriteAll(fds[1], msg, sizeof(msg));
   close(fds[1]);
 
-  RpcChunkArrayPass pass(fds[0]);
-  ExprView e(pass.Parse());
+  auto [e, _] = ParseFromFd(fds[0]);
 
   CHECK(e[0].NumberOr(-1) == 2);
   CHECK(e[1].StringOr("X") == "nvim_set_mode");
@@ -50,8 +62,7 @@ TEST_CASE("rpc notification: buffer lines event") {
   WriteAll(fds[1], msg, sizeof(msg));
   close(fds[1]);
 
-  RpcChunkArrayPass pass(fds[0]);
-  ExprView e(pass.Parse());
+  auto [e, _] = ParseFromFd(fds[0]);
 
   auto params = e[2];
   CHECK(params.Count() == 5);
@@ -73,8 +84,7 @@ TEST_CASE("rpc request from neovim") {
   WriteAll(fds[1], msg, sizeof(msg));
   close(fds[1]);
 
-  RpcChunkArrayPass pass(fds[0]);
-  ExprView e(pass.Parse());
+  auto [e, _] = ParseFromFd(fds[0]);
 
   CHECK(e[0].NumberOr(-1) == 0);
   CHECK(e[1].NumberOr(-1) == 42);
@@ -97,8 +107,7 @@ TEST_CASE("rpc response with error") {
   WriteAll(fds[1], msg, sizeof(msg));
   close(fds[1]);
 
-  RpcChunkArrayPass pass(fds[0]);
-  ExprView e(pass.Parse());
+  auto [e, _] = ParseFromFd(fds[0]);
 
   CHECK(e[0].NumberOr(-1) == 1);
   CHECK(e[1].NumberOr(-1) == 42);
@@ -120,7 +129,8 @@ TEST_CASE("rpc back-to-back notifications") {
   WriteAll(fds[1], msg, sizeof(msg));
   close(fds[1]);
 
-  RpcChunkArrayPass pass(fds[0]);
+  ByteStream stream(fds[0]);
+  RpcChunkArrayPass pass(stream);
 
   ExprView e1(pass.Parse());
   ExprView e2(pass.Parse());
@@ -153,8 +163,7 @@ TEST_CASE("rpc response with error as fixmap") {
   WriteAll(fds[1], msg, sizeof(msg));
   close(fds[1]);
 
-  RpcChunkArrayPass pass(fds[0]);
-  ExprView e(pass.Parse());
+  auto [e, _] = ParseFromFd(fds[0]);
 
   CHECK(e[0].NumberOr(-1) == 1);
   CHECK(e[1].NumberOr(-1) == 7);
@@ -184,8 +193,7 @@ TEST_CASE("rpc request for which vim is dropping me") {
   WriteAll(fds[1], msg, sizeof(msg));
   close(fds[1]);
 
-  RpcChunkArrayPass pass(fds[0]);
-  ExprView e(pass.Parse());
+  auto [e, _] = ParseFromFd(fds[0]);
 
   CHECK(e[0].NumberOr(-1) == 0);
   CHECK(e[1].NumberOr(-1) == 1);
@@ -210,8 +218,7 @@ TEST_CASE("rpc notification: empty args array") {
   WriteAll(fds[1], msg, sizeof(msg));
   close(fds[1]);
 
-  RpcChunkArrayPass pass(fds[0]);
-  ExprView e(pass.Parse());
+  auto [e, _] = ParseFromFd(fds[0]);
 
   CHECK(e[0].NumberOr(-1) == 2);
   CHECK(e[1].StringOr("X") == "nvim_redraw");

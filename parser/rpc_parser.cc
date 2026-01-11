@@ -7,7 +7,7 @@ namespace pdp {
 namespace impl {
 
 template <typename A>
-_RpcPassHelper<A>::_RpcPassHelper(int fd) : stream(fd) {}
+_RpcPassHelper<A>::_RpcPassHelper(ByteStream &input) : stream(input) {}
 
 template <typename A>
 ExprBase *_RpcPassHelper<A>::Parse() {

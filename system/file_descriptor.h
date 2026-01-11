@@ -7,6 +7,8 @@
 
 namespace pdp {
 
+int DuplicateForThisProcess(int fd);
+
 struct FileDescriptor : public NonCopyableNonMovable {
   FileDescriptor();
   FileDescriptor(int descriptor);

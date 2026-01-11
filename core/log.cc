@@ -1,15 +1,25 @@
 #include "log.h"
 #include "check.h"
 
+#include <fcntl.h>
 #include <unistd.h>
 #include <cstring>
 #include <ctime>
 
 /// @brief Holds the active log level for console messages
 /// @note Each process will get a different copy of this variable.
-static std::atomic_int console_level = static_cast<int>(pdp::Level::kInfo);
+static std::atomic_int log_level = static_cast<int>(pdp::Level::kInfo);
+
+/// @brief File descriptor used for log output.
+/// @note This does not imply ownership of the file descriptor.
+/// @note Each process has its own copy of this variable.
+static std::atomic_int log_output_fd = STDOUT_FILENO;
 
 namespace pdp {
+
+static bool ShouldLogAt(Level level) {
+  return log_level.load(std::memory_order_relaxed) <= static_cast<int>(level);
+}
 
 /// @brief Returns an ANSI-colored string literal for the given log level.
 static constexpr StringSlice LogLevelToString(Level level) {
@@ -107,10 +117,6 @@ static void WriteLogHeader(const StringSlice &filename, unsigned line, Level lev
   out.AppendUnchecked(' ');
 }
 
-static bool ShouldLogAt(Level level) {
-  return console_level.load(std::memory_order_relaxed) <= static_cast<int>(level);
-}
-
 void Log(const char *f, unsigned line, Level level, const StringSlice &fmt, PackedValue *args,
          uint64_t type_bits) {
   if (PDP_UNLIKELY(!ShouldLogAt(level))) {
@@ -139,7 +145,7 @@ void LogUnformatted(const StringSlice &str) {
   ssize_t num_written = 0;
   ssize_t remaining = str.Size() > max_length ? max_length : str.Size();
   do {
-    ssize_t ret = write(STDOUT_FILENO, str.Data() + num_written, remaining);
+    ssize_t ret = write(log_output_fd.load(), str.Data() + num_written, remaining);
     if (PDP_UNLIKELY(ret < 0)) {
       // Not much you can do except accepting the partial write and moving on.
       return;
@@ -149,11 +155,24 @@ void LogUnformatted(const StringSlice &str) {
   } while (PDP_UNLIKELY(remaining));
 }
 
-/// @brief Changes the log level process wide of console messages
-void SetConsoleLogLevel(Level level) {
-  // XXX: Trace level logging is controlled only via macros!
-  pdp_assert(level != Level::kTrace);
-  console_level.store(static_cast<int>(level));
+LogLevelRAII::LogLevelRAII(Level new_level) {
+  pdp_assert(new_level != Level::kTrace);
+  restored_level = log_level.exchange(static_cast<int>(new_level));
+}
+
+LogLevelRAII::~LogLevelRAII() { log_level.store(restored_level); }
+
+LogRedirectRAII::LogRedirectRAII(const char *path) {
+  int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+  if (PDP_UNLIKELY(fd < 0)) {
+    PDP_UNREACHABLE("Failed to redirect logging!");
+  }
+  restored_fd = log_output_fd.exchange(fd);
+}
+
+LogRedirectRAII::~LogRedirectRAII() {
+  int old_fd = log_output_fd.exchange(restored_fd);
+  close(old_fd);
 }
 
 }  // namespace pdp

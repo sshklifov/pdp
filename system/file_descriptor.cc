@@ -1,7 +1,7 @@
 #include "file_descriptor.h"
 
 #include "core/check.h"
-#include "core/log.h"
+#include "strings/string_builder.h"
 
 #include <fcntl.h>
 #include <sys/poll.h>
@@ -10,6 +10,12 @@
 #include <ctime>
 
 namespace pdp {
+
+int DuplicateForThisProcess(int fd) {
+  int dupped = fcntl(fd, F_DUPFD_CLOEXEC, 0);
+  Check(dupped, "fcntl::dupfd");
+  return dupped;
+}
 
 FileDescriptor::FileDescriptor() : fd(-1) {}
 

@@ -299,24 +299,6 @@ TEST_CASE("Append(T) with various types") {
   }
 }
 
-TEST_CASE("Appending byte (unsigned char)") {
-  SUBCASE("AppendUnchecked") {
-    StringBuilder<> b;
-    b.ReserveFor(10);
-    unsigned char de = 0xde;
-    b.AppendByteUnchecked(de);
-    CHECK(b.Size() == 1);
-    CHECK(memcmp(b.Data(), &de, 1) == 0);
-  }
-  SUBCASE("Normal Append") {
-    StringBuilder<> b;
-    unsigned char bc = 0xbc;
-    b.AppendByte(bc);
-    CHECK(b.Size() == 1);
-    CHECK(memcmp(b.Data(), &bc, 1) == 0);
-  }
-}
-
 TEST_CASE("Appendf basic replacement") {
   StringBuilder<> b;
 

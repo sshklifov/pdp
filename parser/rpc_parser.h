@@ -12,7 +12,7 @@ namespace impl {
 
 template <typename Alloc>
 struct _RpcPassHelper {
-  _RpcPassHelper(int fd);
+  _RpcPassHelper(ByteStream &input);
 
   ExprBase *Parse();
 
@@ -40,7 +40,7 @@ struct _RpcPassHelper {
     uint64_t remaining;
   };
 
-  ByteStream stream;
+  ByteStream &stream;
   Alloc allocator;
   Stack<RpcRecord> nesting_stack;
 };
@@ -48,7 +48,7 @@ struct _RpcPassHelper {
 }  // namespace impl
 
 struct RpcChunkArrayPass {
-  RpcChunkArrayPass(int fd) : helper(fd) {}
+  RpcChunkArrayPass(ByteStream &input) : helper(input) {}
 
   ExprBase *Parse() { return helper.Parse(); }
 

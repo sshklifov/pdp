@@ -105,7 +105,7 @@ void RpcBuilder::AddString(const StringSlice &str) {
   } else {
     PDP_UNREACHABLE("RpcBuilder: string overflow!");
   }
-  builder.Append(str);
+  builder.Append(str.Data(), str.Size());
 
   BackfillArrayElem();
 }
@@ -144,7 +144,7 @@ void RpcBuilder::CloseShortArray() {
 
 RpcBuilderArrayRAII RpcBuilder::AddArray() { return RpcBuilderArrayRAII(*this); }
 
-StringSlice RpcBuilder::Finish() {
+RpcBytes RpcBuilder::Finish() {
   if (PDP_UNLIKELY(depth != 0)) {
     PDP_UNREACHABLE("RpcBuilder: Unclosed array!");
   }
@@ -156,7 +156,7 @@ StringSlice RpcBuilder::Finish() {
 #ifdef PDP_ENABLE_ASSERT
   depth = -1;  // Will trigger asserts if object is reused
 #endif
-  return builder.GetSlice();
+  return {builder.Data(), builder.Size()};
 }
 
 };  // namespace pdp

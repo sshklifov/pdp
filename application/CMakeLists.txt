@@ -1,5 +1,6 @@
 add_library(pdp_application STATIC
   gdb_driver.cc
+  vim_controller.cc
 )
 
 target_include_directories(pdp_application PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

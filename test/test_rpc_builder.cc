@@ -25,14 +25,15 @@ struct ParseResult {
   ChunkHandle chunks;
 };
 
-static ParseResult ParseFromBuilder(const StringSlice &msg) {
+static ParseResult ParseFromBuilder(const RpcBytes &msg) {
   int fds[2];
   REQUIRE(pipe(fds) == 0);
 
-  WriteAll(fds[1], msg.Data(), msg.Size());
+  WriteAll(fds[1], msg.data, msg.bytes);
   close(fds[1]);
 
-  RpcChunkArrayPass pass(fds[0]);
+  ByteStream stream(fds[0]);
+  RpcChunkArrayPass pass(stream);
   ExprView res = pass.Parse();
   auto chunks = pass.ReleaseChunks();
   return {res, std::move(chunks)};
@@ -44,14 +45,31 @@ static ScopedPtr<char> MakeString(size_t len, char c = 'x') {
   return res;
 }
 
+TEST_CASE("Appending bytes") {
+  SUBCASE("AppendUnchecked") {
+    ByteBuilder<DefaultAllocator> b;
+    b.ReserveFor(10);
+    unsigned char de = 0xde;
+    b.AppendByteUnchecked(de);
+    CHECK(b.Size() == 1);
+    CHECK(memcmp(b.Data(), &de, 1) == 0);
+  }
+  SUBCASE("Normal Append") {
+    ByteBuilder<DefaultAllocator> b;
+    unsigned char bc = 0xbc;
+    b.AppendByte(bc);
+    CHECK(b.Size() == 1);
+    CHECK(memcmp(b.Data(), &bc, 1) == 0);
+  }
+}
+
 TEST_CASE("rpc builder: notification with no args") {
   RpcBuilder b(2, "ping");
   {
     auto empty_args = b.AddArray();
   }
-  StringSlice msg = b.Finish();
 
-  auto [e, chunks] = ParseFromBuilder(msg);
+  auto [e, chunks] = ParseFromBuilder(b.Finish());
 
   REQUIRE(e.Count() == 4);
   CHECK(e[0].NumberOr(-1) == 0);
@@ -302,12 +320,13 @@ TEST_CASE("rpc builder: str16 range") {
   REQUIRE(pipe(fds) == 0);
 
   std::thread t([&]() {
-    auto msg = b.Finish();
-    WriteAll(fds[1], msg.Data(), msg.Size());
+    auto [data, bytes] = b.Finish();
+    WriteAll(fds[1], data, bytes);
     close(fds[1]);
   });
 
-  RpcChunkArrayPass pass(fds[0]);
+  ByteStream stream(fds[0]);
+  RpcChunkArrayPass pass(stream);
   ExprView e = pass.Parse();
   auto chunks = pass.ReleaseChunks();
 

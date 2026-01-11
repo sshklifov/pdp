@@ -4,6 +4,37 @@
 
 namespace pdp {
 
+template <typename Alloc = DefaultAllocator>
+struct ByteBuilder : public SmallBufferStorage<byte, Alloc> {
+  using SmallBufferStorage<byte, Alloc>::begin;
+  using SmallBufferStorage<byte, Alloc>::end;
+  using SmallBufferStorage<byte, Alloc>::limit;
+
+  void Append(const void *data, size_t bytes) {
+    this->ReserveFor(bytes);
+    memcpy(end, data, bytes);
+    end += bytes;
+  }
+
+  void SetByte(size_t pos, byte b) {
+    pdp_assert(pos < this->Size());
+    memcpy(begin + pos, &b, sizeof(b));
+  }
+
+  void AppendByteUnchecked(byte b) {
+    pdp_assert(end < limit);
+    memcpy(end, &b, sizeof(b));
+    ++end;
+  }
+
+  void AppendByte(byte b) {
+    this->ReserveFor(1);
+    AppendByteUnchecked(b);
+  }
+
+  const void *Data() const { return begin; }
+};
+
 struct RpcBuilder;
 
 struct RpcBuilderArrayRAII {
@@ -12,6 +43,11 @@ struct RpcBuilderArrayRAII {
 
  private:
   RpcBuilder &builder;
+};
+
+struct RpcBytes {
+  const void *data;
+  size_t bytes;
 };
 
 struct RpcBuilder {
@@ -26,7 +62,7 @@ struct RpcBuilder {
 
   [[nodiscard]] RpcBuilderArrayRAII AddArray();
 
-  [[nodiscard]] StringSlice Finish();
+  [[nodiscard]] RpcBytes Finish();
 
   static constexpr uint32_t kMaxDepth = 8;
 
@@ -54,7 +90,7 @@ struct RpcBuilder {
 
   Backfill array_backfill[kMaxDepth];
   int32_t depth;
-  StringBuilder<DefaultAllocator> builder;
+  ByteBuilder<DefaultAllocator> builder;
 };
 
 };  // namespace pdp

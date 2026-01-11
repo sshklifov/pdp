@@ -15,11 +15,24 @@ constexpr const char *GetBasename(const StringSlice &name) {
 /// @brief Log message severity
 enum class Level { kTrace, kInfo, kWarn, kError, kCrit, kOff };
 
-/// @brief Changes the log level process wide of console messages
-void SetConsoleLogLevel(Level level);
-
 void Log(const char *filename, unsigned line, Level level, const StringSlice &fmt,
          PackedValue *args, uint64_t type_bits);
+
+struct LogLevelRAII {
+  explicit LogLevelRAII(Level new_level);
+  ~LogLevelRAII();
+
+ private:
+  int restored_level;
+};
+
+struct LogRedirectRAII {
+  explicit LogRedirectRAII(const char *path);
+  ~LogRedirectRAII();
+
+ private:
+  int restored_fd;
+};
 
 // TODO comments
 

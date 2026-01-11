@@ -8,7 +8,7 @@
 
 namespace pdp {
 
-void OnAssertFailed(const char *file, unsigned line, const char *what) {
+void OnFatalError(const char *file, unsigned line, const char *what) {
   const char *head = "[*** PDP ERROR ***] Assertion '";
   write(STDERR_FILENO, head, strlen(head));
   write(STDERR_FILENO, what, strlen(what));
@@ -32,14 +32,14 @@ void OnAssertFailed(const char *file, unsigned line, const char *what) {
   std::terminate();
 }
 
-void OnAssertFailed(const char *what, const char *context, size_t n) {
+void OnFatalError(const char *what, const char *value, size_t value_length) {
   const char *pdp_error = "[*** PDP ERROR ***] ";
   write(STDERR_FILENO, pdp_error, strlen(pdp_error));
   write(STDERR_FILENO, what, strlen(what));
 
   const char *failed_with = " occured with: ";
   write(STDERR_FILENO, failed_with, strlen(failed_with));
-  write(STDERR_FILENO, context, n);
+  write(STDERR_FILENO, value, value_length);
   write(STDERR_FILENO, "\n", 1);
 
   std::terminate();
@@ -47,7 +47,7 @@ void OnAssertFailed(const char *what, const char *context, size_t n) {
 
 static StringSlice GetErrorDescription() { return StringSlice(strerrordesc_np(errno)); }
 
-// Similar to OnAssertFailed, for easier debugging.
+// Does nothing, but is useful for debugging.
 void OnCheckFailed() {}
 
 bool Check(int result, const char *operation) {

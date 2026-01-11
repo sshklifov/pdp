@@ -51,15 +51,12 @@ int main() {
   pdp_info("Testing logging");
   const pdp::Level levels[] = {pdp::Level::kInfo, pdp::Level::kWarn, pdp::Level::kError};
   for (auto level : levels) {
-    pdp_critical("Changing log level");
-    pdp::SetConsoleLogLevel(level);
+    pdp_info("Changing log level");
+    pdp::LogLevelRAII level_raii(level);
     pdp_info("info message");
     pdp_warning("warn message");
     pdp_error("error message");
   }
-
-  pdp::SetConsoleLogLevel(pdp::Level::kInfo);
-  pdp_info("Restogin logging level");
 
   pdp_info("Testing PDP_TRACE_LIKELY / PDP_TRACE_UNLIKELY with mispredictions.");
   const size_t mispredictions = 4;

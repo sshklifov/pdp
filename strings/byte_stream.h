@@ -10,12 +10,13 @@ namespace pdp {
 
 struct ByteStream {
   static constexpr size_t in_place_threshold = 4_KB;
-  static constexpr size_t default_buffer_size = 1_MB;
-  static constexpr size_t max_capacity = 1_GB;
-  static constexpr Milliseconds max_wait = 1000_ms;
+  static constexpr size_t buffer_size = 32_KB;
+  static constexpr Milliseconds max_wait = 5000_ms;
 
-  ByteStream(int fd = STDIN_FILENO);
+  ByteStream(int fd);
   ~ByteStream();
+
+  bool WaitForInput(Milliseconds timeout);
 
   uint8_t PopByte();
 

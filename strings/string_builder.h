@@ -302,43 +302,87 @@ inline size_t RunEstimator(PackedValue *args, uint64_t type_bits) {
   return bytes;
 }
 
-template <typename Alloc = DefaultAllocator>
-struct StringBuilder {
-  StringBuilder() : begin(buffer), end(buffer), limit(buffer + sizeof(buffer)) {
+template <typename T, typename Alloc>
+struct SmallBufferStorage {
+  SmallBufferStorage() : begin(buffer), end(buffer), limit(buffer + sizeof(buffer)) {
 #ifdef PDP_ENABLE_ZERO_INITIALIZE
     memset(buffer, 0, sizeof(buffer));
 #endif
   }
 
-  ~StringBuilder() {
+  ~SmallBufferStorage() {
     if (PDP_UNLIKELY(begin != buffer)) {
-      Deallocate<char>(allocator, begin);
+      Deallocate<T>(allocator, begin);
     }
   }
-
-  char *Begin() { return begin; }
-  const char *Begin() const { return begin; }
-
-  const char *Data() const { return begin; }
-
-  char *End() { return end; }
-  const char *End() const { return end; }
 
   bool Empty() const { return begin == end; }
   size_t Length() const { return end - begin; }
   size_t Size() const { return Length(); }
   size_t Capacity() const { return limit - begin; }
 
+  T *Begin() { return this->begin; }
+  const T *Begin() const { return this->begin; }
+
+  const T *Data() const { return this->begin; }
+
+  T *End() { return this->end; }
+  const T *End() const { return this->end; }
+
+  void ReserveFor(size_t new_elems) {
+    pdp_assert(max_capacity - new_elems >= Size());
+    const T *__restrict__ new_limit = end + new_elems;
+    if (PDP_UNLIKELY(new_limit > limit)) {
+      GrowExtra(new_limit - limit);
+    }
+  }
+
   void Clear() { end = begin; }
+
+ private:
+  void GrowExtra(const size_t extra_limit) {
+    size_t size = Size();
+    size_t capacity = Capacity();
+
+    const size_t half_capacity = capacity / 2;
+    const size_t grow_capacity = half_capacity > extra_limit ? half_capacity : extra_limit;
+
+    [[maybe_unused]]
+    const bool ok_limit = max_capacity - grow_capacity >= capacity;
+    pdp_assert(ok_limit);
+    capacity += grow_capacity;
+
+    if (PDP_LIKELY(begin != buffer)) {
+      begin = Reallocate<T>(allocator, begin, capacity);
+    } else {
+      begin = Allocate<T>(allocator, capacity);
+      memcpy(begin, buffer, sizeof(buffer));
+    }
+    end = begin + size;
+    limit = begin + capacity;
+    pdp_assert(begin);
+  }
+
+ protected:
+  static constexpr size_t max_capacity = 256_MB;
+
+  T buffer[256];
+  T *__restrict__ begin;
+  T *__restrict__ end;
+  const T *__restrict__ limit;
+
+  Alloc allocator;
+};
+
+template <typename Alloc = DefaultAllocator>
+struct StringBuilder : public SmallBufferStorage<char, Alloc> {
+  using SmallBufferStorage<char, Alloc>::begin;
+  using SmallBufferStorage<char, Alloc>::end;
+  using SmallBufferStorage<char, Alloc>::limit;
 
   StringSlice GetSlice() const { return StringSlice(begin, end); }
 
-  void SetByte(size_t pos, byte b) {
-    pdp_assert(pos < Size());
-    memcpy(begin + pos, &b, sizeof(b));
-  }
-
-  // Append methods.
+  // Unsafe Append methods.
 
   void AppendUnchecked(bool b) {
     if (b) {
@@ -351,12 +395,6 @@ struct StringBuilder {
   void AppendUnchecked(char c) {
     pdp_assert(end < limit);
     *end = c;
-    ++end;
-  }
-
-  void AppendByteUnchecked(byte b) {
-    pdp_assert(end < limit);
-    memcpy(end, &b, sizeof(b));
     ++end;
   }
 
@@ -426,31 +464,26 @@ struct StringBuilder {
   // Safe Append version.
 
   void Append(char c) {
-    ReserveFor(1);
+    this->ReserveFor(1);
     AppendUnchecked(c);
-  }
-
-  void AppendByte(byte b) {
-    ReserveFor(1);
-    AppendByteUnchecked(b);
   }
 
   template <typename T, std::enable_if_t<std::is_integral_v<T>, int> = 0>
   void Append(T integral) {
     EstimateSize estimator;
-    ReserveFor(estimator(integral));
+    this->ReserveFor(estimator(integral));
     AppendUnchecked(integral);
   }
 
   template <typename T, std::enable_if_t<!IsCStringV<T *>, int> = 0>
   void Append(const T *ptr) {
     EstimateSize estimator;
-    ReserveFor(estimator(ptr));
+    this->ReserveFor(estimator(ptr));
     AppendUnchecked((const void *)ptr);
   }
 
   void Append(const StringSlice &str) {
-    ReserveFor(str.Size());
+    this->ReserveFor(str.Size());
     AppendUnchecked(str);
   }
 
@@ -463,7 +496,7 @@ struct StringBuilder {
   }
 
   void AppendPack(const StringSlice &fmt, PackedValue *slots, uint64_t type_bits) {
-    ReserveFor(fmt.Size() + RunEstimator(slots, type_bits));
+    this->ReserveFor(fmt.Size() + RunEstimator(slots, type_bits));
     AppendPackUnchecked(fmt, slots, type_bits);
   }
 
@@ -475,7 +508,7 @@ struct StringBuilder {
       const char *it = fmt.MemChar('{');
       if (PDP_UNLIKELY(!it)) {
 #ifdef PDP_ENABLE_ASSERT
-        OnAssertFailed("Extra arguments for format", original_fmt.Begin(), original_fmt.Size());
+        OnFatalError("Extra arguments for format", original_fmt.Data(), original_fmt.Size());
 #endif
         return;
       }
@@ -494,19 +527,10 @@ struct StringBuilder {
     }
 #ifdef PDP_ENABLE_ASSERT
     if (memmem(fmt.Begin(), fmt.Size(), "{}", 2)) {
-      OnAssertFailed("Insufficient arguments for format", original_fmt.Begin(),
-                     original_fmt.Size());
+      OnFatalError("Insufficient arguments for format", original_fmt.Data(), original_fmt.Size());
     }
 #endif
     AppendUnchecked(fmt);
-  }
-
-  void ReserveFor(size_t new_elems) {
-    pdp_assert(max_capacity - new_elems >= Size());
-    const char *__restrict__ new_limit = end + new_elems;
-    if (PDP_UNLIKELY(new_limit > limit)) {
-      GrowExtra(new_limit - limit);
-    }
   }
 
  private:
@@ -544,38 +568,6 @@ struct StringBuilder {
         return 0;
     }
   }
-
-  void GrowExtra(const size_t extra_limit) {
-    size_t size = Size();
-    size_t capacity = Capacity();
-
-    const size_t half_capacity = capacity / 2;
-    const size_t grow_capacity = half_capacity > extra_limit ? half_capacity : extra_limit;
-
-    [[maybe_unused]]
-    const bool ok_limit = max_capacity - grow_capacity >= capacity;
-    pdp_assert(ok_limit);
-    capacity += grow_capacity;
-
-    if (PDP_LIKELY(begin != buffer)) {
-      begin = Reallocate<char>(allocator, begin, capacity);
-    } else {
-      begin = Allocate<char>(allocator, capacity);
-      memcpy(begin, buffer, sizeof(buffer));
-    }
-    end = begin + size;
-    limit = begin + capacity;
-    pdp_assert(begin);
-  }
-
-  static constexpr size_t max_capacity = 1_GB;
-
-  char buffer[256];
-  char *__restrict__ begin;
-  char *__restrict__ end;
-  const char *__restrict__ limit;
-
-  Alloc allocator;
 };
 
 };  // namespace pdp
