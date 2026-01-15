@@ -4,8 +4,7 @@ project(pdp VERSION 1.0.0 DESCRIPTION "GDB/MI parsing and command processing lib
 
 # Build unit tests
 
-# TODO MUST BE RENABLED ONCE I FIGURE OUT
-set(BUILD_TESTS OFF)
+set(BUILD_TESTS ON)
 
 # Build perf tests
 set(BUILD_PERF ON)

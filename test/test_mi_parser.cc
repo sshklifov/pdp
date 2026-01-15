@@ -15,11 +15,11 @@ TEST_CASE("simple param tuples") {
 
     MiSecondPass second(input, first);
     auto ptr = second.Parse();
-    ExprView e(ptr.Get());
+    LooseTypedView e(ptr.Get());
 
     CHECK(e.Count() == 2);
-    CHECK(e["param"].StringOr("X") == "pagination");
-    CHECK(e["value"].StringOr("X") == "off");
+    CHECK(e["param"].AsString() == "pagination");
+    CHECK(e["value"].AsString() == "off");
   }
 
   {
@@ -29,10 +29,10 @@ TEST_CASE("simple param tuples") {
 
     MiSecondPass second(input, first);
     auto ptr = second.Parse();
-    ExprView e(ptr.Get());
+    LooseTypedView e(ptr.Get());
 
-    CHECK(e["param"].StringOr("X") == "inferior-tty");
-    CHECK(e["value"].StringOr("X") == "/dev/pts/0");
+    CHECK(e["param"].AsString() == "inferior-tty");
+    CHECK(e["value"].AsString() == "/dev/pts/0");
   }
 
   {
@@ -42,10 +42,10 @@ TEST_CASE("simple param tuples") {
 
     MiSecondPass second(input, first);
     auto ptr = second.Parse();
-    ExprView e(ptr.Get());
+    LooseTypedView e(ptr.Get());
 
-    CHECK(e["param"].StringOr("X") == "prompt");
-    CHECK(e["value"].StringOr("NOT_EMPTY") == "");
+    CHECK(e["param"].AsString() == "prompt");
+    CHECK(e["value"].AsString() == "");
   }
 
   {
@@ -55,10 +55,10 @@ TEST_CASE("simple param tuples") {
 
     MiSecondPass second(input, first);
     auto ptr = second.Parse();
-    ExprView e(ptr.Get());
+    LooseTypedView e(ptr.Get());
 
-    CHECK(e["param"].StringOr("X") == "max-completions");
-    CHECK(e["value"].NumberOr(-1) == 20);
+    CHECK(e["param"].AsString() == "max-completions");
+    CHECK(e["value"].AsInteger() == 20);
   }
 
   {
@@ -68,10 +68,10 @@ TEST_CASE("simple param tuples") {
 
     MiSecondPass second(input, first);
     auto ptr = second.Parse();
-    ExprView e(ptr.Get());
+    LooseTypedView e(ptr.Get());
 
-    CHECK(e["param"].StringOr("X") == "startup-with-shell");
-    CHECK(e["value"].StringOr("X") == "off");
+    CHECK(e["param"].AsString() == "startup-with-shell");
+    CHECK(e["value"].AsString() == "off");
   }
 }
 
@@ -89,21 +89,21 @@ TEST_CASE("bkpt tuple with mixed fields") {
 
   MiSecondPass second(input, first);
   auto ptr = second.Parse();
-  ExprView e(ptr.Get());
+  LooseTypedView e(ptr.Get());
 
   auto bkpt = e["bkpt"];
   CHECK(bkpt.Count() > 5);
 
-  CHECK(bkpt["number"].NumberOr(-1) == 1);
-  CHECK(bkpt["type"].StringOr("X") == "breakpoint");
-  CHECK(bkpt["disp"].StringOr("X") == "del");
-  CHECK(bkpt["enabled"].StringOr("X") == "y");
-  CHECK(bkpt["addr"].StringOr("X") == "0x00000000000039fc");
-  CHECK(bkpt["line"].NumberOr(-1) == 182);
+  CHECK(bkpt["number"].AsInteger() == 1);
+  CHECK(bkpt["type"].AsString() == "breakpoint");
+  CHECK(bkpt["disp"].AsString() == "del");
+  CHECK(bkpt["enabled"].AsString() == "y");
+  CHECK(bkpt["addr"].AsString() == "0x00000000000039fc");
+  CHECK(bkpt["line"].AsInteger() == 182);
 
   auto tg = bkpt["thread-groups"];
   CHECK(tg.Count() == 1);
-  CHECK(tg[0].StringOr("X") == "i1");
+  CHECK(tg[0u].AsString() == "i1");
 }
 
 TEST_CASE("shared object with ranges list") {
@@ -117,18 +117,18 @@ TEST_CASE("shared object with ranges list") {
 
   MiSecondPass second(input, first);
   auto ptr = second.Parse();
-  ExprView e(ptr.Get());
+  LooseTypedView e(ptr.Get());
 
-  CHECK(e["id"].StringOr("X") == "/lib/ld-linux-aarch64.so.1");
-  CHECK(e["symbols-loaded"].NumberOr(-1) == 0);
+  CHECK(e["id"].AsString() == "/lib/ld-linux-aarch64.so.1");
+  CHECK(e["symbols-loaded"].AsInteger() == 0);
 
   auto ranges = e["ranges"];
   CHECK(ranges.Count() == 1);
 
-  auto r0 = ranges[0];
+  auto r0 = ranges[0u];
   CHECK(r0.Count() == 2);
-  CHECK(r0["from"].StringOr("X") == "0x0000007ff7fc3d80");
-  CHECK(r0["to"].StringOr("X") == "0x0000007ff7fe1328");
+  CHECK(r0["from"].AsString() == "0x0000007ff7fc3d80");
+  CHECK(r0["to"].AsString() == "0x0000007ff7fe1328");
 }
 
 TEST_CASE("stop reason with nested frame and args") {
@@ -143,19 +143,19 @@ TEST_CASE("stop reason with nested frame and args") {
 
   MiSecondPass second(input, first);
   auto ptr = second.Parse();
-  ExprView e(ptr.Get());
+  LooseTypedView e(ptr.Get());
 
-  CHECK(e["reason"].StringOr("X") == "breakpoint-hit");
-  CHECK(e["bkptno"].NumberOr(-1) == 1);
-  CHECK(e["core"].NumberOr(-1) == 2);
+  CHECK(e["reason"].AsString() == "breakpoint-hit");
+  CHECK(e["bkptno"].AsInteger() == 1);
+  CHECK(e["core"].AsInteger() == 2);
 
   auto frame = e["frame"];
-  CHECK(frame["func"].StringOr("X") == "main");
-  CHECK(frame["line"].NumberOr(-1) == 182);
-  CHECK(frame["arch"].StringOr("X") == "aarch64");
+  CHECK(frame["func"].AsString() == "main");
+  CHECK(frame["line"].AsInteger() == 182);
+  CHECK(frame["arch"].AsString() == "aarch64");
 
   auto args = frame["args"];
   CHECK(args.Count() == 2);
-  CHECK(args[0]["name"].StringOr("X") == "argc");
-  CHECK(args[1]["name"].StringOr("X") == "argv");
+  CHECK(args[0u]["name"].AsString() == "argc");
+  CHECK(args[1u]["name"].AsString() == "argv");
 }

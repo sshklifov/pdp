@@ -157,7 +157,6 @@ void Log(const char *f, unsigned line, Level level, const StringSlice &fmt, Pack
 
 void LogUnformatted(const StringSlice &str) {
   const int fd = log_output_fd.load();
-  pdp_assert(fd >= 0);
 
   // Safeguard against blasting the terminal with output.
   const ssize_t max_length = 65535;

@@ -27,7 +27,7 @@ int main(int argc, char **argv) {
 
   ByteStream stream(fds[0]);
   RpcChunkArrayPass pass(stream);
-  ExprView e(pass.Parse());
+  LooseTypedView e(pass.Parse());
 
   // wait for nvim to exit
   int status = 0;
@@ -40,7 +40,7 @@ int main(int argc, char **argv) {
     auto functions = e["functions"];
     for (uint32_t i = 0; i < functions.Count(); ++i) {
       auto name = functions[i]["name"];
-      auto str = name.StringOr("");
+      auto str = name.AsString();
       if (memmem(str.Data(), str.Size(), argv[1], strlen(argv[1]))) {
         functions[i].ToJson(msg);
         msg.Append('\n');

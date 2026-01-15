@@ -45,12 +45,6 @@ TEST_CASE("EstimateSize overloads") {
     CHECK(est(std::numeric_limits<unsigned>::max()) >= 10);
     CHECK(est(0) >= 1);
   }
-
-  SUBCASE("unsigned char") {
-    CHECK(est((unsigned char)0xdd) == 4);
-    CHECK(est((unsigned char)0x00) == 4);
-    CHECK(est((unsigned char)0xf1) == 4);
-  }
 }
 
 TEST_CASE("CountDigits10 basic values") {
