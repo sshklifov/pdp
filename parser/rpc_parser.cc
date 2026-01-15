@@ -4,6 +4,95 @@
 
 namespace pdp {
 
+void ExpectRpcArray(ByteStream &s, uint32_t expected_length) {
+  byte b = s.PopByte();
+  switch (b) {
+      // Array with 2 byte length
+    case 0xdc:
+      if (PDP_LIKELY(s.PopUint16() == expected_length)) {
+        return;
+      }
+      break;
+      // Array with 4 byte length
+    case 0xdd:
+      if (PDP_LIKELY(s.PopUint32() == expected_length)) {
+        return;
+      }
+      break;
+  }
+  if (PDP_LIKELY(b >= 0x90 && b <= 0x9f)) {
+    byte length_from_byte = (b & 0xf);
+    if (PDP_LIKELY(length_from_byte == expected_length)) {
+      return;
+    }
+  }
+
+  PDP_UNREACHABLE("Unexpected RPC array length");
+}
+
+void ExpectRpcInteger(ByteStream &s, int64_t what) {
+  int64_t integer = ReadRpcInteger(s);
+  if (PDP_UNLIKELY(integer != what)) {
+    PDP_UNREACHABLE("Unexpected RPC response type");
+  }
+}
+
+int64_t ReadRpcInteger(ByteStream &s) {
+  byte b = s.PopByte();
+  switch (b) {
+      // 8bit signed
+    case 0xd0:
+      return s.PopInt8();
+      // 16bit signed
+    case 0xd1:
+      return s.PopInt16();
+      // 32bit signed
+    case 0xd2:
+      return s.PopInt32();
+      // 64bit signed
+    case 0xd3:
+      return s.PopInt64();
+      // 8bit unsigned
+    case 0xcc:
+      return s.PopUint8();
+      // 16bit unsigned
+    case 0xcd:
+      return s.PopUint16();
+      // 32bit unsigned
+    case 0xce:
+      return s.PopUint32();
+      // 64bit unsigned
+    case 0xcf:
+      return s.PopUint64();
+  }
+  static_assert(std::is_unsigned_v<byte>, "Possible underflow in cast detected");
+  if (PDP_LIKELY(b <= 0x7f)) {
+    return b;
+  } else if (PDP_LIKELY(b >= 0xe0)) {
+    return BitCast<int8_t>(b);
+  } else {
+    PDP_UNREACHABLE("Unexpected RPC byte, expecting an integer");
+  }
+}
+
+bool ReadRpcBoolean(ByteStream &s) {
+  byte b = s.PopByte();
+  if (PDP_LIKELY((b | 1) == 0xc3)) {
+    return b & 0x1;
+  }
+  PDP_UNREACHABLE("Unexpected RPC byte, expecting a boolean");
+}
+
+void SkipRpcError(ByteStream &s) {
+  auto byte = s.PeekByte();
+  if (PDP_LIKELY(byte == 0xc0)) {
+    s.PopByte();
+    return;
+  }
+  PDP_UNREACHABLE("Expecting null as error response TODO");
+  // TODO
+}
+
 namespace impl {
 
 template <typename A>
@@ -121,8 +210,8 @@ ExprBase *_RpcPassHelper<A>::CreateMap(uint32_t length) {
 
 template <typename A>
 ExprBase *_RpcPassHelper<A>::BigAssSwitch() {
-  unsigned char byte = stream.PopByte();
-  switch (byte) {
+  byte b = stream.PopByte();
+  switch (b) {
       // 8bit signed
     case 0xd0:
       return CreateInteger(stream.PopInt8());
@@ -154,7 +243,7 @@ ExprBase *_RpcPassHelper<A>::BigAssSwitch() {
 
     case 0xc2:
     case 0xc3:
-      return CreateInteger(byte & 0x1);
+      return CreateInteger(b & 0x1);
 
       // String with 1 byte length
     case 0xd9:
@@ -181,18 +270,18 @@ ExprBase *_RpcPassHelper<A>::BigAssSwitch() {
       return CreateMap(stream.PopUint32());
   }
 
-  if (byte <= 0x7f) {
-    return CreateInteger((uint8_t)byte);
-  } else if (byte >= 0xe0) {
-    return CreateInteger((int8_t)byte);
-  } else if (byte >= 0xa0 && byte <= 0xbf) {
-    return CreateString(byte & 0x1f);
-  } else if (byte >= 0x90 && byte <= 0x9f) {
-    return CreateArray(byte & 0xf);
-  } else if (byte >= 0x80 && byte <= 0x8f) {
-    return CreateMap(byte & 0xf);
+  if (b <= 0x7f) {
+    return CreateInteger((uint8_t)b);
+  } else if (b >= 0xe0) {
+    return CreateInteger((int8_t)b);
+  } else if (b >= 0xa0 && b <= 0xbf) {
+    return CreateString(b & 0x1f);
+  } else if (b >= 0x90 && b <= 0x9f) {
+    return CreateArray(b & 0xf);
+  } else if (b >= 0x80 && b <= 0x8f) {
+    return CreateMap(b & 0xf);
   }
-  pdp_critical("Unsupported RPC byte: {}", byte);
+  // pdp_critical("Unsupported RPC byte: {}", b);
   PDP_UNREACHABLE("Cannot parse rpc");
 }
 

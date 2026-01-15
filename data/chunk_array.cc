@@ -7,7 +7,7 @@ namespace impl {
 
 template <>
 struct _StackPrivAccess<DefaultAllocator> {
-  _StackPrivAccess(Stack<unsigned char *> &s) : s(s) {}
+  _StackPrivAccess(Stack<byte *> &s) : s(s) {}
 
   [[nodiscard]] ChunkHandle ReleaseChunks() {
     ChunkHandle handle(s.ptr, s.size);
@@ -19,12 +19,12 @@ struct _StackPrivAccess<DefaultAllocator> {
   bool IsHoldingChunks() const { return s.ptr != nullptr; }
 
  private:
-  Stack<unsigned char *> &s;
+  Stack<byte *> &s;
 };
 
 }  // namespace impl
 
-ChunkHandle::ChunkHandle(unsigned char **chunks, size_t num_chunks)
+ChunkHandle::ChunkHandle(byte **chunks, size_t num_chunks)
     : chunks(chunks), num_chunks(num_chunks) {}
 
 ChunkHandle::ChunkHandle(ChunkHandle &&rhs) : chunks(rhs.chunks), num_chunks(rhs.num_chunks) {
@@ -46,7 +46,7 @@ ChunkHandle ChunkArray::ReleaseChunks() {
 }
 
 ChunkArray::ChunkArray() : chunks(16) {
-  chunks += static_cast<unsigned char *>(allocator.AllocateRaw(chunk_size));
+  chunks += static_cast<byte *>(allocator.AllocateRaw(chunk_size));
   top_used_bytes = 0;
 #ifdef PDP_TRACE_CHUNK_ARRAY
   all_used_bytes = chunk_size;
@@ -90,7 +90,7 @@ void *ChunkArray::AllocateUnchecked(uint32_t bytes) {
     pdp_assert(all_used_bytes <= max_capacity - bytes);
     allocated_bytes += bytes;
 #endif
-    unsigned char *big_chunk = static_cast<unsigned char *>(allocator.AllocateRaw(bytes));
+    byte *big_chunk = static_cast<byte *>(allocator.AllocateRaw(bytes));
 
     auto normal_chunk = chunks.Top();
     chunks.Top() = big_chunk;
@@ -102,7 +102,7 @@ void *ChunkArray::AllocateUnchecked(uint32_t bytes) {
   pdp_assert(all_used_bytes <= max_capacity - chunk_size);
   allocated_bytes += chunk_size;
 #endif
-  unsigned char *result = static_cast<unsigned char *>(allocator.AllocateRaw(chunk_size));
+  byte *result = static_cast<byte *>(allocator.AllocateRaw(chunk_size));
   chunks += result;
   top_used_bytes = bytes;
   return result;

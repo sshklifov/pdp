@@ -18,20 +18,14 @@ enum class Level { kTrace, kInfo, kWarn, kError, kCrit, kOff };
 void Log(const char *filename, unsigned line, Level level, const StringSlice &fmt,
          PackedValue *args, uint64_t type_bits);
 
+void RedirectLogging(const char *filename);
+
 struct LogLevelRAII {
   explicit LogLevelRAII(Level new_level);
   ~LogLevelRAII();
 
  private:
   int restored_level;
-};
-
-struct LogRedirectRAII {
-  explicit LogRedirectRAII(const char *path);
-  ~LogRedirectRAII();
-
- private:
-  int restored_fd;
 };
 
 // TODO comments
@@ -50,9 +44,7 @@ void Log(const char *filename, unsigned line, Level level, const StringSlice &fm
   Log(filename, line, level, fmt, packed_args.slots, packed_args.type_bits);
 }
 
-#ifdef PDP_TRACE_MESSAGES
 void LogUnformatted(const StringSlice &str);
-#endif
 
 }  // namespace pdp
 

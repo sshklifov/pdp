@@ -13,9 +13,27 @@ static std::atomic_int log_level = static_cast<int>(pdp::Level::kInfo);
 /// @brief File descriptor used for log output.
 /// @note This does not imply ownership of the file descriptor.
 /// @note Each process has its own copy of this variable.
-static std::atomic_int log_output_fd = STDOUT_FILENO;
+static std::atomic_int log_output_fd = -1;
 
 namespace pdp {
+
+static void TerminateHandler() {
+  int fd = log_output_fd.exchange(-1);
+  if (PDP_LIKELY(fd > 0)) {
+    close(fd);
+  }
+}
+
+void RedirectLogging(const char *filename) {
+  int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0644);
+  if (PDP_UNLIKELY(fd < 0)) {
+    PDP_UNREACHABLE("Failed to redirect logging!");
+  }
+  int old_fd = log_output_fd.exchange(fd);
+  pdp_assert(old_fd < 0);
+
+  std::set_terminate(TerminateHandler);
+}
 
 static bool ShouldLogAt(Level level) {
   return log_level.load(std::memory_order_relaxed) <= static_cast<int>(level);
@@ -53,7 +71,7 @@ static constexpr size_t EstimateLogLevelSize() {
   return max;
 }
 
-static void Pad2Unchecked(unsigned char value, StringBuilder<OneShotAllocator> &out) {
+static void Pad2Unchecked(byte value, StringBuilder<OneShotAllocator> &out) {
   pdp_assert(value <= 99);
   out.AppendUnchecked(static_cast<char>('0' + value / 10));
   out.AppendUnchecked(static_cast<char>('0' + value % 10));
@@ -138,6 +156,9 @@ void Log(const char *f, unsigned line, Level level, const StringSlice &fmt, Pack
 }
 
 void LogUnformatted(const StringSlice &str) {
+  const int fd = log_output_fd.load();
+  pdp_assert(fd >= 0);
+
   // Safeguard against blasting the terminal with output.
   const ssize_t max_length = 65535;
 
@@ -145,7 +166,7 @@ void LogUnformatted(const StringSlice &str) {
   ssize_t num_written = 0;
   ssize_t remaining = str.Size() > max_length ? max_length : str.Size();
   do {
-    ssize_t ret = write(log_output_fd.load(), str.Data() + num_written, remaining);
+    ssize_t ret = write(fd, str.Data() + num_written, remaining);
     if (PDP_UNLIKELY(ret < 0)) {
       // Not much you can do except accepting the partial write and moving on.
       return;
@@ -161,18 +182,5 @@ LogLevelRAII::LogLevelRAII(Level new_level) {
 }
 
 LogLevelRAII::~LogLevelRAII() { log_level.store(restored_level); }
-
-LogRedirectRAII::LogRedirectRAII(const char *path) {
-  int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-  if (PDP_UNLIKELY(fd < 0)) {
-    PDP_UNREACHABLE("Failed to redirect logging!");
-  }
-  restored_fd = log_output_fd.exchange(fd);
-}
-
-LogRedirectRAII::~LogRedirectRAII() {
-  int old_fd = log_output_fd.exchange(restored_fd);
-  close(old_fd);
-}
 
 }  // namespace pdp

@@ -12,6 +12,8 @@
 
 #define PDP_ASSUME_ALIGNED(x, a) __builtin_assume_aligned(x, a)
 
+#define PDP_FRAME_ADDRESS(x) __builtin_frame_address(x)
+
 namespace pdp {
 
 using byte = unsigned char;

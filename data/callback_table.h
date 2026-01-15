@@ -34,7 +34,7 @@ struct SmallCapture {
     (*static_cast<Callable *>(obj)).~Callable();
   }
 
-  alignas(std::max_align_t) unsigned char storage[StorageSize];
+  alignas(std::max_align_t) byte storage[StorageSize];
   InvokeFun invoke;
 };
 

@@ -50,7 +50,9 @@ bool FileDescriptor::WaitForEvents(int events, Milliseconds timeout) {
 void FileDescriptor::SetNonBlocking() {
   int flags = fcntl(fd, F_GETFL, 0);
   int ret = fcntl(fd, F_SETFL, flags | O_NONBLOCK);
-  CheckAndTerminate(ret, "fcntl");
+  if (PDP_UNLIKELY(!Check(ret, "fcntl"))) {
+    PDP_UNREACHABLE("Cannot setup non-blocking IO");
+  }
 }
 
 bool InputDescriptor::WaitForInput(Milliseconds timeout) { return WaitForEvents(POLLIN, timeout); }
@@ -145,7 +147,7 @@ size_t OutputDescriptor::WriteOnce(const void *buf, size_t size) {
     }
     return 0;
   }
-  return BitCast(ret);
+  return BitCast<size_t>(ret);
 }
 
 }  // namespace pdp

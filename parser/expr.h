@@ -78,28 +78,42 @@ struct ExprMap : public ExprBase {
 
 static_assert(sizeof(ExprMap) == 24 && alignof(ExprMap) <= 8);
 
-struct ExprView {
-  ExprView(const ExprBase *expr);
+struct ExprBaseView {
+  ExprBaseView(const ExprBase *expr);
 
   uint32_t Count() const;
 
   operator bool() const;
 
-  ExprView operator[](int index);
-  ExprView operator[](uint32_t index);
-  ExprView operator[](const StringSlice &key);
-  ExprView operator[](const char *key);
+  void ToJson(StringBuilder<> &out) const;
+
+  static StringSlice GetStringUnchecked(const ExprBase *e);
+  static int64_t GetIntegerUnchecked(const ExprBase *e);
+  static const ExprBase *const *GetListUnchecked(const ExprBase *e);
+
+ protected:
+  StringSlice AsStringUnchecked() const;
+  int64_t AsIntegerUnchecked() const;
+  const ExprBase *const *AsListUnchecked() const;
+  const ExprMap *AsMapUnchecked() const;
+  const ExprTuple *AsTupleUnchecked() const;
+
+  const ExprBase *expr;
+};
+
+struct LooseTypedView : public ExprBaseView {
+  LooseTypedView(const ExprBase *expr);
+
+  LooseTypedView operator[](const StringSlice &key) const;
+  LooseTypedView operator[](const char *key) const;
+
+  LooseTypedView operator[](uint32_t index) const;
+
+  int64_t AsInteger() const;
+  StringSlice AsString() const;
 
   bool operator==(const StringSlice &str) const;
   bool operator!=(const StringSlice &str) const;
-
-  StringSlice StringOr(const StringSlice &alternative) const;
-  int64_t NumberOr(int64_t alternative) const;
-
-  void ToJson(StringBuilder<> &out);
-
- private:
-  const ExprBase *expr;
 };
 
 }  // namespace pdp

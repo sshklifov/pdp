@@ -23,11 +23,6 @@ struct EstimateSize {
 
   constexpr size_t operator()(char) const { return 1; }
 
-  constexpr size_t operator()(unsigned char) const {
-    // 2 hex digits + "0x" prefix
-    return 4;
-  }
-
   template <typename T, std::enable_if_t<!IsCStringV<T>, int> = 0>
   constexpr size_t operator()(const T *) const {
     // Max hex digits for 64-bit + "0x" prefix
@@ -93,25 +88,21 @@ bool IsEqualDigits10(U unsigned_value, StringSlice str) {
   return true;
 }
 
-template <typename T, std::enable_if_t<std::is_signed_v<T>, int> = 0>
-std::make_unsigned_t<T> BitCast(T signed_value) {
-  using U = std::make_unsigned_t<T>;
-  U result;
-  memcpy(&result, &signed_value, sizeof(T));
-  return result;
-}
+template <typename U, typename T>
+U BitCast(T value) {
+  static_assert(sizeof(T) == sizeof(U));
+  static_assert(std::is_trivially_copyable_v<T>);
+  static_assert(std::is_trivially_copyable_v<U>);
 
-template <typename U, std::enable_if_t<std::is_unsigned_v<U>, int> = 0>
-std::make_signed_t<U> BitCast(U unsigned_value) {
-  using T = std::make_signed_t<U>;
-  T result;
-  memcpy(&result, &unsigned_value, sizeof(T));
+  U result;
+  memcpy(&result, &value, sizeof(T));
   return result;
 }
 
 template <typename T, std::enable_if_t<std::is_signed_v<T>, int> = 0>
 std::make_unsigned_t<T> NegativeToUnsigned(T negative_value) {
-  auto magnitude = BitCast(negative_value);
+  using U = std::make_unsigned_t<T>;
+  U magnitude = BitCast<U>(negative_value);
   return ~magnitude + 1;
 }
 
@@ -126,9 +117,20 @@ bool IsEqualDigits10(T signed_value, StringSlice str) {
     str.DropLeft(1);
     return IsEqualDigits10(magnitude, str);
   } else {
-    U magnitude = BitCast(signed_value);
+    U magnitude = BitCast<U>(signed_value);
     return IsEqualDigits10(magnitude, str);
   }
+}
+
+// Special formatters
+
+struct Hex64 {
+  uint64_t value;
+};
+
+template <typename T, std::enable_if_t<std::is_same_v<T, uint64_t>, int> = 0>
+Hex64 MakeHex(T value) {
+  return Hex64{value};
 }
 
 // Type erase classes
@@ -137,43 +139,41 @@ union PackedValue {
   PackedValue() = default;
   constexpr PackedValue(bool x) : _bool(x) {}
   constexpr PackedValue(char x) : _char(x) {}
-  constexpr PackedValue(unsigned char x) : _byte(x) {}
   constexpr PackedValue(int32_t x) : _int32(x) {}
   constexpr PackedValue(uint32_t x) : _uint32(x) {}
   constexpr PackedValue(int64_t x) : _int64(x) {}
   constexpr PackedValue(uint64_t x) : _uint64(x) {}
   constexpr PackedValue(void *x) : _ptr(x) {}
 
+  constexpr PackedValue(Hex64 x) : _hex64(x) {}
+
   bool _bool;
   char _char;
-  unsigned char _byte;
   int32_t _int32;
   uint32_t _uint32;
   int64_t _int64;
   uint64_t _uint64;
   const void *_ptr;
   const char *_str;
+  Hex64 _hex64;
 };
 
 enum PackedValueType {
   kUnspecified,
   kBool,
   kChar,
-  kByte,
   kInt32,
   kUint32,
   kInt64,
   kUint64,
   kPtr,
-  kStr
+  kStr,
 };
 
 template <typename T>
 constexpr uint64_t PackOneType() {
   if constexpr (std::is_same_v<T, bool>) {
     return kBool;
-  } else if constexpr (std::is_same_v<T, unsigned char>) {
-    return kByte;
   } else if constexpr (std::is_same_v<T, char>) {
     return kChar;
   } else if constexpr (std::is_same_v<T, int32_t>) {
@@ -187,6 +187,8 @@ constexpr uint64_t PackOneType() {
   } else if constexpr (std::is_same_v<T, StringSlice>) {
     return kStr;
   } else if constexpr (std::is_pointer_v<T>) {
+    return kPtr;
+  } else if constexpr (std::is_same_v<T, Hex64>) {
     return kPtr;
   } else {
     static_assert(false, "Unsupported type!");
@@ -270,9 +272,6 @@ inline size_t RunEstimator(PackedValue *args, uint64_t type_bits) {
         break;
       case kChar:
         bytes += estimator(args[i]._char);
-        break;
-      case kByte:
-        bytes += estimator(args[i]._byte);
         break;
       case kInt32:
         bytes += estimator(args[i]._int32);
@@ -456,7 +455,7 @@ struct StringBuilder : public SmallBufferStorage<char, Alloc> {
       U magnitude = NegativeToUnsigned(signed_value);
       AppendUnchecked(magnitude);
     } else {
-      U magnitude = BitCast(signed_value);
+      U magnitude = BitCast<U>(signed_value);
       AppendUnchecked(magnitude);
     }
   }
@@ -539,9 +538,6 @@ struct StringBuilder : public SmallBufferStorage<char, Alloc> {
       case kChar:
         AppendUnchecked(arg->_char);
         return PackOneSlots<decltype(arg->_char)>();
-      case kByte:
-        AppendUnchecked(arg->_byte);
-        return PackOneSlots<decltype(arg->_byte)>();
       case kBool:
         AppendUnchecked(arg->_bool);
         return PackOneSlots<decltype(arg->_bool)>();

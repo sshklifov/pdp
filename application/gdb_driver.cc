@@ -43,22 +43,22 @@ StringSlice ProcessCstringInPlace(char *begin, char *end) {
   return StringSlice(begin, write_head);
 }
 
-AsyncKind ClassifyAsync(StringSlice name) {
+GdbAsyncKind ClassifyAsync(StringSlice name) {
   StringSlice prefix;
   switch (name[0]) {
     case 's':
       if (PDP_LIKELY(name == "stopped")) {
-        return AsyncKind::kStopped;
+        return GdbAsyncKind::kStopped;
       }
       break;
     case 'r':
       if (PDP_LIKELY(name == "running")) {
-        return AsyncKind::kRunning;
+        return GdbAsyncKind::kRunning;
       }
       break;
     case 'c':
       if (PDP_LIKELY(name == "cmd-param-changed")) {
-        return AsyncKind::kCmdParamChanged;
+        return GdbAsyncKind::kCmdParamChanged;
       }
       break;
     case 'b':
@@ -68,17 +68,17 @@ AsyncKind ClassifyAsync(StringSlice name) {
         switch (name[0]) {
           case 'c':
             if (PDP_LIKELY(name == "created")) {
-              return AsyncKind::kBreakpointCreated;
+              return GdbAsyncKind::kBreakpointCreated;
             }
             break;
           case 'd':
             if (PDP_LIKELY(name == "deleted")) {
-              return AsyncKind::kBreakpointDeleted;
+              return GdbAsyncKind::kBreakpointDeleted;
             }
             break;
           case 'm':
             if (PDP_LIKELY(name == "modified")) {
-              return AsyncKind::kBreakpointModified;
+              return GdbAsyncKind::kBreakpointModified;
             }
             break;
         }
@@ -91,22 +91,22 @@ AsyncKind ClassifyAsync(StringSlice name) {
         switch (name[7]) {
           case 'c':
             if (PDP_LIKELY(name == "created")) {
-              return AsyncKind::kThreadCreated;
+              return GdbAsyncKind::kThreadCreated;
             }
             break;
           case 's':
             if (PDP_LIKELY(name == "selected")) {
-              return AsyncKind::kThreadSelected;
+              return GdbAsyncKind::kThreadSelected;
             }
             break;
           case 'e':
             if (PDP_LIKELY(name == "exitted")) {
-              return AsyncKind::kThreadExited;
+              return GdbAsyncKind::kThreadExited;
             }
             break;
           case 'g':
             if (name == "group-started") {
-              return AsyncKind::kThreadGroupStarted;
+              return GdbAsyncKind::kThreadGroupStarted;
             }
             break;
         }
@@ -117,35 +117,35 @@ AsyncKind ClassifyAsync(StringSlice name) {
       if (PDP_LIKELY(name.Size() >= prefix.Size() + 1 && name.MemCmp(prefix) == 0)) {
         name.DropLeft(prefix.Size());
         if (PDP_LIKELY(name == "loaded")) {
-          return AsyncKind::kLibraryLoaded;
+          return GdbAsyncKind::kLibraryLoaded;
         } else if (PDP_LIKELY(name == "unloaded")) {
-          return AsyncKind::kLibraryLoaded;
+          return GdbAsyncKind::kLibraryLoaded;
         }
       }
       break;
   }
-  return AsyncKind::kUnknown;
+  return GdbAsyncKind::kUnknown;
 }
 
-ResultKind ClassifyResult(StringSlice name) {
+GdbResultKind ClassifyResult(StringSlice name) {
   switch (name[0]) {
     case 'd':
       if (PDP_LIKELY(name == "done")) {
-        return ResultKind::kDone;
+        return GdbResultKind::kDone;
       }
       break;
     case 'r':
       if (PDP_LIKELY(name == "running")) {
-        return ResultKind::kDone;
+        return GdbResultKind::kDone;
       }
       break;
     case 'e':
       if (PDP_LIKELY(name == "error" || name == "exit")) {
-        return ResultKind::kError;
+        return GdbResultKind::kError;
       }
       break;
   }
-  return ResultKind::kUnknown;
+  return GdbResultKind::kUnknown;
 }
 
 RecordKind GdbRecord::SetStream(const StringSlice &msg) {
@@ -153,13 +153,13 @@ RecordKind GdbRecord::SetStream(const StringSlice &msg) {
   return RecordKind::kStream;
 }
 
-RecordKind GdbRecord::SetAsync(AsyncKind kind, const StringSlice &results) {
+RecordKind GdbRecord::SetAsync(GdbAsyncKind kind, const StringSlice &results) {
   result_or_async.kind = static_cast<uint32_t>(kind);
   result_or_async.results = results;
   return RecordKind::kAsync;
 }
 
-RecordKind GdbRecord::SetResult(ResultKind kind, const StringSlice &results) {
+RecordKind GdbRecord::SetResult(GdbResultKind kind, const StringSlice &results) {
   result_or_async.kind = static_cast<uint32_t>(kind);
   result_or_async.results = results;
   return RecordKind::kResult;
@@ -230,10 +230,10 @@ RecordKind GdbDriver::Poll(Milliseconds timeout, GdbRecord *res) {
   if (PDP_UNLIKELY(name_begin == name_end)) {
     pdp_warning("Missing class name for message with token {}", token);
   } else if (IsResultMarker(marker)) {
-    ResultKind kind = ClassifyResult(StringSlice(name_begin, name_end));
+    GdbResultKind kind = ClassifyResult(StringSlice(name_begin, name_end));
     return res->SetResult(kind, results);
   } else if (PDP_LIKELY(IsAsyncMarker(marker))) {
-    AsyncKind kind = ClassifyAsync(StringSlice(name_begin, name_end));
+    GdbAsyncKind kind = ClassifyAsync(StringSlice(name_begin, name_end));
     return res->SetAsync(kind, results);
   }
   return RecordKind::kNone;

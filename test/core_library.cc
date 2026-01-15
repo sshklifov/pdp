@@ -40,11 +40,6 @@ static void RunChildAndTerminate(pdp::StringSlice name, void (*callback)()) {
 
 static void TestAssert() { pdp_assert(false && "Intentional pdp_assert test"); }
 
-static void TestCheckAndTerminate() {
-  int ret = close(-1);
-  pdp::CheckAndTerminate(ret, "try to close() with invalid file descriptor");
-}
-
 int main() {
   pdp_info("=== Core library test ===");
 
@@ -73,9 +68,6 @@ int main() {
 
   pdp_info("Testing pdp_assert death");
   RunChildAndTerminate("pdp_assert", TestAssert);
-
-  pdp_info("Testing CheckAndTerminate death");
-  RunChildAndTerminate("CheckAndTerminate", TestCheckAndTerminate);
 
   pdp_info("=== Core library test END ===");
   return 0;

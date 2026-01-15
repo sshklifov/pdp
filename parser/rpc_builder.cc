@@ -3,10 +3,6 @@
 
 namespace pdp {
 
-RpcBuilderArrayRAII::RpcBuilderArrayRAII(RpcBuilder &b) : builder(b) { builder.OpenShortArray(); }
-
-RpcBuilderArrayRAII::~RpcBuilderArrayRAII() { builder.CloseShortArray(); }
-
 RpcBuilder::RpcBuilder(uint32_t token, const StringSlice &method) {
   array_backfill[0].pos = 0;
   array_backfill[0].num_elems = 1;
@@ -14,8 +10,8 @@ RpcBuilder::RpcBuilder(uint32_t token, const StringSlice &method) {
   PushByte(0x90);
   PushByte(0x0);
 
-  AddUnsigned(token);
-  AddString(method);
+  Add(token);
+  Add(method);
 }
 
 void RpcBuilder::PushByte(byte b) { builder.AppendByte(b); }
@@ -25,7 +21,7 @@ void RpcBuilder::PushUint8(uint8_t x) {
   builder.AppendByteUnchecked(static_cast<byte>(x));
 }
 
-void RpcBuilder::PushInt8(int8_t x) { PushUint8(BitCast(x)); }
+void RpcBuilder::PushInt8(int8_t x) { PushUint8(BitCast<uint8_t>(x)); }
 
 void RpcBuilder::PushUint16(uint16_t x) {
   builder.ReserveFor(2);
@@ -33,7 +29,7 @@ void RpcBuilder::PushUint16(uint16_t x) {
   builder.AppendByteUnchecked(static_cast<byte>(x & 0xFF));
 }
 
-void RpcBuilder::PushInt16(int16_t x) { PushUint16(BitCast(x)); }
+void RpcBuilder::PushInt16(int16_t x) { PushUint16(BitCast<uint16_t>(x)); }
 
 void RpcBuilder::PushUint32(uint32_t x) {
   builder.ReserveFor(4);
@@ -43,9 +39,9 @@ void RpcBuilder::PushUint32(uint32_t x) {
   builder.AppendByteUnchecked(static_cast<byte>(x & 0xFF));
 }
 
-void RpcBuilder::PushInt32(int32_t x) { PushUint32(BitCast(x)); }
+void RpcBuilder::PushInt32(int32_t x) { PushUint32(BitCast<uint32_t>(x)); }
 
-void RpcBuilder::AddUnsigned(uint32_t x) {
+void RpcBuilder::Add(uint32_t x) {
   if (x <= 0x7f) {
     PushUint8(x);
   } else if (x <= std::numeric_limits<uint8_t>::max()) {
@@ -62,9 +58,9 @@ void RpcBuilder::AddUnsigned(uint32_t x) {
   BackfillArrayElem();
 }
 
-void RpcBuilder::AddInteger(int32_t x) {
+void RpcBuilder::Add(int32_t x) {
   if (x >= 0) {
-    return AddUnsigned(BitCast(x));
+    return Add(BitCast<uint32_t>(x));
   }
 
   if (x >= -32) {
@@ -83,13 +79,13 @@ void RpcBuilder::AddInteger(int32_t x) {
   BackfillArrayElem();
 }
 
-void RpcBuilder::AddBoolean(bool value) {
+void RpcBuilder::Add(bool value) {
   PushByte(value ? 0xc3 : 0xc2);
 
   BackfillArrayElem();
 }
 
-void RpcBuilder::AddString(const StringSlice &str) {
+void RpcBuilder::Add(const StringSlice &str) {
   if (str.Length() < 32) {
     byte length = 0xa0 | str.Length();
     PushByte(length);
@@ -141,8 +137,6 @@ void RpcBuilder::CloseShortArray() {
 
   --depth;
 }
-
-RpcBuilderArrayRAII RpcBuilder::AddArray() { return RpcBuilderArrayRAII(*this); }
 
 RpcBytes RpcBuilder::Finish() {
   if (PDP_UNLIKELY(depth != 0)) {

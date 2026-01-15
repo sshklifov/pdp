@@ -1,5 +1,6 @@
 #pragma once
 
+#include <initializer_list>
 #include "strings/string_builder.h"
 
 namespace pdp {
@@ -35,16 +36,6 @@ struct ByteBuilder : public SmallBufferStorage<byte, Alloc> {
   const void *Data() const { return begin; }
 };
 
-struct RpcBuilder;
-
-struct RpcBuilderArrayRAII {
-  RpcBuilderArrayRAII(RpcBuilder &b);
-  ~RpcBuilderArrayRAII();
-
- private:
-  RpcBuilder &builder;
-};
-
 struct RpcBytes {
   const void *data;
   size_t bytes;
@@ -55,21 +46,27 @@ struct RpcBuilder {
 
   RpcBuilder(uint32_t token, const StringSlice &method);
 
-  void AddInteger(int32_t value);
-  void AddUnsigned(uint32_t value);
-  void AddBoolean(bool value);
-  void AddString(const StringSlice &str);
+  void Add(int32_t value);
+  void Add(uint32_t value);
+  void Add(bool value);
+  void Add(const StringSlice &str);
 
-  [[nodiscard]] RpcBuilderArrayRAII AddArray();
+  void Add(std::initializer_list<StringSlice> ilist) {
+    OpenShortArray();
+    for (const auto &item : ilist) {
+      Add(item);
+    }
+    CloseShortArray();
+  }
 
   [[nodiscard]] RpcBytes Finish();
 
   static constexpr uint32_t kMaxDepth = 8;
 
- private:
   void OpenShortArray();
   void CloseShortArray();
 
+ private:
   void BackfillArrayElem();
 
   void PushByte(byte b);
@@ -92,5 +89,26 @@ struct RpcBuilder {
   int32_t depth;
   ByteBuilder<DefaultAllocator> builder;
 };
+
+template <typename T>
+struct IsRpc : std::false_type {};
+
+template <>
+struct IsRpc<int32_t> : std::true_type {};
+
+template <>
+struct IsRpc<uint32_t> : std::true_type {};
+
+template <>
+struct IsRpc<bool> : std::true_type {};
+
+template <>
+struct IsRpc<StringSlice> : std::true_type {};
+
+template <>
+struct IsRpc<std::initializer_list<StringSlice>> : std::true_type {};
+
+template <typename T>
+inline constexpr bool IsRpcV = IsRpc<T>::value;
 
 };  // namespace pdp

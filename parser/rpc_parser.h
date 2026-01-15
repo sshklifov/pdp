@@ -8,6 +8,12 @@
 
 namespace pdp {
 
+void ExpectRpcArray(ByteStream &s, uint32_t length);
+void ExpectRpcInteger(ByteStream &s, int64_t what);
+int64_t ReadRpcInteger(ByteStream &s);
+bool ReadRpcBoolean(ByteStream &s);
+void SkipRpcError(ByteStream &s);
+
 namespace impl {
 
 template <typename Alloc>

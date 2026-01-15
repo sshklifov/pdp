@@ -17,16 +17,20 @@ ByteStream::~ByteStream() { Deallocate<byte>(allocator, ptr); }
 
 bool ByteStream::WaitForInput(Milliseconds timeout) { return stream.WaitForInput(timeout); }
 
-uint8_t ByteStream::PopByte() {
+uint8_t ByteStream::PeekByte() {
   RequireAtLeast(1);
-  uint8_t res = *begin;
+  return *begin;
+}
+
+uint8_t ByteStream::PopByte() {
+  uint8_t res = PeekByte();
   ++begin;
   return res;
 }
 
 uint8_t ByteStream::PopUint8() { return PopByte(); }
 
-int8_t ByteStream::PopInt8() { return BitCast(PopByte()); }
+int8_t ByteStream::PopInt8() { return BitCast<int8_t>(PopByte()); }
 
 uint16_t ByteStream::PopUint16() {
   RequireAtLeast(2);
@@ -35,7 +39,7 @@ uint16_t ByteStream::PopUint16() {
   return res;
 }
 
-int16_t ByteStream::PopInt16() { return BitCast(PopUint16()); }
+int16_t ByteStream::PopInt16() { return BitCast<int16_t>(PopUint16()); }
 
 uint32_t ByteStream::PopUint32() {
   RequireAtLeast(4);
@@ -45,7 +49,7 @@ uint32_t ByteStream::PopUint32() {
   return res;
 }
 
-int32_t ByteStream::PopInt32() { return BitCast(PopUint32()); }
+int32_t ByteStream::PopInt32() { return BitCast<int32_t>(PopUint32()); }
 
 uint64_t ByteStream::PopUint64() {
   RequireAtLeast(8);
@@ -57,7 +61,7 @@ uint64_t ByteStream::PopUint64() {
   return res;
 }
 
-int64_t ByteStream::PopInt64() { return BitCast(PopUint64()); }
+int64_t ByteStream::PopInt64() { return BitCast<int64_t>(PopUint64()); }
 
 void ByteStream::Memcpy(void *dst, size_t n) {
   size_t available = end - begin;

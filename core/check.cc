@@ -1,4 +1,5 @@
 #include "check.h"
+#include "backtrace.h"
 #include "log.h"
 
 #include <string.h>
@@ -8,39 +9,51 @@
 
 namespace pdp {
 
-void OnFatalError(const char *file, unsigned line, const char *what) {
-  const char *head = "[*** PDP ERROR ***] Assertion '";
-  write(STDERR_FILENO, head, strlen(head));
-  write(STDERR_FILENO, what, strlen(what));
-
-  const char *failed_in = "' failed in ";
-  write(STDERR_FILENO, failed_in, strlen(failed_in));
-  write(STDERR_FILENO, file, strlen(file));
-  write(STDERR_FILENO, ":", 1);
-
+static void PrintDecimal(unsigned value) {
+  // TODO Add a comment that we will print max 8 digits and that's okay.
   char dig[8];
   int i = 7;
   do {
-    dig[i] = '0' + (line % 10);
-    line /= 10;
+    dig[i] = '0' + (value % 10);
+    value /= 10;
     --i;
-  } while (i >= 0 && line != 0);
+  } while (i >= 0 && value != 0);
 
-  write(STDERR_FILENO, dig + i + 1, 7 - i);
-  write(STDERR_FILENO, "\n", 1);
+  LogUnformatted(StringSlice(dig + i + 1, 7 - i));
+}
+
+void OnFatalError(const char *file, unsigned line, const char *what) {
+#ifdef PDP_DEBUG_BUILD
+  LogUnformatted("Backtrace:\n");
+  const unsigned max_frames = 16;
+  void *frames[max_frames];
+  FramePointerBacktrace(frames, max_frames);
+  PrintBacktrace(frames, max_frames);
+#endif
+
+  const char *head = "[*** PDP ERROR ***] '";
+  LogUnformatted(head);
+  LogUnformatted(what);
+
+  const char *failed_in = "' in ";
+  LogUnformatted(failed_in);
+  LogUnformatted(file);
+  LogUnformatted(":");
+  PrintDecimal(line);
+  LogUnformatted("\n");
 
   std::terminate();
 }
 
 void OnFatalError(const char *what, const char *value, size_t value_length) {
   const char *pdp_error = "[*** PDP ERROR ***] ";
-  write(STDERR_FILENO, pdp_error, strlen(pdp_error));
-  write(STDERR_FILENO, what, strlen(what));
+  LogUnformatted(pdp_error);
+  LogUnformatted(what);
 
-  const char *failed_with = " occured with: ";
-  write(STDERR_FILENO, failed_with, strlen(failed_with));
-  write(STDERR_FILENO, value, value_length);
-  write(STDERR_FILENO, "\n", 1);
+  const char *occured_with = " occured with: ";
+  LogUnformatted(occured_with);
+  LogUnformatted(StringSlice(value, value_length));
+  LogUnformatted("\n");
 
   std::terminate();
 }
@@ -48,14 +61,22 @@ void OnFatalError(const char *what, const char *value, size_t value_length) {
 static StringSlice GetErrorDescription() { return StringSlice(strerrordesc_np(errno)); }
 
 // Does nothing, but is useful for debugging.
-void OnCheckFailed() {}
+void OnCheckFailed() {
+#ifdef PDP_DEBUG_BUILD
+  LogUnformatted("Backtrace:\n");
+  const unsigned max_frames = 16;
+  void *frames[max_frames];
+  FramePointerBacktrace(frames, max_frames);
+  PrintBacktrace(frames, max_frames);
+#endif
+}
 
 bool Check(int result, const char *operation) {
   bool is_successful = (0 <= result);
   if (PDP_UNLIKELY(!is_successful)) {
+    OnCheckFailed();
     pdp_error("'{}' returned '{}'. Error '{}': '{}'.", StringSlice(operation), result, errno,
               GetErrorDescription());
-    OnCheckFailed();
   }
   return is_successful;
 }
@@ -63,9 +84,9 @@ bool Check(int result, const char *operation) {
 bool Check(void *pointer, const char *operation) {
   bool is_successful = (pointer != nullptr && pointer != MAP_FAILED);
   if (PDP_UNLIKELY(!is_successful)) {
+    OnCheckFailed();
     pdp_error("'{}' returned '{}'. Error '{}': '{}'.", StringSlice(operation), pointer, errno,
               GetErrorDescription());
-    OnCheckFailed();
   }
   return is_successful;
 }

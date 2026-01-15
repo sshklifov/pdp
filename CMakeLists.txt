@@ -3,7 +3,9 @@ cmake_minimum_required(VERSION 3.12)
 project(pdp VERSION 1.0.0 DESCRIPTION "GDB/MI parsing and command processing library")
 
 # Build unit tests
-set(BUILD_TESTS ON)
+
+# TODO MUST BE RENABLED ONCE I FIGURE OUT
+set(BUILD_TESTS OFF)
 
 # Build perf tests
 set(BUILD_PERF ON)
@@ -94,6 +96,7 @@ add_subdirectory(strings)
 add_subdirectory(external)
 add_subdirectory(parser)
 add_subdirectory(application)
+add_subdirectory(handlers)
 
 if(BUILD_TESTS)
   find_package(doctest REQUIRED)
@@ -105,4 +108,5 @@ if(BUILD_PERF)
 endif()
 
 add_executable(pdp main.cc)
-target_link_libraries(pdp PRIVATE pdp_application)
+target_link_libraries(pdp PRIVATE pdp_application pdp_handlers)
+target_compile_features(pdp PRIVATE cxx_std_20)

@@ -11,13 +11,13 @@
 namespace pdp {
 
 struct ChunkHandle : public NonCopyable {
-  ChunkHandle(unsigned char **chunks, size_t num_chunks);
+  ChunkHandle(byte **chunks, size_t num_chunks);
   ChunkHandle(ChunkHandle &&rhs);
   void operator=(ChunkHandle &&rhs) = delete;
   ~ChunkHandle();
 
  private:
-  unsigned char **chunks;
+  byte **chunks;
   size_t num_chunks;
 };
 
@@ -42,7 +42,7 @@ struct ChunkArray : public AlignmentTraits, public NonCopyableNonMovable {
   size_t allocated_bytes;
   size_t requested_bytes;
 #endif
-  Stack<unsigned char *> chunks;
+  Stack<byte *> chunks;
 
   DefaultAllocator allocator;
 };

@@ -9,7 +9,7 @@
 
 namespace pdp {
 
-enum class AsyncKind {
+enum class GdbAsyncKind {
   kStopped,
   kRunning,
   kCmdParamChanged,
@@ -25,7 +25,7 @@ enum class AsyncKind {
   kUnknown
 };
 
-enum class ResultKind { kDone, kError, kUnknown };
+enum class GdbResultKind { kDone, kError, kUnknown };
 
 enum class RecordKind { kStream, kAsync, kResult, kNone };
 
@@ -33,8 +33,8 @@ union GdbRecord {
   GdbRecord() {}
 
   RecordKind SetStream(const StringSlice &msg);
-  RecordKind SetAsync(AsyncKind kind, const StringSlice &results);
-  RecordKind SetResult(ResultKind kind, const StringSlice &results);
+  RecordKind SetAsync(GdbAsyncKind kind, const StringSlice &results);
+  RecordKind SetResult(GdbResultKind kind, const StringSlice &results);
 
   struct GdbStream {
     StringSlice message;
@@ -82,7 +82,10 @@ struct GdbDriver {
     }
 
     // parent
-    Start(in[0], out[1], err[1]);
+    close(in[0]);
+    close(out[1]);
+    close(err[1]);
+    Start(in[1], out[0], err[0]);
   }
 
   void Start() {

@@ -1,6 +1,7 @@
 add_library(pdp_core STATIC
     check.cc
     log.cc
+    backtrace.cc
 )
 
 # Depend on pdp_strings but don't list it! It's for a header-only class!

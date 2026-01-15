@@ -1,5 +1,6 @@
 #pragma once
 
+#include "parser/rpc_builder.h"
 #include "strings/byte_stream.h"
 #include "strings/string_slice.h"
 
@@ -16,13 +17,31 @@ struct VimController {
   void ShowMessage(const StringSlice &msg, const StringSlice &hl);
   void ShowMessage(std::initializer_list<StringSlice> msg, std::initializer_list<StringSlice> hl);
 
-  bool Poll(Milliseconds timeout);
+  template <typename... Args>
+  uint32_t SendRpcRequest(const char *method, Args &&...args) {
+    static_assert((IsRpcV<std::decay_t<Args>> && ...));
 
-  bool SendRpc(const void *bytes, size_t num_bytes);
+    RpcBuilder builder(token, method);
+    builder.OpenShortArray();
+    (builder.Add(std::forward<Args>(args)), ...);
+    builder.CloseShortArray();
+
+    auto [data, size] = builder.Finish();
+    SendBytes(data, size);
+    return token++;
+  }
+
+  uint32_t PollResponseToken(Milliseconds timeout);
+  bool ReadBoolResult();
+
+  static constexpr uint32_t kInvalidToken = 0;
 
  private:
+  void SendBytes(const void *bytes, size_t num_bytes);
+
   OutputDescriptor vim_input;
   ByteStream vim_output;
+  uint32_t token;
 };
 
 }  // namespace pdp
