@@ -46,10 +46,13 @@ struct RpcBuilder {
 
   RpcBuilder(uint32_t token, const StringSlice &method);
 
-  void Add(int32_t value);
   void Add(uint32_t value);
+  void Add(int32_t value);
+  void Add(int64_t value);
+  void Add(uint64_t value);
   void Add(bool value);
   void Add(const StringSlice &str);
+  void Add(const char *str) = delete;
 
   void Add(std::initializer_list<StringSlice> ilist) {
     OpenShortArray();
@@ -80,6 +83,9 @@ struct RpcBuilder {
   void PushUint32(uint32_t x);
   void PushInt32(int32_t x);
 
+  void PushUint64(uint64_t x);
+  void PushInt64(int64_t x);
+
   struct Backfill {
     uint32_t pos;
     uint32_t num_elems;
@@ -98,6 +104,12 @@ struct IsRpc<int32_t> : std::true_type {};
 
 template <>
 struct IsRpc<uint32_t> : std::true_type {};
+
+template <>
+struct IsRpc<int64_t> : std::true_type {};
+
+template <>
+struct IsRpc<uint64_t> : std::true_type {};
 
 template <>
 struct IsRpc<bool> : std::true_type {};

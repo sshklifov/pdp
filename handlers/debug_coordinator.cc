@@ -9,6 +9,94 @@ namespace pdp {
 DebugCoordinator::DebugCoordinator(int vim_input_fd, int vim_output_fd)
     : vim_controller(vim_input_fd, vim_output_fd) {
   gdb_driver.Start();
+
+  InitializeNs();
+  InitializeBuffers();
+}
+
+HandlerCoroutine DebugCoordinator::InitializeNs() {
+  uint32_t start_token = vim_controller.CreateNamespace("PromptDebugHighlight");
+  vim_controller.CreateNamespace("PromptDebugPC");
+  vim_controller.CreateNamespace("PromptDebugRegister");
+  vim_controller.CreateNamespace("PromptDebugPrompt");
+  vim_controller.CreateNamespace("PromptDebugConcealVar");
+  vim_controller.CreateNamespace("PromptDebugConcealJump");
+  vim_controller.CreateNamespace("PromptDebugBreakpoint");
+  pdp_assert(vim_controller.NextToken() - start_token == kTotalNs);
+
+  session_data.namespaces[kHighlightNs] = co_await IntegerRpcAwaiter(this, start_token);
+  session_data.namespaces[kProgramCounterNs] = co_await IntegerRpcAwaiter(this, start_token + 1);
+  session_data.namespaces[kRegisterNs] = co_await IntegerRpcAwaiter(this, start_token + 2);
+  session_data.namespaces[kPromptBufferNs] = co_await IntegerRpcAwaiter(this, start_token + 3);
+  session_data.namespaces[kConcealVarNs] = co_await IntegerRpcAwaiter(this, start_token + 4);
+  session_data.namespaces[kConcealJumpNs] = co_await IntegerRpcAwaiter(this, start_token + 5);
+  session_data.namespaces[kBreakpointNs] = co_await IntegerRpcAwaiter(this, start_token + 6);
+}
+
+HandlerCoroutine DebugCoordinator::InitializeBuffers() {
+  Vector<int64_t> buffers = co_await ListBuffers();
+  uint32_t token = vim_controller.NextToken();
+  for (size_t i = 0; i < buffers.Size(); ++i) {
+    vim_controller.Bufname(buffers[i]);
+  }
+  session_data.buffers[kCaptureBuf] = -1;
+  session_data.buffers[kAsmBuf] = -1;
+  session_data.buffers[kPromptBuf] = -1;
+  session_data.buffers[kIoBuf] = -1;
+
+  const char *names[kTotalBufs];
+  names[kCaptureBuf] = "Gdb capture";
+  names[kAsmBuf] = "Gdb disas";
+  names[kPromptBuf] = "Gdb prompt";
+  names[kIoBuf] = "Gdb i/o";
+
+  for (size_t i = 0; i < buffers.Size(); ++i) {
+    auto str = co_await StringRpcAwaiter(this, token + i);
+    StringSlice name = str.GetSlice();
+    StringSlice prefix("Gdb ");
+    if (name.Size() >= prefix.Size() + 1 && name.MemCmp(prefix) == 0) {
+      name.DropLeft(prefix.Size());
+      switch (name[0]) {
+        case 'c':
+          if (PDP_LIKELY(name == "capture")) {
+            session_data.buffers[kCaptureBuf] = buffers[i];
+          }
+          break;
+        case 'd':
+          if (PDP_LIKELY(name == "disas")) {
+            session_data.buffers[kAsmBuf] = buffers[i];
+          }
+          break;
+        case 'p':
+          if (PDP_LIKELY(name == "prompt")) {
+            session_data.buffers[kPromptBuf] = buffers[i];
+          }
+          break;
+        case 'i':
+          if (PDP_LIKELY(name == "i/o")) {
+            session_data.buffers[kIoBuf] = buffers[i];
+          }
+          break;
+      }
+    }
+  }
+
+  token = vim_controller.NextToken();
+  for (size_t i = 0; i < kTotalBufs; ++i) {
+    if (session_data.buffers[i] < 0) {
+      vim_controller.SendRpcRequest("nvim_create_buf", true, false);
+    }
+  }
+  // TODO wtf naming returned by vim...
+
+  for (size_t i = 0; i < kTotalBufs; ++i) {
+    if (session_data.buffers[i] < 0) {
+      session_data.buffers[i] = co_await IntegerRpcAwaiter(this, token);
+      vim_controller.SendRpcRequest("nvim_buf_set_name", session_data.buffers[i],
+                                    StringSlice(names[i]));
+      ++token;
+    }
+  }
 }
 
 void DebugCoordinator::PollGdb(Milliseconds timeout) {
@@ -40,6 +128,11 @@ void DebugCoordinator::PollGdb(Milliseconds timeout) {
   }
 }
 
+IntegerArrayRpcAwaiter DebugCoordinator::ListBuffers() {
+  uint32_t list_token = vim_controller.SendRpcRequest("nvim_list_bufs");
+  return IntegerArrayRpcAwaiter(this, list_token);
+}
+
 void DebugCoordinator::HandleResult(GdbResultKind kind, ScopedPtr<ExprBase> &&expr) {
   if (PDP_LIKELY(kind == GdbResultKind::kDone)) {
     // TODO
@@ -60,11 +153,25 @@ void DebugCoordinator::HandleAsync(GdbAsyncKind kind, ScopedPtr<ExprBase> &&expr
 void DebugCoordinator::PollVim(Milliseconds timeout) {
   uint32_t token = vim_controller.PollResponseToken(timeout);
   if (token != vim_controller.kInvalidToken) {
+    // pdp_info("Got response token {}", token);
     suspended_handlers.Resume(token);
   }
 }
 
-BooleanRpcAwaiter DebugCoordinator::BufExists(int bufnr) {
+void DebugCoordinator::ReachIdle(Milliseconds timeout) {
+  Stopwatch stopwatch;
+  auto next_wait = timeout;
+  while (!suspended_handlers.Empty() && next_wait > 0_ms) {
+    PollVim(next_wait > 5_ms ? next_wait : 5_ms);
+    next_wait = timeout - stopwatch.ElapsedMilli();
+  }
+  if (PDP_UNLIKELY(!suspended_handlers.Empty())) {
+    suspended_handlers.PrintSuspendedTokens();
+    PDP_UNREACHABLE("Failed to process all coroutines within timeout");
+  }
+}
+
+BooleanRpcAwaiter DebugCoordinator::BufExists(int64_t bufnr) {
   uint32_t token = vim_controller.SendRpcRequest("nvim_buf_is_valid", bufnr);
   return BooleanRpcAwaiter(this, token);
 }

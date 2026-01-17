@@ -15,7 +15,14 @@ ByteStream::ByteStream(int fd) : ptr(Allocate<byte>(allocator, buffer_size)), st
 
 ByteStream::~ByteStream() { Deallocate<byte>(allocator, ptr); }
 
-bool ByteStream::WaitForInput(Milliseconds timeout) { return stream.WaitForInput(timeout); }
+bool ByteStream::HasBytes() const { return begin < end; }
+
+bool ByteStream::WaitForBytes(Milliseconds timeout) {
+  if (PDP_LIKELY(HasBytes())) {
+    return true;
+  }
+  return stream.WaitForInput(timeout);
+}
 
 uint8_t ByteStream::PeekByte() {
   RequireAtLeast(1);

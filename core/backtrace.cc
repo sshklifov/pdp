@@ -4,6 +4,7 @@
 
 #include <cxxabi.h>
 #include <dlfcn.h>
+#include <limits.h>
 #include <link.h>
 #include <cstring>
 
@@ -30,13 +31,11 @@ static void PrintHexadecimal(uint64_t bits) {
   char buffer[max_digits];
 
   const uint64_t digits = pdp::CountDigits16(bits);
-  pdp_assert(digits <= max_digits);
 
   const char *lookup = "0123456789abcdef";
 
   char *__restrict__ store = buffer + digits + 1;
   do {
-    pdp_assert(store >= buffer);
     *store = lookup[bits & 0xf];
     --store;
     bits >>= 4;
@@ -45,11 +44,12 @@ static void PrintHexadecimal(uint64_t bits) {
   *store = 'x';
   --store;
   *store = '0';
-  pdp_assert(store == buffer);
-  LogUnformatted(StringSlice(buffer, digits));
+  LogUnformatted(StringSlice(buffer, digits + 2));
 }
 
 static void PrintSymbolNoNewline(const void *pc) {
+  char resolved[PATH_MAX];
+
   Dl_info info;
   memset(&info, 0, sizeof(info));
   struct link_map *extra_info = NULL;
@@ -63,14 +63,20 @@ static void PrintSymbolNoNewline(const void *pc) {
         LogUnformatted(demangled);
         free(demangled);
       } else {
-        pdp_critical(info.dli_sname);
+        LogUnformatted(info.dli_sname);
       }
+      return;
     } else if (info.dli_fname) {
+      if (realpath(info.dli_fname, resolved)) {
+        LogUnformatted(resolved);
+      } else {
+        LogUnformatted("./");
+        LogUnformatted(info.dli_fname);
+      }
       char *base_addr = extra_info ? (char *)extra_info->l_addr : (char *)info.dli_fbase;
       ptrdiff_t offset = 0;
       if (base_addr <= pc) {
         offset = (char *)pc - base_addr;
-        LogUnformatted(StringSlice(info.dli_fname));
         LogUnformatted("(+");
       } else {
         offset = base_addr - (char *)pc;
@@ -78,10 +84,10 @@ static void PrintSymbolNoNewline(const void *pc) {
       }
       PrintHexadecimal(BitCast<uint64_t>(offset));
       LogUnformatted(")");
-    } else {
-      PrintHexadecimal(BitCast<uint64_t>(pc));
+      return;
     }
   }
+  PrintHexadecimal(BitCast<uint64_t>(pc));
 }
 
 void PrintBacktrace(void **bt, size_t size) {

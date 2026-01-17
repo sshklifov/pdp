@@ -18,14 +18,14 @@ static void WriteAll(int fd, const void *buf, size_t size) {
 }
 
 struct ParseResult {
-  ExprView expr;
+  StrongTypedView expr;
   ChunkHandle chunks;
 };
 
 static ParseResult ParseFromFd(int fd) {
   ByteStream stream(fd);
   RpcChunkArrayPass pass(stream);
-  ExprView expr = pass.Parse();
+  StrongTypedView expr = pass.Parse();
   auto chunks = pass.ReleaseChunks();
   return {expr, std::move(chunks)};
 }
@@ -43,10 +43,10 @@ TEST_CASE("rpc notification: simple mode change") {
 
   auto [e, _] = ParseFromFd(fds[0]);
 
-  CHECK(e[0].NumberOr(-1) == 2);
-  CHECK(e[1].StringOr("X") == "nvim_set_mode");
+  CHECK(e[0u].AsInteger() == 2);
+  CHECK(e[1].AsString() == "nvim_set_mode");
   CHECK(e[2].Count() == 1);
-  CHECK(e[2][0].StringOr("X") == "i");
+  CHECK(e[2][0u].AsString() == "i");
 }
 
 TEST_CASE("rpc notification: buffer lines event") {
@@ -66,10 +66,10 @@ TEST_CASE("rpc notification: buffer lines event") {
 
   auto params = e[2];
   CHECK(params.Count() == 5);
-  CHECK(params[0].NumberOr(-1) == 1);
+  CHECK(params[0u].AsInteger() == 1);
   CHECK(params[4].Count() == 2);
-  CHECK(params[4][0].StringOr("X") == "line1");
-  CHECK(params[4][1].StringOr("X") == "line2");
+  CHECK(params[4][0u].AsString() == "line1");
+  CHECK(params[4][1].AsString() == "line2");
 }
 
 TEST_CASE("rpc request from neovim") {
@@ -86,14 +86,14 @@ TEST_CASE("rpc request from neovim") {
 
   auto [e, _] = ParseFromFd(fds[0]);
 
-  CHECK(e[0].NumberOr(-1) == 0);
-  CHECK(e[1].NumberOr(-1) == 42);
-  CHECK(e[2].StringOr("X") == "my_plugin_do_thing");
+  CHECK(e[0u].AsInteger() == 0);
+  CHECK(e[1].AsInteger() == 42);
+  CHECK(e[2].AsString() == "my_plugin_do_thing");
 
   auto params = e[3];
   CHECK(params.Count() == 3);
-  CHECK(params[0].NumberOr(-1) == 123);
-  CHECK(params[1].StringOr("X") == "abc");
+  CHECK(params[0u].AsInteger() == 123);
+  CHECK(params[1].AsString() == "abc");
 }
 
 TEST_CASE("rpc response with error") {
@@ -109,12 +109,12 @@ TEST_CASE("rpc response with error") {
 
   auto [e, _] = ParseFromFd(fds[0]);
 
-  CHECK(e[0].NumberOr(-1) == 1);
-  CHECK(e[1].NumberOr(-1) == 42);
+  CHECK(e[0u].AsInteger() == 1);
+  CHECK(e[1].AsInteger() == 42);
 
   auto err = e[2];
   CHECK(err.Count() == 2);
-  CHECK(err[0].StringOr("X") == "Invalid buffer");
+  CHECK(err[0u].AsString() == "Invalid buffer");
 }
 
 TEST_CASE("rpc back-to-back notifications") {
@@ -132,11 +132,11 @@ TEST_CASE("rpc back-to-back notifications") {
   ByteStream stream(fds[0]);
   RpcChunkArrayPass pass(stream);
 
-  ExprView e1(pass.Parse());
-  ExprView e2(pass.Parse());
+  StrongTypedView e1(pass.Parse());
+  StrongTypedView e2(pass.Parse());
 
-  CHECK(e1[2][0].StringOr("X") == "n");
-  CHECK(e2[0].StringOr("X") == "i");
+  CHECK(e1[2][0u].AsString() == "n");
+  CHECK(e2[0u].AsString() == "i");
 }
 
 TEST_CASE("rpc response with error as fixmap") {
@@ -165,14 +165,14 @@ TEST_CASE("rpc response with error as fixmap") {
 
   auto [e, _] = ParseFromFd(fds[0]);
 
-  CHECK(e[0].NumberOr(-1) == 1);
-  CHECK(e[1].NumberOr(-1) == 7);
+  CHECK(e[0u].AsInteger() == 1);
+  CHECK(e[1].AsInteger() == 7);
 
   auto err = e[2];
   CHECK(err.Count() == 2);
 
-  CHECK(err["message"].StringOr("X") == "Invalid buffer");
-  CHECK(err["code"].NumberOr(-1) == 0);
+  CHECK(err["message"].AsString() == "Invalid buffer");
+  CHECK(err["code"].AsInteger() == 0);
 }
 
 TEST_CASE("rpc request for which vim is dropping me") {
@@ -195,11 +195,11 @@ TEST_CASE("rpc request for which vim is dropping me") {
 
   auto [e, _] = ParseFromFd(fds[0]);
 
-  CHECK(e[0].NumberOr(-1) == 0);
-  CHECK(e[1].NumberOr(-1) == 1);
-  CHECK(e[2].StringOr("") == "nvim_buf_get_var");
-  CHECK(e[3][0].NumberOr(-1) == 0);
-  CHECK(e[3][1].StringOr("") == "secret");
+  CHECK(e[0u].AsInteger() == 0);
+  CHECK(e[1].AsInteger() == 1);
+  CHECK(e[2].AsString() == "nvim_buf_get_var");
+  CHECK(e[3][0u].AsInteger() == 0);
+  CHECK(e[3][1].AsString() == "secret");
 }
 
 TEST_CASE("rpc notification: empty args array") {
@@ -220,7 +220,7 @@ TEST_CASE("rpc notification: empty args array") {
 
   auto [e, _] = ParseFromFd(fds[0]);
 
-  CHECK(e[0].NumberOr(-1) == 2);
-  CHECK(e[1].StringOr("X") == "nvim_redraw");
+  CHECK(e[0u].AsInteger() == 2);
+  CHECK(e[1].AsString() == "nvim_redraw");
   CHECK(e[2].Count() == 0);  // empty args
 }

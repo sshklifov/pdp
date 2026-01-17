@@ -29,6 +29,7 @@
 #pragma once
 
 #include "core/internals.h"
+#include "strings/dynamic_string.h"
 #include "strings/string_slice.h"
 
 #include <cstdint>
@@ -150,6 +151,13 @@ template <>
 struct Hash<StringSlice> {
   uint64_t operator()(const StringSlice &s) const {
     return ankerl::unordered_dense::hash(s.Begin(), s.Size());
+  }
+};
+
+template <>
+struct Hash<DynamicString> {
+  uint64_t operator()(const DynamicString &str) const {
+    return ankerl::unordered_dense::hash(str.Begin(), str.Size());
   }
 };
 

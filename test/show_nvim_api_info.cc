@@ -27,7 +27,7 @@ int main(int argc, char **argv) {
 
   ByteStream stream(fds[0]);
   RpcChunkArrayPass pass(stream);
-  LooseTypedView e(pass.Parse());
+  StrongTypedView e(pass.Parse());
 
   // wait for nvim to exit
   int status = 0;

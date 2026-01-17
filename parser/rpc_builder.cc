@@ -41,6 +41,20 @@ void RpcBuilder::PushUint32(uint32_t x) {
 
 void RpcBuilder::PushInt32(int32_t x) { PushUint32(BitCast<uint32_t>(x)); }
 
+void RpcBuilder::PushUint64(uint64_t x) {
+  builder.ReserveFor(8);
+  builder.AppendByteUnchecked(static_cast<byte>((x >> 56) & 0xFF));
+  builder.AppendByteUnchecked(static_cast<byte>((x >> 48) & 0xFF));
+  builder.AppendByteUnchecked(static_cast<byte>((x >> 40) & 0xFF));
+  builder.AppendByteUnchecked(static_cast<byte>((x >> 32) & 0xFF));
+  builder.AppendByteUnchecked(static_cast<byte>((x >> 24) & 0xFF));
+  builder.AppendByteUnchecked(static_cast<byte>((x >> 16) & 0xFF));
+  builder.AppendByteUnchecked(static_cast<byte>((x >> 8) & 0xFF));
+  builder.AppendByteUnchecked(static_cast<byte>(x & 0xFF));
+}
+
+void RpcBuilder::PushInt64(int64_t x) { PushUint64(BitCast<uint64_t>(x)); }
+
 void RpcBuilder::Add(uint32_t x) {
   if (x <= 0x7f) {
     PushUint8(x);
@@ -56,6 +70,26 @@ void RpcBuilder::Add(uint32_t x) {
   }
 
   BackfillArrayElem();
+}
+
+void RpcBuilder::Add(uint64_t x) {
+  if (PDP_UNLIKELY(x > std::numeric_limits<uint32_t>::max())) {
+    PushByte(0xcf);
+    PushUint64(x);
+    BackfillArrayElem();
+  } else {
+    Add(static_cast<uint32_t>(x));
+  }
+}
+
+void RpcBuilder::Add(int64_t x) {
+  if (PDP_UNLIKELY(x < std::numeric_limits<int32_t>::min())) {
+    PushByte(0xd3);
+    PushInt64(x);
+    BackfillArrayElem();
+  } else {
+    Add(static_cast<int32_t>(x));
+  }
 }
 
 void RpcBuilder::Add(int32_t x) {

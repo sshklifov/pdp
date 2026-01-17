@@ -31,8 +31,8 @@ target_link_libraries(test_file_descriptors PRIVATE pdp_system)
 add_executable(test_byte_stream test_byte_stream.cc)
 target_link_libraries(test_byte_stream PRIVATE pdp_strings)
 
-# add_executable(test_rpc_parser test_rpc_parser.cc)
-# target_link_libraries(test_rpc_parser PRIVATE pdp_parser)
+add_executable(test_rpc_parser test_rpc_parser.cc)
+target_link_libraries(test_rpc_parser PRIVATE pdp_parser)
 
 add_executable(show_nvim_api_info show_nvim_api_info.cc)
 target_link_libraries(show_nvim_api_info PRIVATE pdp_parser)
@@ -52,5 +52,5 @@ target_link_libraries(test_time_units PRIVATE pdp_system)
 add_executable(test_thread test_thread.cc)
 target_link_libraries(test_thread PRIVATE pdp_system)
 
-# add_executable(test_rpc_builder test_rpc_builder.cc)
-# target_link_libraries(test_rpc_builder PRIVATE pdp_parser)
+add_executable(test_rpc_builder test_rpc_builder.cc)
+target_link_libraries(test_rpc_builder PRIVATE pdp_parser)

@@ -128,7 +128,7 @@ struct Hex64 {
   uint64_t value;
 };
 
-template <typename T, std::enable_if_t<std::is_same_v<T, uint64_t>, int> = 0>
+template <typename T, std::enable_if_t<std::is_unsigned_v<T>, int> = 0>
 Hex64 MakeHex(T value) {
   return Hex64{value};
 }

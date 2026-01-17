@@ -21,7 +21,7 @@ static void WriteAll(int fd, const void *buf, size_t size) {
 }
 
 struct ParseResult {
-  ExprView expr;
+  StrongTypedView expr;
   ChunkHandle chunks;
 };
 
@@ -34,7 +34,7 @@ static ParseResult ParseFromBuilder(const RpcBytes &msg) {
 
   ByteStream stream(fds[0]);
   RpcChunkArrayPass pass(stream);
-  ExprView res = pass.Parse();
+  StrongTypedView res = pass.Parse();
   auto chunks = pass.ReleaseChunks();
   return {res, std::move(chunks)};
 }
@@ -65,166 +65,165 @@ TEST_CASE("Appending bytes") {
 
 TEST_CASE("rpc builder: notification with no args") {
   RpcBuilder b(2, "ping");
-  {
-    auto empty_args = b.AddArray();
-  }
+  b.OpenShortArray();
+  b.CloseShortArray();
 
   auto [e, chunks] = ParseFromBuilder(b.Finish());
 
   REQUIRE(e.Count() == 4);
-  CHECK(e[0].NumberOr(-1) == 0);
-  CHECK(e[1].NumberOr(-1) == 2);
-  CHECK(e[2].StringOr("X") == "ping");
+  CHECK(e[0u].AsInteger() == 0);
+  CHECK(e[1].AsInteger() == 2);
+  CHECK(e[2].AsString() == "ping");
   CHECK(e[3].Count() == 0);
 }
 
 TEST_CASE("rpc builder: notification scalar arguments") {
   RpcBuilder b(2, "set_config");
-  {
-    auto args = b.AddArray();
-    b.AddInteger(-42);
-    b.AddUnsigned(123u);
-    b.AddBoolean(true);
-    b.AddBoolean(false);
-    b.AddString("hello");
-  }
+  b.OpenShortArray();
+  b.Add(-42);
+  b.Add(123u);
+  b.Add(true);
+  b.Add(false);
+  b.Add(StringSlice("hello"));
+  b.CloseShortArray();
 
   auto [e, chunks] = ParseFromBuilder(b.Finish());
 
   REQUIRE(e[3].Count() == 5);
-  CHECK(e[3][0].NumberOr(0) == -42);
-  CHECK(e[3][1].NumberOr(0) == 123);
-  CHECK(e[3][2].NumberOr(-1) == true);
-  CHECK(e[3][3].NumberOr(-1) == false);
-  CHECK(e[3][4].StringOr("X") == "hello");
+  CHECK(e[3][0u].AsInteger() == -42);
+  CHECK(e[3][1].AsInteger() == 123);
+  CHECK(e[3][2].AsInteger() == true);
+  CHECK(e[3][3].AsInteger() == false);
+  CHECK(e[3][4].AsString() == "hello");
 }
 
 TEST_CASE("rpc builder: nested arrays in args") {
   RpcBuilder b(2, "nested_test");
-  {
-    auto args = b.AddArray();
-    b.AddInteger(1);
+  b.OpenShortArray();
+  b.Add(1);
 
-    {
-      auto inner = b.AddArray();
-      b.AddInteger(2);
-      b.AddInteger(3);
-    }
+  b.OpenShortArray();
+  b.Add(2);
+  b.Add(3);
+  b.CloseShortArray();
 
-    b.AddInteger(4);
-  }
+  b.Add(4);
+  b.CloseShortArray();
 
   auto [e, chunks] = ParseFromBuilder(b.Finish());
 
   REQUIRE(e[3].Count() == 3);
-  CHECK(e[3][0].NumberOr(0) == 1);
+  CHECK(e[3][0u].AsInteger() == 1);
 
   REQUIRE(e[3][1].Count() == 2);
-  CHECK(e[3][1][0].NumberOr(0) == 2);
-  CHECK(e[3][1][1].NumberOr(0) == 3);
+  CHECK(e[3][1][0u].AsInteger() == 2);
+  CHECK(e[3][1][1].AsInteger() == 3);
 
-  CHECK(e[3][2].NumberOr(0) == 4);
+  CHECK(e[3][2].AsInteger() == 4);
 }
 
 TEST_CASE("rpc builder: array element count correctness") {
   RpcBuilder b(2, "count_test");
-  {
-    auto args = b.AddArray();
-    for (int i = 0; i < 10; ++i) {
-      b.AddInteger(i);
-    }
+  b.OpenShortArray();
+  for (int i = 0; i < 10; ++i) {
+    b.Add(i);
   }
+  b.CloseShortArray();
 
   auto [e, chunks] = ParseFromBuilder(b.Finish());
 
   REQUIRE(e[3].Count() == 10);
   for (int i = 0; i < 10; ++i) {
-    CHECK(e[3][i].NumberOr(-1) == i);
+    CHECK(e[3][i].AsInteger() == i);
   }
 }
 
 TEST_CASE("rpc builder: nested arrays up to max depth") {
   RpcBuilder b(2, "depth_test");
-  {
-    auto a0 = b.AddArray();
-    auto a1 = b.AddArray();
-    auto a2 = b.AddArray();
-    auto a3 = b.AddArray();
-    auto a4 = b.AddArray();
-    auto a5 = b.AddArray();
-    auto a6 = b.AddArray();
+  b.OpenShortArray();
+  b.OpenShortArray();
+  b.OpenShortArray();
+  b.OpenShortArray();
+  b.OpenShortArray();
+  b.OpenShortArray();
+  b.OpenShortArray();
 
-    b.AddInteger(123);
-  }
+  b.Add(123);
+
+  b.CloseShortArray();
+  b.CloseShortArray();
+  b.CloseShortArray();
+  b.CloseShortArray();
+  b.CloseShortArray();
+  b.CloseShortArray();
+  b.CloseShortArray();
 
   auto [e, chunks] = ParseFromBuilder(b.Finish());
 
-  ExprView cur = e[3];
+  StrongTypedView cur = e[3];
   for (int i = 0; i < 6; ++i) {
     REQUIRE(cur.Count() == 1);
-    cur = cur[0];
+    cur = cur[0u];
   }
 
   REQUIRE(cur.Count() == 1);
-  CHECK(cur[0].NumberOr(0) == 123);
+  CHECK(cur[0u].AsInteger() == 123);
 }
 
 TEST_CASE("rpc builder: unsigned integer boundaries") {
   RpcBuilder b(2, "uint_test");
-  {
-    auto args = b.AddArray();
-    b.AddUnsigned(0);
-    b.AddUnsigned(127);          // max positive fixint
-    b.AddUnsigned(128);          // uint8
-    b.AddUnsigned(255);          // max uint8
-    b.AddUnsigned(256);          // uint16
-    b.AddUnsigned(65535);        // max uint16
-    b.AddUnsigned(65536);        // uint32
-    b.AddUnsigned(0xFFFFFFFFu);  // max uint32
-  }
+  b.OpenShortArray();
+  b.Add(0);
+  b.Add(127);          // max positive fixint
+  b.Add(128);          // uint8
+  b.Add(255);          // max uint8
+  b.Add(256);          // uint16
+  b.Add(65535);        // max uint16
+  b.Add(65536);        // uint32
+  b.Add(0xFFFFFFFFu);  // max uint32
+  b.CloseShortArray();
 
   auto [e, chunks] = ParseFromBuilder(b.Finish());
   REQUIRE(e[3].Count() == 8);
 
-  CHECK(e[3][0].NumberOr(-1) == 0);
-  CHECK(e[3][1].NumberOr(-1) == 127);
-  CHECK(e[3][2].NumberOr(-1) == 128);
-  CHECK(e[3][3].NumberOr(-1) == 255);
-  CHECK(e[3][4].NumberOr(-1) == 256);
-  CHECK(e[3][5].NumberOr(-1) == 65535);
-  CHECK(e[3][6].NumberOr(-1) == 65536);
-  CHECK(e[3][7].NumberOr(-1) == static_cast<int64_t>(0xFFFFFFFFu));
+  CHECK(e[3][0u].AsInteger() == 0);
+  CHECK(e[3][1].AsInteger() == 127);
+  CHECK(e[3][2].AsInteger() == 128);
+  CHECK(e[3][3].AsInteger() == 255);
+  CHECK(e[3][4].AsInteger() == 256);
+  CHECK(e[3][5].AsInteger() == 65535);
+  CHECK(e[3][6].AsInteger() == 65536);
+  CHECK(e[3][7].AsInteger() == static_cast<int64_t>(0xFFFFFFFFu));
 }
 
 TEST_CASE("rpc builder: signed integer boundaries") {
   RpcBuilder b(2, "int_test");
-  {
-    auto args = b.AddArray();
-    b.AddInteger(0);
-    b.AddInteger(-1);         // fixneg
-    b.AddInteger(-32);        // min fixneg
-    b.AddInteger(-33);        // int8
-    b.AddInteger(-128);       // min int8
-    b.AddInteger(-129);       // int16
-    b.AddInteger(-32768);     // min int16
-    b.AddInteger(-32769);     // int32
-    b.AddInteger(INT32_MIN);  // min int32
-    b.AddInteger(INT32_MAX);  // max int32
-  }
+  b.OpenShortArray();
+  b.Add(0);
+  b.Add(-1);         // fixneg
+  b.Add(-32);        // min fixneg
+  b.Add(-33);        // int8
+  b.Add(-128);       // min int8
+  b.Add(-129);       // int16
+  b.Add(-32768);     // min int16
+  b.Add(-32769);     // int32
+  b.Add(INT32_MIN);  // min int32
+  b.Add(INT32_MAX);  // max int32
+  b.CloseShortArray();
 
   auto [e, chunks] = ParseFromBuilder(b.Finish());
   REQUIRE(e[3].Count() == 10);
 
-  CHECK(e[3][0].NumberOr(1) == 0);
-  CHECK(e[3][1].NumberOr(0) == -1);
-  CHECK(e[3][2].NumberOr(0) == -32);
-  CHECK(e[3][3].NumberOr(0) == -33);
-  CHECK(e[3][4].NumberOr(0) == -128);
-  CHECK(e[3][5].NumberOr(0) == -129);
-  CHECK(e[3][6].NumberOr(0) == -32768);
-  CHECK(e[3][7].NumberOr(0) == -32769);
-  CHECK(e[3][8].NumberOr(0) == INT32_MIN);
-  CHECK(e[3][9].NumberOr(0) == INT32_MAX);
+  CHECK(e[3][0u].AsInteger() == 0);
+  CHECK(e[3][1].AsInteger() == -1);
+  CHECK(e[3][2].AsInteger() == -32);
+  CHECK(e[3][3].AsInteger() == -33);
+  CHECK(e[3][4].AsInteger() == -128);
+  CHECK(e[3][5].AsInteger() == -129);
+  CHECK(e[3][6].AsInteger() == -32768);
+  CHECK(e[3][7].AsInteger() == -32769);
+  CHECK(e[3][8].AsInteger() == INT32_MIN);
+  CHECK(e[3][9].AsInteger() == INT32_MAX);
 }
 
 TEST_CASE("rpc builder: fixstr boundaries") {
@@ -234,21 +233,20 @@ TEST_CASE("rpc builder: fixstr boundaries") {
   StringSlice str2(ptr2.Get(), 30);
 
   RpcBuilder b(2, "fixstr_test");
-  {
-    auto args = b.AddArray();
-    b.AddString("");    // 0
-    b.AddString("a");   // 1
-    b.AddString(str1);  // 30
-    b.AddString(str2);  // 31
-  }
+  b.OpenShortArray();
+  b.Add(StringSlice(""));   // 0
+  b.Add(StringSlice("a"));  // 1
+  b.Add(str1);              // 30
+  b.Add(str2);              // 31
+  b.CloseShortArray();
 
   auto [e, chunks] = ParseFromBuilder(b.Finish());
   REQUIRE(e[3].Count() == 4);
 
-  CHECK(e[3][0].StringOr("X") == "");
-  CHECK(e[3][1].StringOr("X") == "a");
-  CHECK(e[3][2].StringOr("X") == str1);
-  CHECK(e[3][3].StringOr("X") == str2);
+  CHECK(e[3][0u].AsString() == "");
+  CHECK(e[3][1].AsString() == "a");
+  CHECK(e[3][2].AsString() == str1);
+  CHECK(e[3][3].AsString() == str2);
 }
 
 TEST_CASE("rpc builder: str8 boundaries") {
@@ -262,19 +260,18 @@ TEST_CASE("rpc builder: str8 boundaries") {
   StringSlice str255(ptr255.Get(), 255);
 
   RpcBuilder b(2, "str8_test");
-  {
-    auto args = b.AddArray();
-    b.AddString(str31);   // max fixstr
-    b.AddString(str32);   // min str8
-    b.AddString(str255);  // max str8
-  }
+  b.OpenShortArray();
+  b.Add(str31);   // max fixstr
+  b.Add(str32);   // min str8
+  b.Add(str255);  // max str8
+  b.CloseShortArray();
 
   auto [e, chunks] = ParseFromBuilder(b.Finish());
   REQUIRE(e[3].Count() == 3);
 
-  CHECK(e[3][0].StringOr("X") == str31);
-  CHECK(e[3][1].StringOr("X") == str32);
-  CHECK(e[3][2].StringOr("X") == str255);
+  CHECK(e[3][0u].AsString() == str31);
+  CHECK(e[3][1].AsString() == str32);
+  CHECK(e[3][2].AsString() == str255);
 }
 
 TEST_CASE("rpc builder: str16 lower boundary") {
@@ -285,17 +282,16 @@ TEST_CASE("rpc builder: str16 lower boundary") {
   StringSlice str256(ptr256.Get(), 256);
 
   RpcBuilder b(2, "str16_low_test");
-  {
-    auto args = b.AddArray();
-    b.AddString(str255);  // str8
-    b.AddString(str256);  // str16
-  }
+  b.OpenShortArray();
+  b.Add(str255);  // str8
+  b.Add(str256);  // str16
+  b.CloseShortArray();
 
   auto [e, chunks] = ParseFromBuilder(b.Finish());
   REQUIRE(e[3].Count() == 2);
 
-  CHECK(e[3][0].StringOr("X") == str255);
-  CHECK(e[3][1].StringOr("X") == str256);
+  CHECK(e[3][0u].AsString() == str255);
+  CHECK(e[3][1].AsString() == str256);
 }
 
 TEST_CASE("rpc builder: str16 range") {
@@ -309,12 +305,11 @@ TEST_CASE("rpc builder: str16 range") {
   StringSlice str65535(ptr65535.Get(), 65535);
 
   RpcBuilder b(2, "str16_test");
-  {
-    auto args = b.AddArray();
-    b.AddString(str256);
-    b.AddString(str1024);
-    b.AddString(str65535);
-  }
+  b.OpenShortArray();
+  b.Add(str256);
+  b.Add(str1024);
+  b.Add(str65535);
+  b.CloseShortArray();
 
   int fds[2];
   REQUIRE(pipe(fds) == 0);
@@ -327,14 +322,14 @@ TEST_CASE("rpc builder: str16 range") {
 
   ByteStream stream(fds[0]);
   RpcChunkArrayPass pass(stream);
-  ExprView e = pass.Parse();
+  StrongTypedView e = pass.Parse();
   auto chunks = pass.ReleaseChunks();
 
   REQUIRE(e[3].Count() == 3);
 
-  CHECK(e[3][0].StringOr("X") == str256);
-  CHECK(e[3][1].StringOr("X") == str1024);
-  CHECK(e[3][2].StringOr("X") == str65535);
+  CHECK(e[3][0u].AsString() == str256);
+  CHECK(e[3][1].AsString() == str1024);
+  CHECK(e[3][2].AsString() == str65535);
 
   t.join();
 }

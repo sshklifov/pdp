@@ -26,8 +26,8 @@ endif()
 set(CMAKE_CXX_STANDARD 17)
 
 # TODO: Future: Remove debugging information
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -ggdb -fno-pie -no-pie")
-set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -g1 -fno-omit-frame-pointer -O3")
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -ggdb -fno-pie -no-pie -fno-omit-frame-pointer")
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
 
 set(_FEATURES
   # Use tracing allocator and emit allocation statistics"
@@ -104,6 +104,14 @@ endif()
 
 if(BUILD_PERF)
   add_subdirectory(perf)
+endif()
+
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+  find_path(BFD_INCLUDE_DIR NAMES bfd.h)
+  find_library(BFD_LIBRARY NAMES bfd)
+  add_executable(backtrace_filt backtrace_filt.cc)
+  target_include_directories(backtrace_filt PRIVATE ${BFD_INCLUDE_DIR})
+  target_link_libraries(backtrace_filt PRIVATE ${BFD_LIBRARY} pdp_strings)
 endif()
 
 add_executable(pdp main.cc)

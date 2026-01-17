@@ -158,4 +158,8 @@ struct Vector : public NonCopyable {
   Alloc allocator;
 };
 
+template <typename T>
+struct IsReallocatable<Vector<T, DefaultAllocator>>
+    : std::bool_constant<IsReallocatable<T>::value> {};
+
 };  // namespace pdp

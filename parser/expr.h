@@ -116,4 +116,19 @@ struct LooseTypedView : public ExprBaseView {
   bool operator!=(const StringSlice &str) const;
 };
 
+struct StrongTypedView : public ExprBaseView {
+  StrongTypedView(const ExprBase *expr);
+
+  StrongTypedView operator[](const StringSlice &key) const;
+  StrongTypedView operator[](const char *key) const;
+
+  StrongTypedView operator[](uint32_t index) const;
+
+  int64_t AsInteger() const;
+  StringSlice AsString() const;
+
+  bool operator==(const StringSlice &str) const;
+  bool operator!=(const StringSlice &str) const;
+};
+
 }  // namespace pdp

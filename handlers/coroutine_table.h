@@ -2,8 +2,10 @@
 
 #include "core/check.h"
 #include "core/internals.h"
+#include "core/log.h"
 #include "data/allocator.h"
 #include "data/non_copyable.h"
+#include "strings/string_builder.h"
 
 #include <coroutine>
 #include <cstdint>
@@ -44,33 +46,15 @@ struct CoroutineTable {
     tokens = Allocate<uint32_t>(allocator, initial_capacity);
     begin = 0;
     size = 0;
-    // memset(indices, -1, capacity * sizeof(uint32_t));
   }
 
   ~CoroutineTable() {
-    // TODO
-#if 0
-#ifdef PDP_ENABLE_ASSERT
-    // XXX: Might leak memory since we don't call the destructor. The callback table lifetime is
-    // that of the program, so it's fine.
-    for (size_t i = 0; i < capacity; ++i) {
-      if (indices[i] != invalid_id) {
-        pdp_warning("Callback {} never invoked!", indices[i]);
-      }
+    if (size > 0) {
+      pdp_error("Suspended coroutines are going to be force destroyed!");
     }
-#endif
-    Deallocate<Capture>(allocator, table);
-    Deallocate<uint32_t>(allocator, indices);
-#endif
+    Deallocate<CoroutineTable>(allocator, table);
+    Deallocate<uint32_t>(allocator, tokens);
   }
-
-  // bool IsFull() const {
-  //   if (PDP_LIKELY(begin == end)) {
-  //     return false;
-  //   }
-  //   auto adv = (end + 1) & mask;
-  //   return tokens[adv] > 0;
-  // }
 
   void Suspend(uint32_t token, Coroutine coro) {
     if (PDP_UNLIKELY(size > mask)) {
@@ -78,68 +62,61 @@ struct CoroutineTable {
     }
 
     auto pos = (begin + size) & mask;
+    if (PDP_UNLIKELY(!Empty() && token < tokens[begin])) {
+      begin = (begin + mask) & mask;
+      pos = begin;
+    }
     new (table + pos) Coroutine(coro);
     tokens[pos] = token;
-
-#if PDP_ENABLE_ASSERT
-    pdp_assert(token > 0);
-    if (size) {
-      auto prev = (pos + mask) & mask;
-      pdp_assert(tokens[prev] < token);
-    }
-#endif
     ++size;
+
+    pdp_assert(pos == begin || tokens[pos - 1] < tokens[pos]);
+    pdp_assert(pos == (begin + size - 1) % mask || tokens[pos] < tokens[pos + 1]);
   }
 
+  bool Empty() const { return size == 0; }
+
   void Resume(uint32_t token) {
-    pdp_assert(size > 0);
-    if (PDP_UNLIKELY(token != tokens[begin])) {
-      // TODO I WILL NOT PUSH ALL TOKENS! size == 0 checks everywhere
-      // if (PDP_LIKELY(
-      auto lo = begin;
-      auto hi = begin + size;
-      while (hi - lo > 1) {
-        auto mid = ((lo + hi) << 1) & mask;
-        auto token = tokens[mid] & UINT32_C(0x7FFFFFFF);
-        if (token < tokens[mid]) {
-          hi = mid;
-        } else {
-          lo = mid;
-        }
+    if (PDP_LIKELY(!Empty())) {
+      if (PDP_LIKELY(token == tokens[begin])) {
+        auto resumed = table[begin];
+        begin = (begin + 1) & mask;
+        size--;
+        resumed.resume();
+        return;
       }
-      pdp_assert(tokens[lo] == token);
-      tokens[lo] |= UINT32_C(0xa0000000);
-      return;
+      pdp_assert(Empty() || token < tokens[begin]);
     }
+  }
 
-    uint32_t pos = begin;
-    begin = (begin + 1) & mask;
-    size--;
-
-    table[pos].resume();
-
-    while (PDP_UNLIKELY(size > 0 && (tokens[begin] & UINT32_C(0xa0000000)))) {
-      uint32_t pos = begin;
-      begin = (begin + 1) & mask;
-      size--;
-      table[pos].resume();
+  void PrintSuspendedTokens() {
+    pdp::StringBuilder builder;
+    builder.Append("Suspended tokens: ");
+    for (uint32_t i = 0; i < size; ++i) {
+      uint32_t pos = (begin + i) & mask;
+      builder.AppendFormat("{} ", tokens[pos]);
     }
+    pdp_critical(builder.GetSlice());
   }
 
  private:
   void Grow() {
-    PDP_UNREACHABLE("Whoa whoa chill");
-#if 0
-    size_t half_capacity = capacity / 2;
-
-    pdp_assert(capacity + half_capacity <= max_elements);
-    table = Reallocate<Capture>(allocator, table, capacity + half_capacity);
-    indices = Reallocate<uint32_t>(allocator, indices, capacity + half_capacity);
-    memset(indices + capacity, -1, sizeof(uint32_t) * half_capacity);
-    capacity += half_capacity;
-    pdp_assert(table);
-    pdp_assert(indices);
-#endif
+    auto new_table = Allocate<Coroutine>(allocator, size * 2);
+    auto new_tokens = Allocate<uint32_t>(allocator, size * 2);
+    for (size_t i = begin; i <= mask; ++i) {
+      new (new_table + i) Coroutine(std::move(table[i]));
+      new_tokens[i] = tokens[i];
+    }
+    auto offset = mask + 1 - begin;
+    for (size_t i = 0; i < begin; ++i) {
+      new (new_table + offset + i) Coroutine(std::move(table[i]));
+      new_tokens[offset + i] = tokens[i];
+    }
+    Deallocate<Coroutine>(allocator, table);
+    Deallocate<uint32_t>(allocator, tokens);
+    table = new_table;
+    tokens = new_tokens;
+    mask = (mask << 1) | 1;
   }
 
   Coroutine *table;

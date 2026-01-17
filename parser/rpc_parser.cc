@@ -4,36 +4,38 @@
 
 namespace pdp {
 
-void ExpectRpcArray(ByteStream &s, uint32_t expected_length) {
+uint32_t ReadRpcArrayLength(ByteStream &s) {
   byte b = s.PopByte();
   switch (b) {
       // Array with 2 byte length
     case 0xdc:
-      if (PDP_LIKELY(s.PopUint16() == expected_length)) {
-        return;
-      }
-      break;
+      return s.PopUint16();
       // Array with 4 byte length
     case 0xdd:
-      if (PDP_LIKELY(s.PopUint32() == expected_length)) {
-        return;
-      }
-      break;
+      return s.PopUint32();
   }
   if (PDP_LIKELY(b >= 0x90 && b <= 0x9f)) {
     byte length_from_byte = (b & 0xf);
-    if (PDP_LIKELY(length_from_byte == expected_length)) {
-      return;
-    }
+    return length_from_byte;
   }
 
-  PDP_UNREACHABLE("Unexpected RPC array length");
+  pdp_critical("RPC byte: {}", MakeHex(b));
+  PDP_UNREACHABLE("Unexpected RPC byte, expecting array");
+}
+
+void ExpectRpcArrayWithLength(ByteStream &s, uint32_t length) {
+  uint32_t read_length = ReadRpcArrayLength(s);
+  if (PDP_UNLIKELY(read_length != length)) {
+    pdp_critical("Got length of {}", read_length);
+    PDP_UNREACHABLE("Unexpected RPC array length");
+  }
 }
 
 void ExpectRpcInteger(ByteStream &s, int64_t what) {
   int64_t integer = ReadRpcInteger(s);
   if (PDP_UNLIKELY(integer != what)) {
-    PDP_UNREACHABLE("Unexpected RPC response type");
+    pdp_critical("Got integer {} but got {}", integer, what);
+    PDP_UNREACHABLE("Read the wrong RPC integer");
   }
 }
 
@@ -64,6 +66,23 @@ int64_t ReadRpcInteger(ByteStream &s) {
       // 64bit unsigned
     case 0xcf:
       return s.PopUint64();
+
+      // 8 bit signed EXT (the type is not relevant)
+    case 0xd4:
+      s.PopInt8();
+      return s.PopInt8();
+      // 16 bit signed EXT (the type is not relevant)
+    case 0xd5:
+      s.PopInt8();
+      return s.PopInt16();
+      // 32 bit signed EXT (the type is not relevant)
+    case 0xd6:
+      s.PopInt8();
+      return s.PopInt32();
+      // 64 bit signed EXT (the type is not relevant)
+    case 0xd7:
+      s.PopInt8();
+      return s.PopInt64();
   }
   static_assert(std::is_unsigned_v<byte>, "Possible underflow in cast detected");
   if (PDP_LIKELY(b <= 0x7f)) {
@@ -71,8 +90,39 @@ int64_t ReadRpcInteger(ByteStream &s) {
   } else if (PDP_LIKELY(b >= 0xe0)) {
     return BitCast<int8_t>(b);
   } else {
+    pdp_critical("RPC byte: {}", MakeHex(b));
     PDP_UNREACHABLE("Unexpected RPC byte, expecting an integer");
   }
+}
+
+static DynamicString BuildDynamicString(uint32_t length, ByteStream &s) {
+  DynamicString res;
+  impl::_InPlaceStringInit string_init(res);
+  char *buf = string_init(length);
+  s.Memcpy(buf, length);
+  return res;
+}
+
+DynamicString ReadRpcString(ByteStream &s) {
+  byte b = s.PopByte();
+  switch (b) {
+      // String with 1 byte length
+    case 0xd9:
+      return BuildDynamicString(s.PopUint8(), s);
+
+      // String with 2 byte length
+    case 0xda:
+      return BuildDynamicString(s.PopUint16(), s);
+      // String with 4 byte length
+    case 0xdb:
+      return BuildDynamicString(s.PopUint32(), s);
+  }
+  if (b >= 0xa0 && b <= 0xbf) {
+    return BuildDynamicString(b & 0x1f, s);
+  }
+
+  pdp_critical("RPC byte: {}", MakeHex(b));
+  PDP_UNREACHABLE("Unexpected RPC byte, expecting string");
 }
 
 bool ReadRpcBoolean(ByteStream &s) {
@@ -80,6 +130,7 @@ bool ReadRpcBoolean(ByteStream &s) {
   if (PDP_LIKELY((b | 1) == 0xc3)) {
     return b & 0x1;
   }
+  pdp_critical("RPC byte: {}", MakeHex(b));
   PDP_UNREACHABLE("Unexpected RPC byte, expecting a boolean");
 }
 
@@ -89,6 +140,11 @@ void SkipRpcError(ByteStream &s) {
     s.PopByte();
     return;
   }
+  RpcChunkArrayPass pass(s);
+  StrongTypedView expr = pass.Parse();
+  StringBuilder builder;
+  expr.ToJson(builder);
+  pdp_critical("Error: {}", builder.GetSlice());
   PDP_UNREACHABLE("Expecting null as error response TODO");
   // TODO
 }
@@ -236,6 +292,23 @@ ExprBase *_RpcPassHelper<A>::BigAssSwitch() {
       // 64bit unsigned
     case 0xcf:
       return CreateInteger(stream.PopUint64());
+
+      // 8 bit signed EXT (the type is not relevant)
+    case 0xd4:
+      stream.PopInt8();
+      return CreateInteger(stream.PopInt8());
+      // 16 bit signed EXT (the type is not relevant)
+    case 0xd5:
+      stream.PopInt8();
+      return CreateInteger(stream.PopInt16());
+      // 32 bit signed EXT (the type is not relevant)
+    case 0xd6:
+      stream.PopInt8();
+      return CreateInteger(stream.PopInt32());
+      // 64 bit signed EXT (the type is not relevant)
+    case 0xd7:
+      stream.PopInt8();
+      return CreateInteger(stream.PopInt64());
 
       // null
     case 0xc0:

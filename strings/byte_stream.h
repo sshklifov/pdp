@@ -16,7 +16,8 @@ struct ByteStream {
   ByteStream(int fd);
   ~ByteStream();
 
-  bool WaitForInput(Milliseconds timeout);
+  bool HasBytes() const;
+  bool WaitForBytes(Milliseconds timeout);
 
   uint8_t PeekByte();
   uint8_t PopByte();

@@ -73,7 +73,7 @@ class Map : public pdp::NonCopyable {
   };
 
   static_assert(std::is_nothrow_destructible_v<Entry>, "K and V must be noexcept destructible");
-  static_assert(std::is_trivially_move_constructible_v<Entry>,
+  static_assert(pdp::IsReallocatable<K>::value && pdp::IsReallocatable<V>::value,
                 "K and V must be movable with realloc");
   static_assert(std::is_invocable_v<const pdp::Hash<K>, K>, "Hash function missing for K");
 
@@ -144,23 +144,23 @@ class Map : public pdp::NonCopyable {
     return _pairs + idx;
   }
 
-  template <typename... Types>
-  void EmplaceUnique(const K &key, Types &&...args) {
+  template <typename Type, typename... Types>
+  void EmplaceUnique(Type &&key, Types &&...args) {
     CheckExpandNeed();
     const uint64_t key_hash = hasher(key);
     uint32_t bucket = FindUniqueBucket(key_hash);
-    EMH_NEW(key, std::forward<Types>(args), bucket, key_hash);
+    EMH_NEW(std::forward<Type>(key), std::forward<Types>(args), bucket, key_hash);
   }
 
-  template <typename... Types>
-  Entry *Emplace(const K &key, Types &&...args) {
+  template <typename Type, typename... Types>
+  Entry *Emplace(Type &&key, Types &&...args) {
     CheckExpandNeed();
 
     const uint64_t key_hash = hasher(key);
     const uint32_t bucket = FindOrAllocate(key, key_hash);
     const bool bempty = EMH_EMPTY(bucket);
     if (bempty) {
-      EMH_NEW(key, std::forward<Types>(args), bucket, key_hash);
+      EMH_NEW(std::forward<Type>(key), std::forward<Types>(args), bucket, key_hash);
     }
 
     const uint32_t slot = _index[bucket].slot & _mask;

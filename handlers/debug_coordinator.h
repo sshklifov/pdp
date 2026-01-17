@@ -4,30 +4,43 @@
 #include "application/gdb_driver.h"
 #include "application/vim_controller.h"
 #include "data/scoped_ptr.h"
+#include "data/vector.h"
 #include "parser/expr.h"
+#include "strings/dynamic_string.h"
 
 #include "coroutine_table.h"
 
 namespace pdp {
 
 struct BooleanRpcAwaiter;
+struct StringRpcAwaiter;
+struct IntegerRpcAwaiter;
+struct IntegerArrayRpcAwaiter;
 
 struct DebugCoordinator {
   friend struct BooleanRpcAwaiter;
+  friend struct StringRpcAwaiter;
+  friend struct IntegerRpcAwaiter;
+  friend struct IntegerArrayRpcAwaiter;
 
   DebugCoordinator(int vim_input_fd, int vim_output_fd);
 
   void PollGdb(Milliseconds timeout);
   void PollVim(Milliseconds timeout);
+  void ReachIdle(Milliseconds timeout);
 
   DebugSession &GetSessionData() { return session_data; }
   const DebugSession &GetSessionData() const { return session_data; }
 
-  BooleanRpcAwaiter BufExists(int bufnr);
+  BooleanRpcAwaiter BufExists(int64_t bufnr);
+  IntegerArrayRpcAwaiter ListBuffers();
 
  private:
   void HandleAsync(GdbAsyncKind kind, ScopedPtr<ExprBase> &&expr);
   void HandleResult(GdbResultKind kind, ScopedPtr<ExprBase> &&expr);
+
+  HandlerCoroutine InitializeNs();
+  HandlerCoroutine InitializeBuffers();
 
   GdbDriver gdb_driver;
   VimController vim_controller;
@@ -50,6 +63,58 @@ struct BooleanRpcAwaiter : public NonCopyableNonMovable {
   }
 
   bool await_resume() noexcept { return coordinator->vim_controller.ReadBoolResult(); }
+};
+
+struct StringRpcAwaiter {
+  DebugCoordinator *coordinator;
+  uint32_t token;
+
+  StringRpcAwaiter(DebugCoordinator *c, uint32_t t) : coordinator(c), token(t) {}
+
+  bool await_ready() const noexcept { return false; }
+
+  void await_suspend(std::coroutine_handle<HandlerCoroutine::promise_type> coro) const noexcept {
+    coordinator->suspended_handlers.Suspend(token, coro);
+  }
+
+  DynamicString await_resume() noexcept { return coordinator->vim_controller.ReadStringResult(); }
+};
+
+struct IntegerRpcAwaiter {
+  DebugCoordinator *coordinator;
+  uint32_t token;
+
+  IntegerRpcAwaiter(DebugCoordinator *c, uint32_t t) : coordinator(c), token(t) {}
+
+  bool await_ready() const noexcept { return false; }
+
+  void await_suspend(std::coroutine_handle<HandlerCoroutine::promise_type> coro) const noexcept {
+    coordinator->suspended_handlers.Suspend(token, coro);
+  }
+
+  int64_t await_resume() noexcept { return coordinator->vim_controller.ReadIntegerResult(); }
+};
+
+struct IntegerArrayRpcAwaiter {
+  DebugCoordinator *coordinator;
+  uint32_t token;
+
+  IntegerArrayRpcAwaiter(DebugCoordinator *c, uint32_t t) : coordinator(c), token(t) {}
+
+  bool await_ready() const noexcept { return false; }
+
+  void await_suspend(std::coroutine_handle<HandlerCoroutine::promise_type> coro) const noexcept {
+    coordinator->suspended_handlers.Suspend(token, coro);
+  }
+
+  Vector<int64_t> await_resume() noexcept {
+    uint32_t length = coordinator->vim_controller.OpenArrayResult();
+    Vector<int64_t> list(length);
+    for (uint32_t i = 0; i < length; ++i) {
+      list += coordinator->vim_controller.ReadIntegerResult();
+    }
+    return list;
+  }
 };
 
 }  // namespace pdp

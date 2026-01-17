@@ -5,12 +5,15 @@
 #include "data/chunk_array.h"
 #include "data/stack.h"
 #include "strings/byte_stream.h"
+#include "strings/dynamic_string.h"
 
 namespace pdp {
 
-void ExpectRpcArray(ByteStream &s, uint32_t length);
+void ExpectRpcArrayWithLength(ByteStream &s, uint32_t length);
+uint32_t ReadRpcArrayLength(ByteStream &s);
 void ExpectRpcInteger(ByteStream &s, int64_t what);
 int64_t ReadRpcInteger(ByteStream &s);
+DynamicString ReadRpcString(ByteStream &s);
 bool ReadRpcBoolean(ByteStream &s);
 void SkipRpcError(ByteStream &s);
 

@@ -123,9 +123,8 @@ LooseTypedView::LooseTypedView(const ExprBase *expr) : ExprBaseView(expr) {}
 LooseTypedView LooseTypedView::operator[](const StringSlice &key) const {
   if (PDP_LIKELY(expr->kind == ExprBase::kTuple)) {
     const ExprTuple *tuple = AsTupleUnchecked();
-    uint32_t num_elements = tuple->size;
     uint32_t hash = ankerl::unordered_dense::hash(key.Begin(), key.Size());
-    for (uint32_t i = 0; i < num_elements; ++i) {
+    for (uint32_t i = 0; i < tuple->size; ++i) {
       if (PDP_UNLIKELY(tuple->hashes[i] == hash)) {
         const ExprTuple::Result *result = tuple->results + i;
         if (PDP_LIKELY(key == result->key)) {
@@ -179,11 +178,62 @@ StringSlice LooseTypedView::AsString() const {
   if (PDP_LIKELY(expr->kind == ExprBase::kString)) {
     return AsStringUnchecked();
   }
-  PDP_UNREACHABLE("Contract violation: integer access failed!");
+  PDP_UNREACHABLE("Contract violation: string access failed!");
 }
 
 bool LooseTypedView::operator==(const StringSlice &str) const { return AsString() == str; }
 
 bool LooseTypedView::operator!=(const StringSlice &str) const { return !(*this == str); }
+
+StrongTypedView::StrongTypedView(const ExprBase *expr) : ExprBaseView(expr) {}
+
+StrongTypedView StrongTypedView::operator[](const StringSlice &key) const {
+  if (PDP_LIKELY(expr->kind == ExprBase::kMap)) {
+    auto map = AsMapUnchecked();
+    uint32_t hash = ankerl::unordered_dense::hash(key.Begin(), key.Size());
+    for (uint32_t i = 0; i < map->size; ++i) {
+      if (PDP_UNLIKELY(map->hashes[i] == hash)) {
+        auto pair = map->pairs + i;
+        StrongTypedView pair_key_view(pair->key);
+        if (PDP_LIKELY(pair_key_view == key)) {
+          return pair->value;
+        }
+      }
+    }
+  }
+  return nullptr;
+}
+
+StrongTypedView StrongTypedView::operator[](const char *key) const {
+  return (*this)[StringSlice(key)];
+}
+
+StrongTypedView StrongTypedView::operator[](uint32_t index) const {
+  if (PDP_LIKELY(expr->kind == ExprBase::kList)) {
+    if (PDP_LIKELY(index < expr->size)) {
+      auto elements = AsListUnchecked();
+      return elements[index];
+    }
+  }
+  return nullptr;
+}
+
+int64_t StrongTypedView::AsInteger() const {
+  if (PDP_LIKELY(expr->kind == ExprBase::kInt)) {
+    return AsIntegerUnchecked();
+  }
+  PDP_UNREACHABLE("Contract violation: integer access failed!");
+}
+
+StringSlice StrongTypedView::AsString() const {
+  if (PDP_LIKELY(expr->kind == ExprBase::kString)) {
+    return AsStringUnchecked();
+  }
+  PDP_UNREACHABLE("Contract violation: string access failed!");
+}
+
+bool StrongTypedView::operator==(const StringSlice &str) const { return AsString() == str; }
+
+bool StrongTypedView::operator!=(const StringSlice &str) const { return !(*this == str); }
 
 }  // namespace pdp

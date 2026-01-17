@@ -129,7 +129,10 @@ struct StringSlice {
 
   constexpr bool operator!=(const StringSlice &other) const { return !(*this == other); }
 
-  constexpr const char &operator[](size_t index) const { return ptr[index]; }
+  constexpr const char &operator[](size_t index) const {
+    pdp_assert(index < Size());
+    return ptr[index];
+  }
 
  private:
   const char *ptr;

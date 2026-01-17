@@ -7,7 +7,9 @@ namespace pdp {
 VimController::VimController(int input_fd, int output_fd)
     : vim_input(input_fd), vim_output(output_fd), token(1) {}
 
-void VimController::ShowNormal(const StringSlice &msg) { ShowMessage(msg, "Normal"); }
+void VimController::ShowNormal(const StringSlice &msg) {
+  SendRpcRequest("nvim_buf_set_lines", 0, -1, -1, true, msg);
+}
 
 void VimController::ShowWarning(const StringSlice &msg) { ShowMessage(msg, "WarningMsg"); }
 
@@ -19,10 +21,19 @@ void VimController::ShowMessage(const StringSlice &msg, const StringSlice &hl) {
 
 void VimController::ShowMessage(std::initializer_list<StringSlice> msg,
                                 std::initializer_list<StringSlice> hl) {
-  SendRpcRequest("nvim_buf_set_lines", 0, -1, -1, true, msg);
-  ++token;
+  // TODO
+  (void)msg;
+  (void)hl;
+}
 
-  (void)hl;  // TODO
+uint32_t VimController::NextToken() const { return token; }
+
+uint32_t VimController::CreateNamespace(const StringSlice &ns) {
+  return SendRpcRequest("nvim_create_namespace", ns);
+}
+
+uint32_t VimController::Bufname(int64_t buffer) {
+  return SendRpcRequest("nvim_buf_get_name", buffer);
 }
 
 void VimController::SendBytes(const void *bytes, size_t num_bytes) {
@@ -34,16 +45,28 @@ void VimController::SendBytes(const void *bytes, size_t num_bytes) {
 
 bool VimController::ReadBoolResult() { return ReadRpcBoolean(vim_output); }
 
+int64_t VimController::ReadIntegerResult() { return ReadRpcInteger(vim_output); }
+
+DynamicString VimController::ReadStringResult() { return ReadRpcString(vim_output); }
+
+uint32_t VimController::OpenArrayResult() { return ReadRpcArrayLength(vim_output); }
+
 uint32_t VimController::PollResponseToken(Milliseconds timeout) {
-  bool has_data = vim_output.WaitForInput(timeout);
-  if (PDP_LIKELY(!has_data)) {
+  vim_output.WaitForBytes(timeout);
+
+  while (PDP_UNLIKELY(vim_output.HasBytes() && vim_output.PeekByte() == 0xc0)) {
+    vim_output.PopByte();
+  }
+
+  if (PDP_LIKELY(vim_output.HasBytes())) {
+    ExpectRpcArrayWithLength(vim_output, 4);
+    ExpectRpcInteger(vim_output, 1);
+    int64_t token = ReadRpcInteger(vim_output);
+    SkipRpcError(vim_output);
+    return static_cast<uint32_t>(token);
+  } else {
     return kInvalidToken;
   }
-  ExpectRpcArray(vim_output, 4);
-  ExpectRpcInteger(vim_output, 1);
-  int64_t token = ReadRpcInteger(vim_output);
-  SkipRpcError(vim_output);
-  return static_cast<uint32_t>(token);
 }
 
 }  // namespace pdp
