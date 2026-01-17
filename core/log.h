@@ -13,7 +13,7 @@ constexpr const char *GetBasename(const StringSlice &name) {
 }
 
 /// @brief Log message severity
-enum class Level { kTrace, kInfo, kWarn, kError, kCrit, kOff };
+enum class Level { kInfo, kWarn, kError, kCrit, kTrace = 100 };
 
 void Log(const char *filename, unsigned line, Level level, const StringSlice &fmt,
          PackedValue *args, uint64_t type_bits);

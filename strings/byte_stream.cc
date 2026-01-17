@@ -89,6 +89,11 @@ void ByteStream::Memcpy(void *dst, size_t n) {
       pdp_critical("Failed to read {} bytes within {}ms", n, max_wait.GetMilli());
       PDP_UNREACHABLE("RPC stream timeout");
     }
+
+#if PDP_TRACE_RPC_TOKENS
+    TraceRpcBytes(ptr, num_read);
+#endif
+
     memcpy(dst, begin, n);
     begin += n;
     end += num_read;
@@ -98,6 +103,10 @@ void ByteStream::Memcpy(void *dst, size_t n) {
       pdp_critical("Failed to read {} bytes within {}ms", n, max_wait.GetMilli());
       PDP_UNREACHABLE("RPC stream timeout");
     }
+
+#if PDP_TRACE_RPC_TOKENS
+    TraceRpcBytes(static_cast<byte *>(dst), n);
+#endif
   }
 }
 
@@ -116,8 +125,23 @@ void ByteStream::RequireAtLeast(size_t n) {
       pdp_critical("Failed to read {} bytes within {}ms", n, max_wait.GetMilli());
       PDP_UNREACHABLE("RPC stream timeout");
     }
+
+#if PDP_TRACE_RPC_TOKENS
+    TraceRpcBytes(end, num_read);
+#endif
+
     end += num_read;
   }
+}
+
+void ByteStream::TraceRpcBytes(byte *bytes, size_t n) {
+  StringBuilder builder;
+  builder.Append(StringSlice("Read RPC bytes:"));
+  for (size_t i = 0; i < n; ++i) {
+    builder.Append(" ");
+    builder.Append(MakeHex(bytes[i]));
+  }
+  pdp_trace(builder.GetSlice());
 }
 
 }  // namespace pdp

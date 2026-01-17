@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/log.h"
 #include "parser/rpc_builder.h"
 #include "strings/byte_stream.h"
 #include "strings/dynamic_string.h"
@@ -28,7 +29,9 @@ struct VimController {
   uint32_t SendRpcRequest(const StringSlice &method, Args &&...args) {
     static_assert((IsRpcV<std::decay_t<Args>> && ...));
 
-    // pdp_trace("Method={}, token={}", method, token);
+#if PDP_TRACE_RPC_TOKENS
+    pdp_trace("Request: Method={}, token={}", method, token);
+#endif
     RpcBuilder builder(token, method);
     builder.OpenShortArray();
     (builder.Add(std::forward<Args>(args)), ...);
@@ -44,6 +47,8 @@ struct VimController {
   int64_t ReadIntegerResult();
   DynamicString ReadStringResult();
   uint32_t OpenArrayResult();
+  // TODO
+  void SkipResult();
 
   static constexpr uint32_t kInvalidToken = 0;
 

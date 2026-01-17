@@ -248,8 +248,7 @@ bool GdbDriver::Send(uint32_t token, const StringSlice &fmt, PackedValue *args,
 
   StringBuilder<OneShotAllocator> builder;
 
-  constexpr EstimateSize estimator;
-  size_t capacity = estimator(token) + RunEstimator(args, type_bits) + 1;
+  size_t capacity = EstimateSize<decltype(token)>::value + RunEstimator(args, type_bits) + 1;
   builder.ReserveFor(capacity);
 
   builder.AppendUnchecked(token);
@@ -271,8 +270,7 @@ bool GdbDriver::Send(uint32_t token, const StringSlice &msg) {
 
   StringBuilder<OneShotAllocator> builder;
 
-  constexpr EstimateSize estimator;
-  size_t capacity = estimator(token) + estimator(msg) + 1;
+  size_t capacity = EstimateSize<decltype(token)>::value + msg.Size() + 1;
   builder.ReserveFor(capacity);
 
   builder.AppendUnchecked(token);

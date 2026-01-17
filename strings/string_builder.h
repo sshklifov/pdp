@@ -16,30 +16,33 @@ constexpr bool IsCStringV =
 
 // Compile time size estimator (inexact).
 
-struct EstimateSize {
-  constexpr size_t operator()(const StringSlice &s) const { return s.Size(); }
+template <typename T>
+struct EstimateSize;
 
-  constexpr size_t operator()(bool) const { return 5; }
+template <>
+struct EstimateSize<char> : public std::integral_constant<unsigned, 1> {};
 
-  constexpr size_t operator()(char) const { return 1; }
+template <>
+struct EstimateSize<bool> : public std::integral_constant<unsigned, 5> {};
 
-  template <typename T, std::enable_if_t<!IsCStringV<T>, int> = 0>
-  constexpr size_t operator()(const T *) const {
-    // Max hex digits for 64-bit + "0x" prefix
-    return sizeof(void *) * 2 + 2;
-  }
+template <typename T>
+struct EstimateSize<T *> : public std::integral_constant<unsigned, sizeof(void *) * 2 + 2> {};
 
-  template <typename T>
-  constexpr std::enable_if_t<std::is_unsigned_v<T>, size_t> operator()(T) const {
-    return std::numeric_limits<T>::digits10 + 1;
-  }
+template <>
+struct EstimateSize<uint32_t>
+    : public std::integral_constant<unsigned, std::numeric_limits<uint32_t>::digits10 + 1> {};
 
-  template <typename T>
-  constexpr std::enable_if_t<std::is_signed_v<T>, size_t> operator()(T) const {
-    // Max decimal digits + sign
-    return std::numeric_limits<T>::digits10 + 2;
-  }
-};
+template <>
+struct EstimateSize<int32_t>
+    : public std::integral_constant<unsigned, std::numeric_limits<int32_t>::digits10 + 2> {};
+
+template <>
+struct EstimateSize<uint64_t>
+    : public std::integral_constant<unsigned, std::numeric_limits<uint64_t>::digits10 + 1> {};
+
+template <>
+struct EstimateSize<int64_t>
+    : public std::integral_constant<unsigned, std::numeric_limits<int64_t>::digits10 + 2> {};
 
 // Run time size estimator (exact).
 
@@ -265,28 +268,27 @@ inline size_t RunEstimator(PackedValue *args, uint64_t type_bits) {
   size_t bytes = 0;
   size_t i = 0;
   while (type_bits > 0) {
-    EstimateSize estimator;
     switch (type_bits & 0xF) {
       case kBool:
-        bytes += estimator(args[i]._bool);
+        bytes += EstimateSize<decltype(args[i]._bool)>::value;
         break;
       case kChar:
-        bytes += estimator(args[i]._char);
+        bytes += EstimateSize<decltype(args[i]._char)>::value;
         break;
       case kInt32:
-        bytes += estimator(args[i]._int32);
+        bytes += EstimateSize<decltype(args[i]._int32)>::value;
         break;
       case kUint32:
-        bytes += estimator(args[i]._uint32);
+        bytes += EstimateSize<decltype(args[i]._uint32)>::value;
         break;
       case kInt64:
-        bytes += estimator(args[i]._int64);
+        bytes += EstimateSize<decltype(args[i]._int64)>::value;
         break;
       case kUint64:
-        bytes += estimator(args[i]._uint64);
+        bytes += EstimateSize<decltype(args[i]._uint64)>::value;
         break;
       case kPtr:
-        bytes += estimator(args[i]._ptr);
+        bytes += EstimateSize<decltype(args[i]._ptr)>::value;
         break;
       case kStr:
         ++i;
@@ -422,7 +424,7 @@ struct StringBuilder : public SmallBufferStorage<char, Alloc> {
     end += digits;
   }
 
-  template <typename T, std::enable_if_t<!IsCStringV<T *>, int> = 0>
+  template <typename T>
   void AppendUnchecked(const T *ptr) {
     size_t unsigned_value = reinterpret_cast<uint64_t>(ptr);
     const uint64_t digits = CountDigits16(unsigned_value);
@@ -460,6 +462,8 @@ struct StringBuilder : public SmallBufferStorage<char, Alloc> {
     }
   }
 
+  void AppendUnchecked(Hex64 hex) { AppendUnchecked(BitCast<void *>(hex.value)); }
+
   // Safe Append version.
 
   void Append(char c) {
@@ -469,22 +473,24 @@ struct StringBuilder : public SmallBufferStorage<char, Alloc> {
 
   template <typename T, std::enable_if_t<std::is_integral_v<T>, int> = 0>
   void Append(T integral) {
-    EstimateSize estimator;
-    this->ReserveFor(estimator(integral));
+    this->ReserveFor(EstimateSize<T>::value);
     AppendUnchecked(integral);
   }
 
-  template <typename T, std::enable_if_t<!IsCStringV<T *>, int> = 0>
+  template <typename T>
   void Append(const T *ptr) {
-    EstimateSize estimator;
-    this->ReserveFor(estimator(ptr));
+    this->ReserveFor(EstimateSize<T *>::value);
     AppendUnchecked((const void *)ptr);
   }
+
+  void Append(const char *str) { Append(StringSlice(str)); }
 
   void Append(const StringSlice &str) {
     this->ReserveFor(str.Size());
     AppendUnchecked(str);
   }
+
+  void Append(Hex64 hex) { Append(BitCast<void *>(hex.value)); }
 
   // Append variadic arguments.
 

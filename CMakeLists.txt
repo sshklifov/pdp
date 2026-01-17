@@ -48,8 +48,10 @@ set(_FEATURES
   ENABLE_ZERO_INITIALIZE
   # Trace search times in CallbackTable<>
   TRACE_CALLBACK_TABLE
-  # Various convenience settings which should always run on debug builds only
+  # Various convenience settings which should always run for debug builds
   DEBUG_BUILD
+  # Trace RPC request/response tokens to debug mismatched or out-of-order Vim RPC calls
+  TRACE_RPC_TOKENS
 )
 
 # TODO sanitizer and clang-tidy
@@ -64,7 +66,7 @@ set(_DEBUG_ENABLED_FEATURES
   TRACE_MESSAGES
   DEBUG_BUILD
   ENABLE_ZERO_INITIALIZE
-  TRACE_CALLBACK_TABLE
+  TRACE_RPC_TOKENS
 )
 
 set(_RELEASE_ENABLED_FEATURES

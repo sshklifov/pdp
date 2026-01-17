@@ -38,6 +38,9 @@ struct ByteStream {
 
  private:
   void RequireAtLeast(size_t n);
+#if PDP_TRACE_RPC_TOKENS
+  void TraceRpcBytes(byte *bytes, size_t n);
+#endif
 
   byte *__restrict__ const ptr;
   byte *__restrict__ begin;

@@ -31,11 +31,11 @@ void OnFatalError(const char *file, unsigned line, const char *what) {
   PrintBacktrace(frames, max_frames);
 #endif
 
-  const char *head = "[*** PDP ERROR ***] '";
+  const char *head = "[*** PDP ERROR ***] ";
   LogUnformatted(head);
   LogUnformatted(what);
 
-  const char *failed_in = "' in ";
+  const char *failed_in = " in ";
   LogUnformatted(failed_in);
   LogUnformatted(file);
   LogUnformatted(":");

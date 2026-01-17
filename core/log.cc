@@ -43,7 +43,7 @@ static bool ShouldLogAt(Level level) {
 static constexpr StringSlice LogLevelToString(Level level) {
   switch (level) {
     case Level::kTrace:
-      return "\e[37mtrace\e[0m";
+      return "\e[36mtrace\e[0m";
     case Level::kInfo:
       return "\e[32minfo\e[0m";
     case Level::kWarn:
@@ -143,10 +143,11 @@ void Log(const char *f, unsigned line, Level level, const StringSlice &fmt, Pack
   StringSlice filename(f);
   StringBuilder<OneShotAllocator> builder;
 
-  constexpr EstimateSize estimator;
-  constexpr size_t est = estimator("[2026-01-02 11:42:27.380] [] [:] \n") + EstimateLogLevelSize();
-  size_t capacity =
-      est + estimator(line) + estimator(filename) + estimator(fmt) + RunEstimator(args, type_bits);
+  constexpr size_t constexpr_estimate = ConstexprLength("[2026-01-02 11:42:27.380] [] [:] \n") +
+                                        EstimateLogLevelSize() +
+                                        EstimateSize<decltype(line)>::value;
+  const size_t capacity =
+      constexpr_estimate + filename.Size() + fmt.Size() + RunEstimator(args, type_bits);
   builder.ReserveFor(capacity);
 
   WriteLogHeader(filename, line, level, builder);

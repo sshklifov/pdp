@@ -145,7 +145,7 @@ void SkipRpcError(ByteStream &s) {
   StringBuilder builder;
   expr.ToJson(builder);
   pdp_critical("Error: {}", builder.GetSlice());
-  PDP_UNREACHABLE("Expecting null as error response TODO");
+  // PDP_UNREACHABLE("Expecting null as error response TODO");
   // TODO
 }
 

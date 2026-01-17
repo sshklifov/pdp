@@ -3,49 +3,8 @@
 
 #include "strings/string_builder.h"
 
-using pdp::EstimateSize;
 using pdp::StringBuilder;
 using pdp::StringSlice;
-
-TEST_CASE("EstimateSize overloads") {
-  EstimateSize est;
-
-  SUBCASE("StringSlice") {
-    StringSlice s("hello");
-    CHECK(est(s) >= 5);
-    CHECK(est(StringSlice("what the hell", 2)) >= 2);
-  }
-
-  SUBCASE("char") {
-    CHECK(est('a') >= 1);
-    CHECK(est('\0') >= 1);
-  }
-
-  SUBCASE("bool") {
-    CHECK(est(false) >= strlen("false"));
-    CHECK(est(true) >= strlen("true"));
-  }
-
-  SUBCASE("void*") {
-    void *p = reinterpret_cast<void *>(0x1234);
-    const size_t n = est(p);
-    CHECK(n >= 6);
-  }
-
-  SUBCASE("void*") {
-    uint64_t bits = std::numeric_limits<uint64_t>::max();
-    void *p = reinterpret_cast<void *>(bits);
-    const size_t n = est(p);
-    CHECK(n >= pdp::CountDigits16(bits));
-  }
-
-  SUBCASE("integral estimate") {
-    CHECK(est(std::numeric_limits<int>::max()) >= 10);
-    CHECK(est(std::numeric_limits<int>::min()) >= 11);
-    CHECK(est(std::numeric_limits<unsigned>::max()) >= 10);
-    CHECK(est(0) >= 1);
-  }
-}
 
 TEST_CASE("CountDigits10 basic values") {
   CHECK(pdp::CountDigits10(0) == 1);

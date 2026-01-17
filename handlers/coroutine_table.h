@@ -76,17 +76,18 @@ struct CoroutineTable {
 
   bool Empty() const { return size == 0; }
 
-  void Resume(uint32_t token) {
+  bool Resume(uint32_t token) {
     if (PDP_LIKELY(!Empty())) {
       if (PDP_LIKELY(token == tokens[begin])) {
         auto resumed = table[begin];
         begin = (begin + 1) & mask;
         size--;
         resumed.resume();
-        return;
+        return true;
       }
       pdp_assert(Empty() || token < tokens[begin]);
     }
+    return false;
   }
 
   void PrintSuspendedTokens() {

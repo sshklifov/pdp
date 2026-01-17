@@ -153,8 +153,16 @@ void DebugCoordinator::HandleAsync(GdbAsyncKind kind, ScopedPtr<ExprBase> &&expr
 void DebugCoordinator::PollVim(Milliseconds timeout) {
   uint32_t token = vim_controller.PollResponseToken(timeout);
   if (token != vim_controller.kInvalidToken) {
-    // pdp_info("Got response token {}", token);
-    suspended_handlers.Resume(token);
+#if PDP_TRACE_RPC_TOKENS
+    pdp_trace("Response: token={}", token);
+#endif
+    const bool rpc_payload_read = suspended_handlers.Resume(token);
+    if (!rpc_payload_read) {
+      vim_controller.SkipResult();
+#if PDP_TRACE_RPC_TOKENS
+      pdp_trace("Skipped: token={}", token);
+#endif
+    }
   }
 }
 

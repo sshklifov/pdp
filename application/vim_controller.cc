@@ -51,14 +51,11 @@ DynamicString VimController::ReadStringResult() { return ReadRpcString(vim_outpu
 
 uint32_t VimController::OpenArrayResult() { return ReadRpcArrayLength(vim_output); }
 
+void VimController::SkipResult() { return SkipRpcError(vim_output); }
+
 uint32_t VimController::PollResponseToken(Milliseconds timeout) {
-  vim_output.WaitForBytes(timeout);
-
-  while (PDP_UNLIKELY(vim_output.HasBytes() && vim_output.PeekByte() == 0xc0)) {
-    vim_output.PopByte();
-  }
-
-  if (PDP_LIKELY(vim_output.HasBytes())) {
+  const bool has_bytes = vim_output.WaitForBytes(timeout);
+  if (has_bytes) {
     ExpectRpcArrayWithLength(vim_output, 4);
     ExpectRpcInteger(vim_output, 1);
     int64_t token = ReadRpcInteger(vim_output);
