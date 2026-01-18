@@ -10,9 +10,9 @@
 namespace pdp {
 
 static void PrintDecimal(unsigned value) {
-  // TODO Add a comment that we will print max 8 digits and that's okay.
+  // Print a maximum of 8 characters (okay for line numbers).
   char dig[8];
-  int i = 7;
+  unsigned i = 7;
   do {
     dig[i] = '0' + (value % 10);
     value /= 10;

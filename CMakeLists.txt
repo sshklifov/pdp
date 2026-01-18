@@ -6,9 +6,6 @@ project(pdp VERSION 1.0.0 DESCRIPTION "GDB/MI parsing and command processing lib
 
 set(BUILD_TESTS ON)
 
-# Build perf tests
-set(BUILD_PERF ON)
-
 # TODO: Future: investigate more compiler flags
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
   set(BUILD_TESTS OFF)
@@ -19,7 +16,6 @@ if(CMAKE_BUILD_TYPE STREQUAL "Release")
     -nostdlib++
   )
 else()
-  set(BUILD_PERF OFF)
   add_compile_options(-Wall -Wextra)
 endif()
 
@@ -102,10 +98,6 @@ add_subdirectory(handlers)
 if(BUILD_TESTS)
   find_package(doctest REQUIRED)
   add_subdirectory(test)
-endif()
-
-if(BUILD_PERF)
-  add_subdirectory(perf)
 endif()
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")

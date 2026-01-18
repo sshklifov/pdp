@@ -1,12 +1,9 @@
 #pragma once
 
+// TODO flagged as not required
+
 #include "data/allocator.h"
 #include "data/stack.h"
-
-// TODO: optimize be knowing the structure of returned messages, so you can instead do something
-// like:
-// struct Response{ int msgid, struct {int buffer_id, int ... } }
-// you know? and not use an allocator
 
 namespace pdp {
 

@@ -54,3 +54,6 @@ target_link_libraries(test_thread PRIVATE pdp_system)
 
 add_executable(test_rpc_builder test_rpc_builder.cc)
 target_link_libraries(test_rpc_builder PRIVATE pdp_parser)
+
+add_executable(test_dynamyc_string test_dynamic_string.cc)
+target_link_libraries(test_dynamyc_string PRIVATE pdp_strings)
