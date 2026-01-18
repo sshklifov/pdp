@@ -1,14 +1,14 @@
 #pragma once
 
-#include "application/debug_session.h"
-#include "application/gdb_driver.h"
-#include "application/vim_controller.h"
 #include "data/scoped_ptr.h"
 #include "data/vector.h"
+#include "drivers/gdb_driver.h"
+#include "drivers/vim_driver.h"
 #include "parser/expr.h"
 #include "strings/dynamic_string.h"
 
 #include "coroutine_table.h"
+#include "debug_session.h"
 
 namespace pdp {
 
@@ -43,7 +43,7 @@ struct DebugCoordinator {
   HandlerCoroutine InitializeBuffers();
 
   GdbDriver gdb_driver;
-  VimController vim_controller;
+  VimDriver vim_controller;
   DebugSession session_data;
 
   CoroutineTable suspended_handlers;

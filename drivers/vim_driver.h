@@ -10,8 +10,8 @@
 
 namespace pdp {
 
-struct VimController {
-  VimController(int input_fd, int output_fd);
+struct VimDriver {
+  VimDriver(int input_fd, int output_fd);
 
   void ShowNormal(const StringSlice &msg);
   void ShowWarning(const StringSlice &msg);

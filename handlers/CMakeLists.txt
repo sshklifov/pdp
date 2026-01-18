@@ -6,4 +6,4 @@ target_include_directories(pdp_handlers PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
 target_compile_features(pdp_handlers PRIVATE cxx_std_20)
 
-target_link_libraries(pdp_handlers PUBLIC pdp_application)
+target_link_libraries(pdp_handlers PUBLIC pdp_drivers)
