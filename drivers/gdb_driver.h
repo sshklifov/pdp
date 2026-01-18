@@ -34,7 +34,7 @@ union GdbRecord {
 
   RecordKind SetStream(const StringSlice &msg);
   RecordKind SetAsync(GdbAsyncKind kind, const StringSlice &results);
-  RecordKind SetResult(GdbResultKind kind, const StringSlice &results);
+  RecordKind SetResult(uint32_t token, GdbResultKind kind, const StringSlice &results);
 
   struct GdbStream {
     StringSlice message;
@@ -49,6 +49,9 @@ union GdbRecord {
 
 static_assert(sizeof(GdbRecord) == 24);
 static_assert(std::is_trivially_destructible_v<GdbRecord>);
+
+GdbAsyncKind ClassifyAsync(StringSlice name);
+GdbResultKind ClassifyResult(StringSlice name);
 
 struct GdbDriver {
   GdbDriver();

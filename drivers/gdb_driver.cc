@@ -88,7 +88,7 @@ GdbAsyncKind ClassifyAsync(StringSlice name) {
       prefix = "thread-";
       if (PDP_LIKELY(name.Size() >= prefix.Size() + 1 && name.MemCmp(prefix) == 0)) {
         name.DropLeft(prefix.Size());
-        switch (name[7]) {
+        switch (name[0]) {
           case 'c':
             if (PDP_LIKELY(name == "created")) {
               return GdbAsyncKind::kThreadCreated;
@@ -100,7 +100,7 @@ GdbAsyncKind ClassifyAsync(StringSlice name) {
             }
             break;
           case 'e':
-            if (PDP_LIKELY(name == "exitted")) {
+            if (PDP_LIKELY(name == "exited")) {
               return GdbAsyncKind::kThreadExited;
             }
             break;
@@ -114,12 +114,12 @@ GdbAsyncKind ClassifyAsync(StringSlice name) {
       break;
     case 'l':
       prefix = "library-";
-      if (PDP_LIKELY(name.Size() >= prefix.Size() + 1 && name.MemCmp(prefix) == 0)) {
+      if (PDP_LIKELY(name.Size() >= prefix.Size() && name.MemCmp(prefix) == 0)) {
         name.DropLeft(prefix.Size());
         if (PDP_LIKELY(name == "loaded")) {
           return GdbAsyncKind::kLibraryLoaded;
         } else if (PDP_LIKELY(name == "unloaded")) {
-          return GdbAsyncKind::kLibraryLoaded;
+          return GdbAsyncKind::kLibraryUnloaded;
         }
       }
       break;
@@ -154,12 +154,14 @@ RecordKind GdbRecord::SetStream(const StringSlice &msg) {
 }
 
 RecordKind GdbRecord::SetAsync(GdbAsyncKind kind, const StringSlice &results) {
+  result_or_async.token = 0;
   result_or_async.kind = static_cast<uint32_t>(kind);
   result_or_async.results = results;
   return RecordKind::kAsync;
 }
 
-RecordKind GdbRecord::SetResult(GdbResultKind kind, const StringSlice &results) {
+RecordKind GdbRecord::SetResult(uint32_t token, GdbResultKind kind, const StringSlice &results) {
+  result_or_async.token = token;
   result_or_async.kind = static_cast<uint32_t>(kind);
   result_or_async.results = results;
   return RecordKind::kResult;
@@ -231,7 +233,7 @@ RecordKind GdbDriver::Poll(Milliseconds timeout, GdbRecord *res) {
     pdp_warning("Missing class name for message with token {}", token);
   } else if (IsResultMarker(marker)) {
     GdbResultKind kind = ClassifyResult(StringSlice(name_begin, name_end));
-    return res->SetResult(kind, results);
+    return res->SetResult(token, kind, results);
   } else if (PDP_LIKELY(IsAsyncMarker(marker))) {
     GdbAsyncKind kind = ClassifyAsync(StringSlice(name_begin, name_end));
     return res->SetAsync(kind, results);
