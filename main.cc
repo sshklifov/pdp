@@ -14,6 +14,7 @@ int main() {
   pdp::DebugCoordinator coordinator(pdp::DuplicateForThisProcess(STDOUT_FILENO),
                                     pdp::DuplicateForThisProcess(STDIN_FILENO));
   coordinator.ReachIdle(pdp::Milliseconds(5000));
+  coordinator.ShowMessage({"Hello ", "there", "?"}, {"WarningMsg", "Normal", "Cursor"});
 
   while (true) {
     coordinator.PollGdb(pdp::Milliseconds(100));

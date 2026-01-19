@@ -6,6 +6,14 @@
 
 namespace pdp {
 
+static size_t TotalStringBytes(std::initializer_list<StringSlice> ilist) {
+  size_t res = 0;
+  for (const auto &str : ilist) {
+    res += str.Size();
+  }
+  return res;
+}
+
 DebugCoordinator::DebugCoordinator(int vim_input_fd, int vim_output_fd)
     : vim_controller(vim_input_fd, vim_output_fd) {
   gdb_driver.Start();
@@ -92,11 +100,14 @@ HandlerCoroutine DebugCoordinator::InitializeBuffers() {
   for (size_t i = 0; i < kTotalBufs; ++i) {
     if (session_data.buffers[i] < 0) {
       session_data.buffers[i] = co_await IntegerRpcAwaiter(this, token);
-      vim_controller.SendRpcRequest("nvim_buf_set_name", session_data.buffers[i],
-                                    StringSlice(names[i]));
+      vim_controller.SendRpcRequest("nvim_buf_set_name", session_data.buffers[i], names[i]);
       ++token;
     }
   }
+
+  vim_controller.SendRpcRequest("nvim_buf_set_lines", session_data.buffers[kPromptBuf], 0, -1,
+                                false, std::initializer_list<StringSlice>{});
+  session_data.num_lines_written = 0;
 }
 
 void DebugCoordinator::PollGdb(Milliseconds timeout) {
@@ -131,6 +142,65 @@ void DebugCoordinator::PollGdb(Milliseconds timeout) {
 IntegerArrayRpcAwaiter DebugCoordinator::ListBuffers() {
   uint32_t list_token = vim_controller.SendRpcRequest("nvim_list_bufs");
   return IntegerArrayRpcAwaiter(this, list_token);
+}
+
+void DebugCoordinator::ShowNormal(const StringSlice &msg) {
+  pdp_assert(!msg.Empty());
+
+  auto old_line_count = session_data.num_lines_written;
+  auto bufnr = session_data.buffers[kPromptBuf];
+  vim_controller.SendRpcRequest("nvim_buf_set_lines", bufnr, old_line_count, old_line_count, true,
+                                std::initializer_list<StringSlice>{msg});
+  session_data.num_lines_written++;
+}
+
+void DebugCoordinator::ShowWarning(const StringSlice &msg) { ShowMessage(msg, "WarningMsg"); }
+
+void DebugCoordinator::ShowError(const StringSlice &msg) { ShowMessage(msg, "ErrorMsg"); }
+
+void DebugCoordinator::ShowMessage(const StringSlice &msg, const StringSlice &hl) {
+  ShowMessage(std::initializer_list<StringSlice>{msg}, std::initializer_list<StringSlice>{hl});
+}
+
+void DebugCoordinator::ShowMessage(std::initializer_list<StringSlice> ilist_msg,
+                                   std::initializer_list<StringSlice> ilist_hl) {
+  pdp_assert(ilist_msg.size() == ilist_hl.size());
+
+  auto old_line_count = session_data.num_lines_written;
+  auto bufnr = session_data.buffers[kPromptBuf];
+
+  RpcBuilder builder;
+  vim_controller.BeginRpcRequest(builder, "nvim_buf_set_lines", bufnr, old_line_count,
+                                 old_line_count, true);
+  builder.OpenShortArray();
+  char *msg_out = builder.AddUninitializedString(TotalStringBytes(ilist_msg));
+  builder.CloseShortArray();
+
+  for (const auto &msg : ilist_msg) {
+    memcpy(msg_out, msg.Data(), msg.Size());
+    msg_out += msg.Size();
+  }
+  vim_controller.EndRpcRequest(builder);
+
+  session_data.num_lines_written++;
+
+  int start_col = 0;
+  for (size_t i = 0; i < ilist_hl.size(); ++i) {
+    int end_col = start_col + ilist_msg.begin()[i].Size();
+
+    vim_controller.BeginRpcRequest(builder, "nvim_buf_set_extmark", bufnr,
+                                   session_data.namespaces[kHighlightNs], old_line_count,
+                                   start_col);
+    builder.OpenShortMap();
+    builder.AddMapItem("end_col", end_col);
+    builder.AddMapItem("hl_group", ilist_hl.begin()[i]);
+    builder.CloseShortMap();
+    vim_controller.EndRpcRequest(builder);
+
+    start_col = end_col;
+  }
+
+  vim_controller.SendRpcRequest("nvim_buf_set_option", bufnr, "modified", false);
 }
 
 void DebugCoordinator::HandleResult(GdbResultKind kind, ScopedPtr<ExprBase> &&expr) {

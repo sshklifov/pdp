@@ -35,6 +35,12 @@ struct DebugCoordinator {
   BooleanRpcAwaiter BufExists(int64_t bufnr);
   IntegerArrayRpcAwaiter ListBuffers();
 
+  void ShowNormal(const StringSlice &msg);
+  void ShowWarning(const StringSlice &msg);
+  void ShowError(const StringSlice &msg);
+  void ShowMessage(const StringSlice &msg, const StringSlice &hl);
+  void ShowMessage(std::initializer_list<StringSlice> msg, std::initializer_list<StringSlice> hl);
+
  private:
   void HandleAsync(GdbAsyncKind kind, ScopedPtr<ExprBase> &&expr);
   void HandleResult(GdbResultKind kind, ScopedPtr<ExprBase> &&expr);

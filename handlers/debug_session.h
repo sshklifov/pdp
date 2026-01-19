@@ -19,6 +19,7 @@ struct DebugSession {
   int selected_thread;
   int is_stopped;
   int source_bufnr;
+  int num_lines_written;
 
   int namespaces[kTotalNs];
   int buffers[kTotalBufs];

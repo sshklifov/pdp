@@ -353,10 +353,10 @@ bool FormatRpcError(ByteStream &s, StringBuilder<DefaultAllocator> &out) {
   }
 }
 
-bool PrintRpcError(ByteStream &s) {
+bool PrintRpcError(uint32_t token, ByteStream &s) {
   StringBuilder<DefaultAllocator> out;
   if (FormatRpcError(s, out)) {
-    pdp_error("RPC error: {}", out.GetSlice());
+    pdp_error("RPC error with token={}: {}", token, out.GetSlice());
     return true;
   } else {
     return false;

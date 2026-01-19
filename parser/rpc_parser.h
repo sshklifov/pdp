@@ -25,7 +25,7 @@ void ExpectRpcInteger(ByteStream &s, int64_t what);
 
 void SkipRpcValue(ByteStream &s);
 bool FormatRpcError(ByteStream &s, StringBuilder<DefaultAllocator> &out);
-bool PrintRpcError(ByteStream &s);
+bool PrintRpcError(uint32_t, ByteStream &s);
 
 namespace impl {
 

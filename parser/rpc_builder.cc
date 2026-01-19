@@ -3,10 +3,14 @@
 
 namespace pdp {
 
-RpcBuilder::RpcBuilder(uint32_t token, const StringSlice &method) {
-  array_backfill[0].pos = 0;
-  array_backfill[0].num_elems = 1;
+RpcBuilder::RpcBuilder(uint32_t token, const StringSlice &method) { Restart(token, method); }
+
+void RpcBuilder::Restart(uint32_t token, const StringSlice &method) {
+  backfill[0].pos = 0;
+  backfill[0].num_elems = 1;
   depth = 0;
+
+  builder.Clear();
   PushByte(0x90);
   PushByte(0x0);
 
@@ -69,14 +73,14 @@ void RpcBuilder::Add(uint32_t x) {
     PushUint32(x);
   }
 
-  BackfillArrayElem();
+  OnElementAdded();
 }
 
 void RpcBuilder::Add(uint64_t x) {
   if (PDP_UNLIKELY(x > std::numeric_limits<uint32_t>::max())) {
     PushByte(0xcf);
     PushUint64(x);
-    BackfillArrayElem();
+    OnElementAdded();
   } else {
     Add(static_cast<uint32_t>(x));
   }
@@ -86,7 +90,7 @@ void RpcBuilder::Add(int64_t x) {
   if (PDP_UNLIKELY(x < std::numeric_limits<int32_t>::min())) {
     PushByte(0xd3);
     PushInt64(x);
-    BackfillArrayElem();
+    OnElementAdded();
   } else {
     Add(static_cast<int32_t>(x));
   }
@@ -110,49 +114,56 @@ void RpcBuilder::Add(int32_t x) {
     PushInt32(x);
   }
 
-  BackfillArrayElem();
+  OnElementAdded();
 }
 
 void RpcBuilder::Add(bool value) {
   PushByte(value ? 0xc3 : 0xc2);
 
-  BackfillArrayElem();
+  OnElementAdded();
 }
 
-void RpcBuilder::Add(const StringSlice &str) {
-  if (str.Length() < 32) {
-    byte length = 0xa0 | str.Length();
-    PushByte(length);
-  } else if (str.Length() <= std::numeric_limits<uint8_t>::max()) {
+char *RpcBuilder::AddUninitializedString(size_t length) {
+  if (length < 32) {
+    byte b = 0xa0 | length;
+    PushByte(b);
+  } else if (length <= std::numeric_limits<uint8_t>::max()) {
     PushByte(0xd9);
-    PushUint8(str.Length());
-  } else if (str.Length() <= std::numeric_limits<uint16_t>::max()) {
+    PushUint8(length);
+  } else if (length <= std::numeric_limits<uint16_t>::max()) {
     PushByte(0xda);
-    PushUint16(str.Length());
-  } else if (str.Length() <= std::numeric_limits<uint32_t>::max()) {
+    PushUint16(length);
+  } else if (length <= std::numeric_limits<uint32_t>::max()) {
     PushByte(0xdb);
-    PushUint32(str.Length());
+    PushUint32(length);
   } else {
     PDP_UNREACHABLE("RpcBuilder: string overflow!");
   }
-  builder.Append(str.Data(), str.Size());
+  OnElementAdded();
 
-  BackfillArrayElem();
+  return reinterpret_cast<char *>(builder.AppendUninitialized(length));
 }
 
-void RpcBuilder::BackfillArrayElem() {
+void RpcBuilder::Add(const StringSlice &str) {
+  char *out = AddUninitializedString(str.Length());
+  memcpy(out, str.Data(), str.Size());
+}
+
+void RpcBuilder::Add(const char *str) { Add(StringSlice(str)); }
+
+void RpcBuilder::OnElementAdded() {
   pdp_assert(depth >= 0);
-  array_backfill[depth].num_elems += 1;
+  backfill[depth].num_elems += 1;
 }
 
 void RpcBuilder::OpenShortArray() {
-  BackfillArrayElem();
+  OnElementAdded();
   if (PDP_UNLIKELY(depth + 1 == kMaxDepth)) {
-    PDP_UNREACHABLE("RpcBuilder: array overflow!");
+    PDP_UNREACHABLE("RpcBuilder: depth overflow!");
   }
   ++depth;
-  array_backfill[depth].pos = builder.Size();
-  array_backfill[depth].num_elems = 0;
+  backfill[depth].pos = builder.Size();
+  backfill[depth].num_elems = 0;
 
   PushByte(0x90);
 }
@@ -161,12 +172,42 @@ void RpcBuilder::CloseShortArray() {
   if (PDP_UNLIKELY(depth <= 0)) {
     PDP_UNREACHABLE("RpcBuilder: Closing list which has not been declared!");
   }
-  auto pos = array_backfill[depth].pos;
-  auto num_elems = array_backfill[depth].num_elems;
+  auto pos = backfill[depth].pos;
+  auto num_elems = backfill[depth].num_elems;
   if (PDP_UNLIKELY(num_elems > 15)) {
     PDP_UNREACHABLE("RpcBuilder: Too many elements for list!");
   }
   byte b = 0x90 | num_elems;
+  builder.SetByte(pos, b);
+
+  --depth;
+}
+
+void RpcBuilder::OpenShortMap() {
+  OnElementAdded();
+  if (PDP_UNLIKELY(depth + 1 == kMaxDepth)) {
+    PDP_UNREACHABLE("RpcBuilder: depth overflow!");
+  }
+  ++depth;
+  backfill[depth].pos = builder.Size();
+  backfill[depth].num_elems = 0;
+
+  PushByte(0x80);
+}
+
+void RpcBuilder::CloseShortMap() {
+  if (PDP_UNLIKELY(depth <= 0)) {
+    PDP_UNREACHABLE("RpcBuilder: Closing map which has not been declared!");
+  }
+  auto pos = backfill[depth].pos;
+  if (PDP_UNLIKELY(backfill[depth].num_elems % 2 == 1)) {
+    PDP_UNREACHABLE("RpcBuilder: Odd number of arguments for map!");
+  }
+  auto num_elems = backfill[depth].num_elems / 2;
+  if (PDP_UNLIKELY(num_elems > 15)) {
+    PDP_UNREACHABLE("RpcBuilder: Too many elements for map!");
+  }
+  byte b = 0x80 | num_elems;
   builder.SetByte(pos, b);
 
   --depth;
@@ -177,8 +218,8 @@ RpcBytes RpcBuilder::Finish() {
     PDP_UNREACHABLE("RpcBuilder: Unclosed array!");
   }
 
-  pdp_assert(array_backfill[0].num_elems == 4);
-  byte start_byte = 0x90 | array_backfill[0].num_elems;
+  pdp_assert(backfill[0].num_elems == 4);
+  byte start_byte = 0x90 | backfill[0].num_elems;
   builder.SetByte(0, start_byte);
 
 #ifdef PDP_ENABLE_ASSERT

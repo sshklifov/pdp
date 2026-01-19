@@ -33,6 +33,13 @@ struct ByteBuilder : public SmallBufferStorage<byte, Alloc> {
     AppendByteUnchecked(b);
   }
 
+  byte *AppendUninitialized(size_t num_bytes) {
+    this->ReserveFor(num_bytes);
+    auto result = this->end;
+    this->end += num_bytes;
+    return result;
+  }
+
   const void *Data() const { return begin; }
 };
 
@@ -41,10 +48,16 @@ struct RpcBytes {
   size_t bytes;
 };
 
+template <typename T>
+struct IsRpc : std::false_type {};
+
 struct RpcBuilder {
   friend struct RpcBuilderArrayRAII;
 
+  RpcBuilder() = default;
   RpcBuilder(uint32_t token, const StringSlice &method);
+
+  void Restart(uint32_t token, const StringSlice &method);
 
   void Add(uint32_t value);
   void Add(int32_t value);
@@ -52,7 +65,15 @@ struct RpcBuilder {
   void Add(uint64_t value);
   void Add(bool value);
   void Add(const StringSlice &str);
-  void Add(const char *str) = delete;
+  void Add(const char *str);
+
+  template <typename T, std::enable_if_t<IsRpc<T>::value, int> = 0>
+  void AddMapItem(const StringSlice &key, T value) {
+    Add(key);
+    Add(value);
+  }
+
+  char *AddUninitializedString(size_t length);
 
   void Add(std::initializer_list<StringSlice> ilist) {
     OpenShortArray();
@@ -69,8 +90,11 @@ struct RpcBuilder {
   void OpenShortArray();
   void CloseShortArray();
 
+  void OpenShortMap();
+  void CloseShortMap();
+
  private:
-  void BackfillArrayElem();
+  void OnElementAdded();
 
   void PushByte(byte b);
 
@@ -91,13 +115,10 @@ struct RpcBuilder {
     uint32_t num_elems;
   };
 
-  Backfill array_backfill[kMaxDepth];
+  Backfill backfill[kMaxDepth];
   int32_t depth;
   ByteBuilder<DefaultAllocator> builder;
 };
-
-template <typename T>
-struct IsRpc : std::false_type {};
 
 template <>
 struct IsRpc<int32_t> : std::true_type {};
@@ -113,6 +134,9 @@ struct IsRpc<uint64_t> : std::true_type {};
 
 template <>
 struct IsRpc<bool> : std::true_type {};
+
+template <>
+struct IsRpc<const char *> : std::true_type {};
 
 template <>
 struct IsRpc<StringSlice> : std::true_type {};

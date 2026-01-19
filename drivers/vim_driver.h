@@ -34,13 +34,24 @@ struct VimDriver {
     return token++;
   }
 
-  // Convience RPC request methods for common API functions
+  template <typename... Args>
+  void BeginRpcRequest(RpcBuilder &builder, const StringSlice &method, Args &&...args) {
+#if PDP_TRACE_RPC_TOKENS
+    pdp_trace("Request: Method={}, token={}", method, token);
+#endif
+    builder.Restart(token, method);
+    builder.OpenShortArray();
+    (builder.Add(std::forward<Args>(args)), ...);
+    token++;
+  }
 
-  void ShowNormal(const StringSlice &msg);
-  void ShowWarning(const StringSlice &msg);
-  void ShowError(const StringSlice &msg);
-  void ShowMessage(const StringSlice &msg, const StringSlice &hl);
-  void ShowMessage(std::initializer_list<StringSlice> msg, std::initializer_list<StringSlice> hl);
+  void EndRpcRequest(RpcBuilder &builder) {
+    builder.CloseShortArray();
+    auto [data, size] = builder.Finish();
+    SendBytes(data, size);
+  }
+
+  // Convience RPC request methods for common API functions
 
   uint32_t CreateNamespace(const StringSlice &ns);
   uint32_t Bufname(int64_t buffer);

@@ -4,18 +4,7 @@
 
 namespace pdp {
 
-inline HandlerCoroutine HandleStream(DebugCoordinator *d, const StringSlice &msg) {
-#ifdef PDP_TRACE_MESSAGES
-  LogUnformatted(msg);
-#endif
-
-  bool exists = co_await d->BufExists(505);
-  if (exists) {
-    pdp_critical("EXISTS!");
-  } else {
-    pdp_critical("DOES NOT EXISTS!");
-  }
-  co_return;
-}
+// TODO
+inline HandlerCoroutine HandleStream(DebugCoordinator *d, const StringSlice &msg) { co_return; }
 
 }  // namespace pdp
