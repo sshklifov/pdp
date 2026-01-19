@@ -9,13 +9,23 @@
 
 namespace pdp {
 
-void ExpectRpcArrayWithLength(ByteStream &s, uint32_t length);
-uint32_t ReadRpcArrayLength(ByteStream &s);
-void ExpectRpcInteger(ByteStream &s, int64_t what);
+enum class RpcKind { kNull, kInteger, kBool, kString, kArray, kMap };
+
+RpcKind ClassifyRpcByte(byte b);
 int64_t ReadRpcInteger(ByteStream &s);
-DynamicString ReadRpcString(ByteStream &s);
 bool ReadRpcBoolean(ByteStream &s);
-void SkipRpcError(ByteStream &s);
+DynamicString ReadRpcString(ByteStream &s);
+
+uint32_t ReadRpcStringLength(ByteStream &s);
+uint32_t ReadRpcArrayLength(ByteStream &s);
+uint32_t ReadRpcMapLength(ByteStream &s);
+
+void ExpectRpcArrayWithLength(ByteStream &s, uint32_t length);
+void ExpectRpcInteger(ByteStream &s, int64_t what);
+
+void SkipRpcValue(ByteStream &s);
+bool FormatRpcError(ByteStream &s, StringBuilder<DefaultAllocator> &out);
+bool PrintRpcError(ByteStream &s);
 
 namespace impl {
 

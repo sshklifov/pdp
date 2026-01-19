@@ -464,7 +464,20 @@ struct StringBuilder : public SmallBufferStorage<char, Alloc> {
 
   void AppendUnchecked(Hex64 hex) { AppendUnchecked(BitCast<void *>(hex.value)); }
 
+  // Super-super unsafe Append methods.
+
+  char *AppendUninitialized(size_t n) {
+    this->ReserveFor(n);
+    auto result = this->end;
+    this->end += n;
+    return result;
+  }
+
   // Safe Append version.
+  void Append(bool b) {
+    this->ReserveFor(EstimateSize<bool>::value);
+    AppendUnchecked(b);
+  }
 
   void Append(char c) {
     this->ReserveFor(1);

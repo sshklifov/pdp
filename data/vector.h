@@ -1,8 +1,8 @@
 #pragma once
 
 #include "allocator.h"
-#include "non_copyable.h"
 #include "core/check.h"
+#include "non_copyable.h"
 
 #include <cstring>
 #include <utility>
@@ -11,8 +11,7 @@ namespace pdp {
 
 template <typename T, typename Alloc = DefaultAllocator>
 struct Vector : public NonCopyable {
-  static_assert(std::is_nothrow_move_constructible_v<T>, "T must be noexcept move constructible");
-  static_assert(std::is_nothrow_copy_constructible_v<T>, "T must be noexcept copy constructible");
+  static_assert(pdp::IsReallocatable<T>::value, "T must be movable with realloc");
   static_assert(std::is_nothrow_destructible_v<T>, "T must be noexcept destructible");
 
   Vector(Alloc alloc = Alloc()) noexcept : ptr(nullptr), size(0), capacity(0), allocator(alloc) {}
@@ -83,7 +82,12 @@ struct Vector : public NonCopyable {
   size_t Capacity() const { return capacity; }
 
   void Destroy() {
-    static_assert(std::is_trivially_destructible_v<T>);
+    // TODO is this only because of the tests?
+    if constexpr (!std::is_trivially_destructible_v<T>) {
+      for (size_t i = 0; i < size; ++i) {
+        ptr[i].~T();
+      }
+    }
     Deallocate<T>(allocator, ptr);
 
     ptr = nullptr;
@@ -106,11 +110,19 @@ struct Vector : public NonCopyable {
     return (*this);
   }
 
+  template <typename U = T, std::enable_if_t<std::is_nothrow_constructible_v<U>, int> = 0>
   Vector &operator+=(const T &elem) {
     ReserveFor(1);
     new (ptr + size) T(elem);
     ++size;
     return (*this);
+  }
+
+  template <typename... Args>
+  void Emplace(Args &&...args) {
+    ReserveFor(1);
+    new (ptr + size) T(std::forward<Args>(args)...);
+    ++size;
   }
 
   T *NewElement() {
@@ -144,7 +156,6 @@ struct Vector : public NonCopyable {
     pdp_assert(within_limits);
     capacity += extra_elements;
 
-    static_assert(std::is_trivially_move_constructible_v<T>);
     ptr = Reallocate<T>(allocator, ptr, capacity);
     pdp_assert(ptr);
   }

@@ -51,7 +51,7 @@ DynamicString VimDriver::ReadStringResult() { return ReadRpcString(vim_output); 
 
 uint32_t VimDriver::OpenArrayResult() { return ReadRpcArrayLength(vim_output); }
 
-void VimDriver::SkipResult() { return SkipRpcError(vim_output); }
+void VimDriver::SkipResult() { return SkipRpcValue(vim_output); }
 
 uint32_t VimDriver::PollResponseToken(Milliseconds timeout) {
   const bool has_bytes = vim_output.WaitForBytes(timeout);
@@ -59,7 +59,8 @@ uint32_t VimDriver::PollResponseToken(Milliseconds timeout) {
     ExpectRpcArrayWithLength(vim_output, 4);
     ExpectRpcInteger(vim_output, 1);
     int64_t token = ReadRpcInteger(vim_output);
-    SkipRpcError(vim_output);
+    // TODO: SUS: why the fuck can I get a result and an error? TEST this.
+    PrintRpcError(vim_output);
     return static_cast<uint32_t>(token);
   } else {
     return kInvalidToken;

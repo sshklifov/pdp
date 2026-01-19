@@ -57,3 +57,6 @@ target_link_libraries(test_rpc_builder PRIVATE pdp_parser)
 
 add_executable(test_dynamyc_string test_dynamic_string.cc)
 target_link_libraries(test_dynamyc_string PRIVATE pdp_strings)
+
+add_executable(test_gdb_driver test_gdb_driver.cc)
+target_link_libraries(test_gdb_driver PRIVATE pdp_drivers)

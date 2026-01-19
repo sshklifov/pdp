@@ -3,6 +3,7 @@
 
 #include "data/allocator.h"
 #include "data/vector.h"
+#include "strings/dynamic_string.h"
 
 using pdp::TrackingAllocator;
 using pdp::Vector;
@@ -231,4 +232,39 @@ TEST_CASE("Destroy resets vector") {
   CHECK(v.Data() == nullptr);
   CHECK(v.Size() == 0);
   CHECK(v.Capacity() == 0);
+}
+
+TEST_CASE("Emplace constructs element and increases size") {
+  Vector<int> v(2);
+
+  v.Emplace(42);
+
+  CHECK(v.Size() == 1);
+  CHECK(v.Capacity() >= 1);
+  CHECK(v[0] == 42);
+}
+
+struct TestPair {
+  TestPair(pdp::DynamicString &&first, int second) : first(std::move(first)), second(second) {}
+
+  pdp::DynamicString first;
+  int second;
+};
+
+template <>
+struct pdp::IsReallocatable<TestPair> : std::true_type {};
+
+TEST_CASE("Emplace constructs simple struct and appends it") {
+  Vector<TestPair> v(2);
+
+  pdp::DynamicString s("Test string", 11);
+  const void *old_ptr = s.Begin();
+  v.Emplace(std::move(s), 2);
+
+  CHECK(v.Size() == 1);
+  CHECK(v[0].first == "Test string");
+  CHECK(v[0].second == 2);
+
+  CHECK(old_ptr == v[0].first.Data());
+  CHECK(s.Begin() == nullptr);
 }

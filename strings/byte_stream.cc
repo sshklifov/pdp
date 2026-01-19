@@ -110,6 +110,37 @@ void ByteStream::Memcpy(void *dst, size_t n) {
   }
 }
 
+void ByteStream::Skip(size_t num_skipped) {
+  size_t available = end - begin;
+  if (PDP_LIKELY(num_skipped <= available)) {
+    begin += num_skipped;
+    return;
+  }
+
+  num_skipped -= available;
+
+  Milliseconds next_wait = max_wait;
+  Stopwatch stopwatch;
+
+  while (num_skipped > 0 && next_wait > 0_ms) {
+    stream.WaitForInput(next_wait > 5_ms ? next_wait : 5_ms);
+    size_t num_read = 0;
+    do {
+      num_skipped -= num_read;
+      num_read = stream.ReadOnce(ptr, buffer_size);
+    } while (num_read > 0 && num_read < num_skipped);
+
+    if (PDP_LIKELY(num_read >= num_skipped)) {
+      begin = ptr + num_skipped;
+      end = ptr + num_read;
+      return;
+    }
+    next_wait = max_wait - stopwatch.ElapsedMilli();
+  }
+  pdp_critical("Bytes remaining to skip: {}", num_skipped);
+  PDP_UNREACHABLE("RPC stream timeout");
+}
+
 void ByteStream::RequireAtLeast(size_t n) {
   size_t available = end - begin;
   if (PDP_UNLIKELY(available < n)) {

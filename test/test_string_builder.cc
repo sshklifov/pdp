@@ -349,3 +349,29 @@ TEST_CASE("StringBuilder grows beyond stack buffer") {
     CHECK(sb.Begin()[i] == 'x');
   }
 }
+
+TEST_CASE("AppendUninitialized appends raw space and preserves existing data") {
+  StringBuilder<> b;
+  b.ReserveFor(64);
+
+  // Seed with known content
+  b.Append("hello ");
+
+  // Append raw space
+  char *p = b.AppendUninitialized(5);
+
+  // Finish off.
+  b.Append("!!!");
+
+  // Must point exactly to the old end
+  REQUIRE(p != nullptr);
+
+  // Fill manually
+  p[0] = 'w';
+  p[1] = 'o';
+  p[2] = 'r';
+  p[3] = 'l';
+  p[4] = 'd';
+
+  CHECK(b.GetSlice() == StringSlice("hello world!!!"));
+}

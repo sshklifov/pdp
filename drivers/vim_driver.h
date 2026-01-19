@@ -13,17 +13,9 @@ namespace pdp {
 struct VimDriver {
   VimDriver(int input_fd, int output_fd);
 
-  void ShowNormal(const StringSlice &msg);
-  void ShowWarning(const StringSlice &msg);
-  void ShowError(const StringSlice &msg);
-  void ShowMessage(const StringSlice &msg, const StringSlice &hl);
-  void ShowMessage(std::initializer_list<StringSlice> msg, std::initializer_list<StringSlice> hl);
+  // Send RPC methods
 
   uint32_t NextToken() const;
-
-  uint32_t CreateNamespace(const StringSlice &ns);
-  uint32_t Bufname(int64_t buffer);
-  // uint32_t SetExtmark(int bufnr, int ns, int line, int col, )
 
   template <typename... Args>
   uint32_t SendRpcRequest(const StringSlice &method, Args &&...args) {
@@ -41,6 +33,19 @@ struct VimDriver {
     SendBytes(data, size);
     return token++;
   }
+
+  // Convience RPC request methods for common API functions
+
+  void ShowNormal(const StringSlice &msg);
+  void ShowWarning(const StringSlice &msg);
+  void ShowError(const StringSlice &msg);
+  void ShowMessage(const StringSlice &msg, const StringSlice &hl);
+  void ShowMessage(std::initializer_list<StringSlice> msg, std::initializer_list<StringSlice> hl);
+
+  uint32_t CreateNamespace(const StringSlice &ns);
+  uint32_t Bufname(int64_t buffer);
+
+  // Read RPC response methods
 
   uint32_t PollResponseToken(Milliseconds timeout);
   bool ReadBoolResult();

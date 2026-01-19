@@ -248,3 +248,41 @@ TEST_CASE("ByteStream PopByte across multiple refills loses no data") {
     CHECK(v == src[i]);
   }
 }
+
+TEST_CASE("ByteStream Skip interleaved with PopByte preserves stream order") {
+  PipeStream p;
+
+  constexpr size_t N = 1024;
+  constexpr size_t M = 16;
+  constexpr size_t TOTAL = N * M;
+
+  uint8_t *src = (uint8_t *)malloc(TOTAL);
+  for (size_t i = 0; i < TOTAL; ++i) {
+    src[i] = i & 0xff;
+  }
+
+  std::thread writer([&] { REQUIRE(write(p.wfd, src, TOTAL) == (ssize_t)TOTAL); });
+
+  pdp::ByteStream bs(p.rfd);
+
+  size_t cursor = 0;
+
+  // Pattern:
+  //  - read 1 byte
+  //  - skip N-1 bytes
+  //  => every read should see src[cursor]
+  for (size_t block = 0; block < M; ++block) {
+    uint8_t b = bs.PopByte();
+    CHECK(b == src[cursor]);
+
+    cursor += 1;
+
+    // Skip the rest of the block
+    const size_t to_skip = N - 1;
+    bs.Skip(to_skip);
+    cursor += to_skip;
+  }
+
+  writer.join();
+  free(src);
+}

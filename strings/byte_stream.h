@@ -36,6 +36,8 @@ struct ByteStream {
 
   void Memcpy(void *dst, size_t n);
 
+  void Skip(size_t n);
+
  private:
   void RequireAtLeast(size_t n);
 #if PDP_TRACE_RPC_TOKENS
