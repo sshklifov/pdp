@@ -6,9 +6,9 @@
 #include "strings/dynamic_string.h"
 #include "strings/string_slice.h"
 
-#include <initializer_list>
-
 namespace pdp {
+
+DynamicString Join(pdp::PackedValue *slots, uint64_t num_slots, uint64_t type_bits);
 
 struct VimDriver {
   VimDriver(int input_fd, int output_fd);
@@ -22,7 +22,9 @@ struct VimDriver {
     static_assert((IsRpcV<std::decay_t<Args>> && ...));
 
 #if PDP_TRACE_RPC_TOKENS
-    pdp_trace("Request: Method={}, token={}", method, token);
+    auto packed_args = MakePackedUnknownArgs(std::forward<Args>(args)...);
+    auto args_as_str = Join(packed_args.slots, packed_args.kNumSlots, packed_args.type_bits);
+    pdp_trace("Request, token={}: {}({})", token, method, args_as_str.GetSlice());
 #endif
     RpcBuilder builder(token, method);
     builder.OpenShortArray();
@@ -37,7 +39,9 @@ struct VimDriver {
   template <typename... Args>
   void BeginRpcRequest(RpcBuilder &builder, const StringSlice &method, Args &&...args) {
 #if PDP_TRACE_RPC_TOKENS
-    pdp_trace("Request: Method={}, token={}", method, token);
+    auto packed_args = MakePackedUnknownArgs(std::forward<Args>(args)...);
+    auto args_as_str = Join(packed_args.slots, packed_args.kNumSlots, packed_args.type_bits);
+    pdp_trace("Request, token={}: {}({})", token, method, args_as_str.GetSlice());
 #endif
     builder.Restart(token, method);
     builder.OpenShortArray();

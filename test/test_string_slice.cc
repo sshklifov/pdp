@@ -128,6 +128,16 @@ TEST_CASE("StartsWith") {
   CHECK_FALSE(empty.StartsWith('h'));
 }
 
+TEST_CASE("EndsWith") {
+  StringSlice s("hello there");
+  CHECK(s.EndsWith("ere"));
+  CHECK(s.EndsWith("o there"));
+  CHECK_FALSE(s.EndsWith("rere"));
+
+  StringSlice empty("");
+  CHECK_FALSE(empty.EndsWith("there"));
+}
+
 TEST_CASE("Empty / Size / Length") {
   StringSlice s("abc");
   CHECK_FALSE(s.Empty());

@@ -2,6 +2,7 @@
 
 #include "core/internals.h"
 #include "data/allocator.h"
+#include "data/non_copyable.h"
 #include "string_slice.h"
 
 #include <cstdint>
@@ -174,36 +175,47 @@ enum PackedValueType {
 };
 
 template <typename T>
-constexpr uint64_t PackOneType() {
-  if constexpr (std::is_same_v<T, bool>) {
-    return kBool;
-  } else if constexpr (std::is_same_v<T, char>) {
-    return kChar;
-  } else if constexpr (std::is_same_v<T, int32_t>) {
-    return kInt32;
-  } else if constexpr (std::is_same_v<T, uint32_t>) {
-    return kUint32;
-  } else if constexpr (std::is_same_v<T, int64_t>) {
-    return kInt64;
-  } else if constexpr (std::is_same_v<T, uint64_t>) {
-    return kUint64;
-  } else if constexpr (std::is_same_v<T, StringSlice>) {
-    return kStr;
-  } else if constexpr (std::is_pointer_v<T>) {
-    return kPtr;
-  } else if constexpr (std::is_same_v<T, Hex64>) {
-    return kPtr;
-  } else {
-    static_assert(false, "Unsupported type!");
-  }
-}
+struct PackOneType;
+
+template <>
+struct PackOneType<bool> : std::integral_constant<uint64_t, kBool> {};
+
+template <>
+struct PackOneType<char> : std::integral_constant<uint64_t, kChar> {};
+
+template <>
+struct PackOneType<int32_t> : std::integral_constant<uint64_t, kInt32> {};
+
+template <>
+struct PackOneType<uint32_t> : std::integral_constant<uint64_t, kUint32> {};
+
+template <>
+struct PackOneType<int64_t> : std::integral_constant<uint64_t, kInt64> {};
+
+template <>
+struct PackOneType<uint64_t> : std::integral_constant<uint64_t, kUint64> {};
+
+template <>
+struct PackOneType<StringSlice> : std::integral_constant<uint64_t, kStr> {};
+
+template <>
+struct PackOneType<Hex64> : std::integral_constant<uint64_t, kPtr> {};
+
+template <typename T>
+struct PackOneType<T *> : std::integral_constant<uint64_t, kPtr> {};
+
+template <typename T, typename = void>
+struct IsPackable : std::false_type {};
+
+template <typename T>
+struct IsPackable<T, std::void_t<decltype(PackOneType<T>::value)>> : std::true_type {};
 
 template <typename... Args>
 constexpr uint64_t PackTypeBits() {
   uint64_t bits = 0;
   uint64_t shift = 0;
 
-  ((bits |= (PackOneType<Args>() << shift), shift += 4), ...);
+  ((bits |= (PackOneType<Args>::value << shift), shift += 4), ...);
   return bits;
 }
 
@@ -233,10 +245,10 @@ struct PackedArgs {
     ((i += ConstructLoop(i, args)), ...);
   }
 
-  static constexpr size_t Slots = PackSlots<Args...>();
+  static constexpr size_t kNumSlots = PackSlots<Args...>();
 
   uint64_t type_bits;
-  PackedValue slots[Slots];
+  PackedValue slots[kNumSlots];
 
  private:
   template <typename T>
@@ -262,6 +274,26 @@ template <typename... Args>
 constexpr auto MakePackedArgs(Args &&...args) {
   using ResultType = PackedArgs<std::decay_t<Args>...>;
   return ResultType(std::forward<Args>(args)...);
+}
+
+template <typename T>
+using PackableOrChar = std::conditional_t<IsPackable<T>::value, T, char>;
+
+template <typename T>
+constexpr auto PackUnknownArg(T &&a) {
+  if constexpr (IsCStringV<T>) {
+    return StringSlice(std::forward<T>(a));
+  } else if constexpr (IsPackable<std::decay_t<T>>::value) {
+    return std::forward<T>(a);
+  } else {
+    return '?';
+  }
+}
+
+template <typename... Args>
+constexpr auto MakePackedUnknownArgs(Args &&...args) {
+  using ResultType = PackedArgs<decltype(PackUnknownArg(std::declval<Args>()))...>;
+  return ResultType(PackUnknownArg(args)...);
 }
 
 inline size_t RunEstimator(PackedValue *args, uint64_t type_bits) {
@@ -375,15 +407,10 @@ struct SmallBufferStorage {
   Alloc allocator;
 };
 
-template <typename Alloc = DefaultAllocator>
-struct StringBuilder : public SmallBufferStorage<char, Alloc> {
-  using SmallBufferStorage<char, Alloc>::begin;
-  using SmallBufferStorage<char, Alloc>::end;
-  using SmallBufferStorage<char, Alloc>::limit;
+struct Formatter : public NonCopyableNonMovable {
+  Formatter(char *write_ptr, const char *limit_ptr) : end(write_ptr), limit(limit_ptr) {}
 
-  StringSlice GetSlice() const { return StringSlice(begin, end); }
-
-  // Unsafe Append methods.
+  char *End() { return end; }
 
   void AppendUnchecked(bool b) {
     if (b) {
@@ -424,8 +451,7 @@ struct StringBuilder : public SmallBufferStorage<char, Alloc> {
     end += digits;
   }
 
-  template <typename T>
-  void AppendUnchecked(const T *ptr) {
+  void AppendUnchecked(const void *ptr) {
     size_t unsigned_value = reinterpret_cast<uint64_t>(ptr);
     const uint64_t digits = CountDigits16(unsigned_value);
     pdp_assert(limit - end >= (int64_t)digits + 2);
@@ -464,60 +490,6 @@ struct StringBuilder : public SmallBufferStorage<char, Alloc> {
 
   void AppendUnchecked(Hex64 hex) { AppendUnchecked(BitCast<void *>(hex.value)); }
 
-  // Super-super unsafe Append methods.
-
-  char *AppendUninitialized(size_t n) {
-    this->ReserveFor(n);
-    auto result = this->end;
-    this->end += n;
-    return result;
-  }
-
-  // Safe Append version.
-  void Append(bool b) {
-    this->ReserveFor(EstimateSize<bool>::value);
-    AppendUnchecked(b);
-  }
-
-  void Append(char c) {
-    this->ReserveFor(1);
-    AppendUnchecked(c);
-  }
-
-  template <typename T, std::enable_if_t<std::is_integral_v<T>, int> = 0>
-  void Append(T integral) {
-    this->ReserveFor(EstimateSize<T>::value);
-    AppendUnchecked(integral);
-  }
-
-  template <typename T>
-  void Append(const T *ptr) {
-    this->ReserveFor(EstimateSize<T *>::value);
-    AppendUnchecked((const void *)ptr);
-  }
-
-  void Append(const char *str) { Append(StringSlice(str)); }
-
-  void Append(const StringSlice &str) {
-    this->ReserveFor(str.Size());
-    AppendUnchecked(str);
-  }
-
-  void Append(Hex64 hex) { Append(BitCast<void *>(hex.value)); }
-
-  // Append variadic arguments.
-
-  template <typename... Args>
-  void AppendFormat(const StringSlice &fmt, Args &&...args) {
-    auto packed_args = MakePackedArgs(std::forward<Args>(args)...);
-    AppendPack(fmt, packed_args.slots, packed_args.type_bits);
-  }
-
-  void AppendPack(const StringSlice &fmt, PackedValue *slots, uint64_t type_bits) {
-    this->ReserveFor(fmt.Size() + RunEstimator(slots, type_bits));
-    AppendPackUnchecked(fmt, slots, type_bits);
-  }
-
   void AppendPackUnchecked(StringSlice fmt, PackedValue *args, uint64_t type_bits) {
 #ifdef PDP_ENABLE_ASSERT
     StringSlice original_fmt = fmt;
@@ -551,7 +523,6 @@ struct StringBuilder : public SmallBufferStorage<char, Alloc> {
     AppendUnchecked(fmt);
   }
 
- private:
   size_t AppendPackedValueUnchecked(PackedValue *arg, uint64_t type_bits) {
     switch (type_bits & 0xF) {
       case kChar:
@@ -582,6 +553,75 @@ struct StringBuilder : public SmallBufferStorage<char, Alloc> {
         pdp_assert(false);
         return 0;
     }
+  }
+
+ private:
+  char *__restrict__ end;
+  [[maybe_unused]] const char *__restrict__ limit;
+};
+
+template <typename Alloc = DefaultAllocator>
+struct StringBuilder : public SmallBufferStorage<char, Alloc> {
+  using SmallBufferStorage<char, Alloc>::begin;
+  using SmallBufferStorage<char, Alloc>::end;
+  using SmallBufferStorage<char, Alloc>::limit;
+
+  StringSlice GetSlice() const { return StringSlice(begin, end); }
+
+  // Unsafe Append methods.
+
+  template <typename T>
+  void AppendUnchecked(T &&value) {
+    Formatter fmt(end, limit);
+    fmt.AppendUnchecked(std::forward<T>(value));
+    end = fmt.End();
+  }
+
+  // Super-super unsafe Append methods.
+
+  char *AppendUninitialized(size_t n) {
+    this->ReserveFor(n);
+    auto result = this->end;
+    this->end += n;
+    return result;
+  }
+
+  // Safe Append version.
+  template <typename T, size_t U = EstimateSize<std::decay_t<T>>::value>
+  void Append(T &&value) {
+    this->ReserveFor(U);
+    AppendUnchecked(std::forward<T>(value));
+  }
+
+  void Append(const char *str) { Append(StringSlice(str)); }
+
+  void Append(const StringSlice &str) {
+    this->ReserveFor(str.Size());
+    AppendUnchecked(str);
+  }
+
+  void Append(Hex64 hex) {
+    this->ReserveFor(EstimateSize<void *>::value);
+    AppendUnchecked(BitCast<void *>(hex.value));
+  }
+
+  // Append variadic arguments.
+
+  template <typename... Args>
+  void AppendFormat(const StringSlice &fmt, Args &&...args) {
+    auto packed_args = MakePackedArgs(std::forward<Args>(args)...);
+    AppendPack(fmt, packed_args.slots, packed_args.type_bits);
+  }
+
+  void AppendPack(const StringSlice &fmt, PackedValue *slots, uint64_t type_bits) {
+    this->ReserveFor(fmt.Size() + RunEstimator(slots, type_bits));
+    AppendPackUnchecked(fmt, slots, type_bits);
+  }
+
+  void AppendPackUnchecked(const StringSlice &fmt, PackedValue *slots, uint64_t type_bits) {
+    Formatter formatter(end, limit);
+    formatter.AppendPackUnchecked(fmt, slots, type_bits);
+    end = formatter.End();
   }
 };
 

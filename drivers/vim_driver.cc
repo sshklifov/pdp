@@ -4,6 +4,25 @@
 
 namespace pdp {
 
+DynamicString Join(pdp::PackedValue *args, uint64_t num_slots, uint64_t type_bits) {
+  StringSlice sep = ", ";
+  const size_t bytes = RunEstimator(args, type_bits) + num_slots * sep.Size();
+  DynamicString res;
+  impl::_InPlaceStringInit string_init(res);
+  char *s = string_init(bytes);
+
+  Formatter fmt(s, s + bytes);
+  while (type_bits) {
+    size_t num_slots_used = fmt.AppendPackedValueUnchecked(args, type_bits);
+    args += num_slots_used;
+    type_bits >>= 4;
+    if (PDP_LIKELY(type_bits)) {
+      fmt.AppendUnchecked(sep);
+    }
+  }
+  return res;
+}
+
 VimDriver::VimDriver(int input_fd, int output_fd)
     : vim_input(input_fd), vim_output(output_fd), token(1) {}
 

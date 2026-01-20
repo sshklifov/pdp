@@ -107,6 +107,11 @@ struct StringSlice {
 
   constexpr bool StartsWith(char c) const { return !Empty() && *ptr == c; }
 
+  constexpr bool EndsWith(const StringSlice &suffix) {
+    pdp_assert(!suffix.Empty());
+    return Size() >= suffix.Size() && Substr(End() - suffix.Size()) == suffix;
+  }
+
   constexpr bool Empty() const { return size == 0; }
   constexpr size_t Size() const { return size; }
   constexpr size_t Length() const { return size; }

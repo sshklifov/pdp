@@ -250,6 +250,7 @@ bool GdbDriver::Send(uint32_t token, const StringSlice &fmt, PackedValue *args,
 
   StringBuilder<OneShotAllocator> builder;
 
+  // TODO ugly
   size_t capacity = EstimateSize<decltype(token)>::value + RunEstimator(args, type_bits) + 1;
   builder.ReserveFor(capacity);
 

@@ -52,7 +52,7 @@ HandlerCoroutine DebugCoordinator::InitializeBuffers() {
   session_data.buffers[kPromptBuf] = -1;
   session_data.buffers[kIoBuf] = -1;
 
-  const char *names[kTotalBufs];
+  StringSlice names[kTotalBufs];
   names[kCaptureBuf] = "Gdb capture";
   names[kAsmBuf] = "Gdb disas";
   names[kPromptBuf] = "Gdb prompt";
@@ -61,27 +61,25 @@ HandlerCoroutine DebugCoordinator::InitializeBuffers() {
   for (size_t i = 0; i < buffers.Size(); ++i) {
     auto str = co_await StringRpcAwaiter(this, token + i);
     StringSlice name = str.GetSlice();
-    StringSlice prefix("Gdb ");
-    if (name.Size() >= prefix.Size() + 1 && name.MemCmp(prefix) == 0) {
-      name.DropLeft(prefix.Size());
-      switch (name[0]) {
-        case 'c':
-          if (PDP_LIKELY(name == "capture")) {
+    if (name.Size() >= 1) {
+      switch (name[name.Size() - 1]) {
+        case 'e':
+          if (PDP_LIKELY(name.EndsWith(names[kCaptureBuf]))) {
             session_data.buffers[kCaptureBuf] = buffers[i];
           }
           break;
-        case 'd':
-          if (PDP_LIKELY(name == "disas")) {
+        case 's':
+          if (PDP_LIKELY(name.EndsWith(names[kAsmBuf]))) {
             session_data.buffers[kAsmBuf] = buffers[i];
           }
           break;
-        case 'p':
-          if (PDP_LIKELY(name == "prompt")) {
+        case 't':
+          if (PDP_LIKELY(name.EndsWith(names[kPromptBuf]))) {
             session_data.buffers[kPromptBuf] = buffers[i];
           }
           break;
-        case 'i':
-          if (PDP_LIKELY(name == "i/o")) {
+        case 'o':
+          if (PDP_LIKELY(name.EndsWith(names[kIoBuf]))) {
             session_data.buffers[kIoBuf] = buffers[i];
           }
           break;
