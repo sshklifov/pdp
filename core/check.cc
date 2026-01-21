@@ -6,6 +6,7 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include <cerrno>
+#include <exception>
 
 namespace pdp {
 

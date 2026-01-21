@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <cstring>
 #include <ctime>
+#include <exception>
 
 /// @brief Holds the active log level for console messages
 /// @note Each process will get a different copy of this variable.

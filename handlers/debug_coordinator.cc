@@ -42,7 +42,7 @@ HandlerCoroutine DebugCoordinator::InitializeNs() {
 }
 
 HandlerCoroutine DebugCoordinator::InitializeBuffers() {
-  Vector<int64_t> buffers = co_await ListBuffers();
+  Vector<int64_t> buffers = co_await RpcListBuffers();
   uint32_t token = vim_controller.NextToken();
   for (size_t i = 0; i < buffers.Size(); ++i) {
     vim_controller.Bufname(buffers[i]);
@@ -105,6 +105,8 @@ HandlerCoroutine DebugCoordinator::InitializeBuffers() {
 
   vim_controller.SendRpcRequest("nvim_buf_set_lines", session_data.buffers[kPromptBuf], 0, -1,
                                 false, std::initializer_list<StringSlice>{});
+  vim_controller.SendRpcRequest("nvim_buf_set_option", session_data.buffers[kPromptBuf], "modified",
+                                false);
   session_data.num_lines_written = 0;
 }
 
@@ -137,12 +139,16 @@ void DebugCoordinator::PollGdb(Milliseconds timeout) {
   }
 }
 
-IntegerArrayRpcAwaiter DebugCoordinator::ListBuffers() {
+IntegerArrayRpcAwaiter DebugCoordinator::RpcListBuffers() {
   uint32_t list_token = vim_controller.SendRpcRequest("nvim_list_bufs");
   return IntegerArrayRpcAwaiter(this, list_token);
 }
 
-void DebugCoordinator::ShowNormal(const StringSlice &msg) {
+void DebugCoordinator::RpcClearNamespace(int bufnr, int ns) {
+  vim_controller.SendRpcRequest("nvim_buf_clear_namespace", bufnr, ns, 0, -1);
+}
+
+void DebugCoordinator::RpcShowNormal(const StringSlice &msg) {
   pdp_assert(!msg.Empty());
 
   auto old_line_count = session_data.num_lines_written;
@@ -152,15 +158,22 @@ void DebugCoordinator::ShowNormal(const StringSlice &msg) {
   session_data.num_lines_written++;
 }
 
-void DebugCoordinator::ShowWarning(const StringSlice &msg) { ShowMessage(msg, "WarningMsg"); }
-
-void DebugCoordinator::ShowError(const StringSlice &msg) { ShowMessage(msg, "ErrorMsg"); }
-
-void DebugCoordinator::ShowMessage(const StringSlice &msg, const StringSlice &hl) {
-  ShowMessage(std::initializer_list<StringSlice>{msg}, std::initializer_list<StringSlice>{hl});
+void DebugCoordinator::RpcShowPacked(const StringSlice &fmt, PackedValue *args,
+                                     uint64_t type_bits) {
+  StringBuilder builder;
+  builder.AppendPack(fmt, args, type_bits);
+  RpcShowNormal(builder.GetSlice());
 }
 
-void DebugCoordinator::ShowMessage(std::initializer_list<StringSlice> ilist_msg,
+void DebugCoordinator::RpcShowWarning(const StringSlice &msg) { RpcShowMessage(msg, "WarningMsg"); }
+
+void DebugCoordinator::RpcShowError(const StringSlice &msg) { RpcShowMessage(msg, "ErrorMsg"); }
+
+void DebugCoordinator::RpcShowMessage(const StringSlice &msg, const StringSlice &hl) {
+  RpcShowMessage(std::initializer_list<StringSlice>{msg}, std::initializer_list<StringSlice>{hl});
+}
+
+void DebugCoordinator::RpcShowMessage(std::initializer_list<StringSlice> ilist_msg,
                                    std::initializer_list<StringSlice> ilist_hl) {
   pdp_assert(ilist_msg.size() == ilist_hl.size());
 
@@ -199,6 +212,13 @@ void DebugCoordinator::ShowMessage(std::initializer_list<StringSlice> ilist_msg,
   }
 
   vim_controller.SendRpcRequest("nvim_buf_set_option", bufnr, "modified", false);
+}
+
+int DebugCoordinator::GetExeTimetamp() {
+  if (!PDP_UNLIKELY(session_data.HasExeTimestamp())) {
+    // TODO
+  }
+  return session_data.GetExeTimestamp();
 }
 
 void DebugCoordinator::HandleResult(GdbResultKind kind, ScopedPtr<ExprBase> &&expr) {
@@ -247,7 +267,7 @@ void DebugCoordinator::ReachIdle(Milliseconds timeout) {
   }
 }
 
-BooleanRpcAwaiter DebugCoordinator::BufExists(int64_t bufnr) {
+BooleanRpcAwaiter DebugCoordinator::RpcBufExists(int bufnr) {
   uint32_t token = vim_controller.SendRpcRequest("nvim_buf_is_valid", bufnr);
   return BooleanRpcAwaiter(this, token);
 }

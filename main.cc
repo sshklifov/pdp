@@ -14,12 +14,21 @@ int main() {
   pdp::DebugCoordinator coordinator(pdp::DuplicateForThisProcess(STDOUT_FILENO),
                                     pdp::DuplicateForThisProcess(STDIN_FILENO));
   coordinator.ReachIdle(pdp::Milliseconds(5000));
-  coordinator.ShowMessage({"Hello ", "there", "?"}, {"WarningMsg", "Normal", "Cursor"});
+
+  // TODO IDEA: create a super class with all polled descriptors. poll them. then handle to
+  // -> gdb
+  // -> vim
+  // -> ssh
+  // any other class
+  // BIG BRAIN. single threaded. responsive af.
 
   while (true) {
     coordinator.PollGdb(pdp::Milliseconds(100));
     coordinator.PollVim(pdp::Milliseconds(100));
   }
+
+  // gdb:
+  // vim:
 
   return 0;
 }

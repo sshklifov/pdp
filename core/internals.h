@@ -8,8 +8,6 @@
 #define PDP_CLZ(x) __builtin_clz(x)
 #define PDP_CLZLL(x) __builtin_clzll(x)
 
-#define PDP_UNREACHABLE(msg) ::pdp::OnFatalError(__FILE__, __LINE__, msg)
-
 #define PDP_ASSUME_ALIGNED(x, a) __builtin_assume_aligned(x, a)
 
 #define PDP_FRAME_ADDRESS(x) __builtin_frame_address(x)

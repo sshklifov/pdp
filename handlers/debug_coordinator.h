@@ -7,7 +7,7 @@
 #include "parser/expr.h"
 #include "strings/dynamic_string.h"
 
-#include "coroutine_table.h"
+#include "handler_coroutine.h"
 #include "debug_session.h"
 
 namespace pdp {
@@ -29,19 +29,38 @@ struct DebugCoordinator {
   void PollVim(Milliseconds timeout);
   void ReachIdle(Milliseconds timeout);
 
-  DebugSession &GetSessionData() { return session_data; }
-  const DebugSession &GetSessionData() const { return session_data; }
+  // awaitable = SshCommand()
+  // awaitable = <this, fd>
+  // await_resume -> return DynamicString
+  // TODO
 
-  BooleanRpcAwaiter BufExists(int64_t bufnr);
-  IntegerArrayRpcAwaiter ListBuffers();
+  // TODO
+  bool IsRemoteDebugging() const { return false; }
+  StringSlice GetHost() const { return ""; }
 
-  void ShowNormal(const StringSlice &msg);
-  void ShowWarning(const StringSlice &msg);
-  void ShowError(const StringSlice &msg);
-  void ShowMessage(const StringSlice &msg, const StringSlice &hl);
-  void ShowMessage(std::initializer_list<StringSlice> msg, std::initializer_list<StringSlice> hl);
+  DebugSession &Session() { return session_data; }
+  int Namespace(VimNamespaces ns) const { return session_data.namespaces[ns]; }
+  int Buffer(VimBuffers buf) const { return session_data.buffers[buf]; }
+  int GetExeTimetamp();
+
+  BooleanRpcAwaiter RpcBufExists(int bufnr);
+  IntegerArrayRpcAwaiter RpcListBuffers();
+  void RpcClearNamespace(int bufnr, int ns);
+
+  void RpcShowNormal(const StringSlice &msg);
+  template <typename... Args>
+  void RpcShowNormal(const StringSlice &fmt, Args &&...args) {
+    auto packed_args = MakePackedArgs(std::forward<Args>(args)...);
+    RpcShowPacked(fmt, packed_args.slots, packed_args.type_bits);
+  }
+
+  void RpcShowWarning(const StringSlice &msg);
+  void RpcShowError(const StringSlice &msg);
+  void RpcShowMessage(const StringSlice &msg, const StringSlice &hl);
+  void RpcShowMessage(std::initializer_list<StringSlice> m, std::initializer_list<StringSlice> h);
 
  private:
+  void RpcShowPacked(const StringSlice &fmt, PackedValue *args, uint64_t type_bits);
   void HandleAsync(GdbAsyncKind kind, ScopedPtr<ExprBase> &&expr);
   void HandleResult(GdbResultKind kind, ScopedPtr<ExprBase> &&expr);
 
@@ -52,7 +71,7 @@ struct DebugCoordinator {
   VimDriver vim_controller;
   DebugSession session_data;
 
-  CoroutineTable suspended_handlers;
+  HandlerTable suspended_handlers;
 };
 
 // TODO check token valid?! idk

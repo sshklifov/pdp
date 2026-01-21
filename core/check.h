@@ -2,7 +2,7 @@
 
 #include "internals.h"
 
-#include <exception>
+#include <cstddef>
 
 #ifdef PDP_ENABLE_ASSERT
 #define pdp_assert(x)                                                   \
@@ -21,6 +21,8 @@
 #define pdp_assert(x) (void)0
 #define pdp_assert_non_constexpr(x) (void)0
 #endif
+
+#define PDP_UNREACHABLE(msg) ::pdp::OnFatalError(__FILE__, __LINE__, msg)
 
 namespace pdp {
 /// @brief Handles assertion failures without using the logging system.

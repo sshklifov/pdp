@@ -120,6 +120,8 @@ void ExprBaseView::ToJson(StringBuilder<> &out) const { RecursiveToJson(expr, ou
 
 LooseTypedView::LooseTypedView(const ExprBase *expr) : ExprBaseView(expr) {}
 
+LooseTypedView::LooseTypedView(const ScopedPtr<ExprBase> &expr) : ExprBaseView(expr.Get()) {}
+
 LooseTypedView LooseTypedView::operator[](const StringSlice &key) const {
   if (PDP_LIKELY(expr->kind == ExprBase::kTuple)) {
     const ExprTuple *tuple = AsTupleUnchecked();

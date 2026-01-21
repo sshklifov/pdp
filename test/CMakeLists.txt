@@ -60,3 +60,6 @@ target_link_libraries(test_dynamyc_string PRIVATE pdp_strings)
 
 add_executable(test_gdb_driver test_gdb_driver.cc)
 target_link_libraries(test_gdb_driver PRIVATE pdp_drivers)
+
+add_executable(test_loop_queue test_loop_queue.cc)
+target_link_libraries(test_loop_queue PRIVATE pdp_data)

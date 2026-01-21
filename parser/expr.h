@@ -1,5 +1,6 @@
 #pragma once
 
+#include "data/scoped_ptr.h"
 #include "strings/string_builder.h"
 #include "strings/string_slice.h"
 
@@ -103,6 +104,7 @@ struct ExprBaseView {
 
 struct LooseTypedView : public ExprBaseView {
   LooseTypedView(const ExprBase *expr);
+  LooseTypedView(const ScopedPtr<ExprBase> &expr);
 
   LooseTypedView operator[](const StringSlice &key) const;
   LooseTypedView operator[](const char *key) const;
