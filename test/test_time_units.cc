@@ -21,19 +21,19 @@ TEST_CASE("Milliseconds: arithmetic") {
   Milliseconds a(50);
   Milliseconds b(20);
 
-  CHECK((a - b).GetMilli() == 30);
-  CHECK((a + b).GetMilli() == 70);
+  CHECK((a - b).Get() == 30);
+  CHECK((a + b).Get() == 70);
 
   a -= b;
-  CHECK(a.GetMilli() == 30);
+  CHECK(a.Get() == 30);
 
   a += b;
-  CHECK(a.GetMilli() == 50);
+  CHECK(a.Get() == 50);
 }
 
 TEST_CASE("Milliseconds: user-defined literal") {
   auto t = 150_ms;
-  CHECK(t.GetMilli() == 150);
+  CHECK(t.Get() == 150);
 }
 
 TEST_CASE("Stopwatch: elapsed time increases") {
@@ -61,5 +61,5 @@ TEST_CASE("Stopwatch: elapsed is non-negative") {
   Stopwatch sw;
   Milliseconds t = sw.Elapsed();
 
-  CHECK(t.GetMilli() >= 0);
+  CHECK(t.Get() >= 0);
 }

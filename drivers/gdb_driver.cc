@@ -1,6 +1,7 @@
 #include "gdb_driver.h"
 
 #include "core/check.h"
+#include "core/log.h"
 #include "parser/mi_parser.h"
 
 #include <unistd.h>
@@ -166,35 +167,9 @@ GdbRecordKind GdbRecord::SetResult(uint32_t token, GdbResultKind kind, const Str
   return GdbRecordKind::kResult;
 }
 
-GdbDriver::GdbDriver()
-    :
-#ifdef PDP_ENABLE_ASSERT
-      last_token(0)
-#endif
-{
-}
+GdbDriver::GdbDriver() : error_buffer(max_error_length) {}
 
-GdbDriver::~GdbDriver() { monitor_thread.Stop(); }
-
-void GdbDriver::MonitorGdbStderr(std::atomic_bool *is_running, int fd) {
-  InputDescriptor gdb_stderr(fd);
-  DefaultAllocator allocator;
-
-  while (*is_running) {
-    bool has_data = gdb_stderr.WaitForInput(Milliseconds(1000));
-    while (has_data) {
-      const size_t max_print = 1024;
-      char *buf = Allocate<char>(allocator, max_print);
-      size_t n = gdb_stderr.ReadAvailable(buf, max_print);
-      if (PDP_LIKELY(n > 0)) {
-        pdp_error("GDB error: {}", StringSlice(buf, n));
-      }
-      Deallocate<char>(allocator, buf);
-    }
-  }
-}
-
-GdbRecordKind GdbDriver::Poll(GdbRecord *res) {
+GdbRecordKind GdbDriver::PollForRecords(GdbRecord *res) {
   MutableLine line = gdb_stdout.ReadLine();
   size_t length = line.end - line.begin;
   if (PDP_LIKELY(length <= 1)) {
@@ -240,24 +215,30 @@ GdbRecordKind GdbDriver::Poll(GdbRecord *res) {
   return GdbRecordKind::kNone;
 }
 
+void GdbDriver::PollForErrors() {
+  for (;;) {
+    size_t n = gdb_stderr.ReadAvailable(error_buffer.Get(), max_error_length);
+    if (PDP_LIKELY(n > 0)) {
+      pdp_error("Gdb error");
+      pdp_error_multiline(StringSlice(error_buffer.Get(), n));
+    } else {
+      return;
+    }
+  }
+}
+
 int GdbDriver::GetDescriptor() const { return gdb_stdout.GetDescriptor(); }
+
+int GdbDriver::GetErrorDescriptor() const { return gdb_stderr.GetDescriptor(); }
 
 void GdbDriver::Send(uint32_t token, const StringSlice &fmt, PackedValue *args,
                      uint64_t type_bits) {
-#ifdef PDP_ENABLE_ASSERT
-  pdp_assert(token > last_token);
-  last_token = token;
-#endif
+  token_checker.Set(token);
 
-  StringBuilder<OneShotAllocator> builder;
-
-  // TODO ugly
-  size_t capacity = EstimateSize<decltype(token)>::value + RunEstimator(args, type_bits) + 1;
-  builder.ReserveFor(capacity);
-
-  builder.AppendUnchecked(token);
-  builder.AppendPackUnchecked(fmt, args, type_bits);
-  builder.AppendUnchecked('\n');
+  StringBuilder builder;
+  builder.Append(token);
+  builder.AppendPack(fmt, args, type_bits);
+  builder.Append('\n');
 
   bool success = gdb_stdin.WriteExactly(builder.Data(), builder.Size(), Milliseconds(1000));
   if (PDP_UNLIKELY(!success)) {

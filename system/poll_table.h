@@ -30,7 +30,7 @@ struct PollTable {
     InsertionSort();
 
     pdp_assert(size > 0);
-    int ret = poll(table, size, timeout.GetMilli());
+    int ret = poll(table, size, timeout.Get());
     if (ret <= 0) {
       Check(ret, "poll");
       return false;

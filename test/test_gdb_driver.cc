@@ -16,8 +16,8 @@ pdp::GdbRecordKind ReadWithTimeout(GdbDriver &gdb, GdbRecord *res, Milliseconds 
   poll_args.events = POLLIN;
   poll_args.revents = 0;
 
-  poll(&poll_args, 1, timeout.GetMilli());
-  return gdb.Poll(res);
+  poll(&poll_args, 1, timeout.Get());
+  return gdb.PollForRecords(res);
 }
 
 struct FakeGdb {

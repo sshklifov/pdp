@@ -1,10 +1,11 @@
 #pragma once
 
+#include "core/monotonic_check.h"
 #include "core/once_guard.h"
+#include "data/scoped_ptr.h"
 #include "strings/rolling_buffer.h"
 #include "system/child_reaper.h"
 #include "system/file_descriptor.h"
-#include "system/thread.h"
 
 #include <fcntl.h>
 #include <sys/prctl.h>
@@ -60,8 +61,6 @@ GdbResultKind ClassifyResult(StringSlice name);
 struct GdbDriver {
   GdbDriver();
 
-  ~GdbDriver();
-
   template <typename... Args>
   void Start(ChildReaper &reaper, const char *path, Args... argv) {
     static_assert((std::is_same_v<Args, const char *> && ...),
@@ -107,7 +106,7 @@ struct GdbDriver {
     started_once.Set();
     gdb_stdin.SetDescriptor(input_fd);
     gdb_stdout.SetDescriptor(output_fd);
-    monitor_thread.Start(MonitorGdbStderr, error_fd);
+    gdb_stderr.SetDescriptor(error_fd);
   }
 
   template <typename... Args>
@@ -118,9 +117,11 @@ struct GdbDriver {
 
   void Send(uint32_t token, const StringSlice &fmt, PackedValue *args, uint64_t type_bits);
 
-  GdbRecordKind Poll(GdbRecord *res);
-
   int GetDescriptor() const;
+  int GetErrorDescriptor() const;
+
+  GdbRecordKind PollForRecords(GdbRecord *res);
+  void PollForErrors();
 
  private:
   static void MonitorGdbStderr(std::atomic_bool *is_running, int fd);
@@ -132,13 +133,14 @@ struct GdbDriver {
   void OnGdbExited(int status);
 
   OnceGuard started_once;
+  MonotonicCheck token_checker;
 
   OutputDescriptor gdb_stdin;
   RollingBuffer gdb_stdout;
-  StoppableThread monitor_thread;
-#ifdef PDP_ENABLE_ASSERT
-  uint32_t last_token;
-#endif
+  InputDescriptor gdb_stderr;
+
+  pdp::ScopedPtr<char> error_buffer;
+  static constexpr size_t max_error_length = 256;
 };
 
 };  // namespace pdp

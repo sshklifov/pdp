@@ -42,13 +42,13 @@ void FileDescriptor::SetDescriptor(int init_fd) {
 }
 
 bool FileDescriptor::WaitForEvents(int events, Milliseconds timeout) {
-  pdp_assert(timeout.GetMilli() > 0);
+  pdp_assert(timeout.Get() > 0);
   struct pollfd poll_args;
   poll_args.fd = fd;
   poll_args.events = events;
   poll_args.revents = 0;
 
-  int ret = poll(&poll_args, 1, timeout.GetMilli());
+  int ret = poll(&poll_args, 1, timeout.Get());
   if (ret <= 0) {
     Check(ret, "poll");
     return false;

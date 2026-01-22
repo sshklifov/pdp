@@ -90,7 +90,7 @@ void ByteStream::Memcpy(void *dst, size_t n) {
   if (PDP_LIKELY(n < in_place_threshold)) {
     size_t num_read = stream.ReadAtLeast(ptr, n, buffer_size, max_wait);
     if (PDP_UNLIKELY(num_read < n)) {
-      pdp_critical("Failed to read {} bytes within {}ms", n, max_wait.GetMilli());
+      pdp_critical("Failed to read {} bytes within {}ms", n, max_wait.Get());
       PDP_UNREACHABLE("RPC stream timeout");
     }
 
@@ -104,7 +104,7 @@ void ByteStream::Memcpy(void *dst, size_t n) {
   } else {
     bool success = stream.ReadExactly(dst, n, max_wait);
     if (PDP_UNLIKELY(!success)) {
-      pdp_critical("Failed to read {} bytes within {}ms", n, max_wait.GetMilli());
+      pdp_critical("Failed to read {} bytes within {}ms", n, max_wait.Get());
       PDP_UNREACHABLE("RPC stream timeout");
     }
 
@@ -157,7 +157,7 @@ void ByteStream::RequireAtLeast(size_t n) {
     end = ptr + size;
     size_t num_read = stream.ReadAtLeast(end, n, buffer_size - n, max_wait);
     if (PDP_UNLIKELY(num_read < n)) {
-      pdp_critical("Failed to read {} bytes within {}ms", n, max_wait.GetMilli());
+      pdp_critical("Failed to read {} bytes within {}ms", n, max_wait.Get());
       PDP_UNREACHABLE("RPC stream timeout");
     }
 

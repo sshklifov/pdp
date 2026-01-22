@@ -1,5 +1,5 @@
 #include "core/log.h"
-#include "handlers/debug_coordinator.h"
+#include "coroutines/debug_coordinator.h"
 #include "system/poll_table.h"
 
 #include <sys/prctl.h>

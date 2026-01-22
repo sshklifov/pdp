@@ -1,9 +1,5 @@
 #include "debug_coordinator.h"
 
-#include "handlers/handle_stream.h"
-
-#include "parser/mi_parser.h"
-
 namespace pdp {
 
 static size_t TotalStringBytes(std::initializer_list<StringSlice> ilist) {
@@ -16,8 +12,7 @@ static size_t TotalStringBytes(std::initializer_list<StringSlice> ilist) {
 
 DebugCoordinator::DebugCoordinator(const StringSlice &host, int vim_input_fd, int vim_output_fd,
                                    ChildReaper &reaper)
-    : vim_driver(vim_input_fd, vim_output_fd) {
-  gdb_driver.Start(reaper);
+    : gdb_async(reaper), vim_driver(vim_input_fd, vim_output_fd) {
   if (!host.Empty()) {
     ssh_driver = Allocate<SshDriver>(allocator, 1);
     new (ssh_driver) SshDriver(host, reaper);
@@ -114,40 +109,11 @@ HandlerCoroutine DebugCoordinator::InitializeBuffers() {
     }
   }
 
-  vim_driver.SendRpcRequest("nvim_buf_set_lines", session_data.buffers[kPromptBuf], 0, -1,
-                                false, std::initializer_list<StringSlice>{});
+  vim_driver.SendRpcRequest("nvim_buf_set_lines", session_data.buffers[kPromptBuf], 0, -1, false,
+                            std::initializer_list<StringSlice>{});
   vim_driver.SendRpcRequest("nvim_buf_set_option", session_data.buffers[kPromptBuf], "modified",
-                                false);
+                            false);
   session_data.num_lines_written = 0;
-}
-
-void DebugCoordinator::PollGdb() {
-  GdbRecord record;
-  GdbRecordKind kind = gdb_driver.Poll(&record);
-  if (PDP_UNLIKELY(kind != GdbRecordKind::kNone)) {
-    if (kind == GdbRecordKind::kStream) {
-      HandleStream(this, record.stream.message);
-    } else {
-      MiFirstPass first_pass(record.result_or_async.results);
-      if (PDP_UNLIKELY(!first_pass.Parse())) {
-        pdp_error("Pass #1 failed on: {}", record.result_or_async.results);
-        return;
-      }
-      MiSecondPass second_pass(record.result_or_async.results, first_pass);
-      ScopedPtr<ExprBase> expr(second_pass.Parse());
-      if (PDP_UNLIKELY(!expr)) {
-        pdp_error("Pass #2 failed on: {}", record.result_or_async.results);
-        return;
-      }
-      if (kind == GdbRecordKind::kAsync) {
-        HandleAsync(static_cast<GdbAsyncKind>(record.result_or_async.kind), std::move(expr));
-      } else if (kind == GdbRecordKind::kResult) {
-        HandleResult(static_cast<GdbResultKind>(record.result_or_async.kind), std::move(expr));
-      } else {
-        pdp_assert(false);
-      }
-    }
-  }
 }
 
 IntegerArrayRpcAwaiter DebugCoordinator::RpcListBuffers() {
@@ -165,7 +131,7 @@ void DebugCoordinator::RpcShowNormal(const StringSlice &msg) {
   auto old_line_count = session_data.num_lines_written;
   auto bufnr = session_data.buffers[kPromptBuf];
   vim_driver.SendRpcRequest("nvim_buf_set_lines", bufnr, old_line_count, old_line_count, true,
-                                std::initializer_list<StringSlice>{msg});
+                            std::initializer_list<StringSlice>{msg});
   session_data.num_lines_written++;
 }
 
@@ -185,15 +151,15 @@ void DebugCoordinator::RpcShowMessage(const StringSlice &msg, const StringSlice 
 }
 
 void DebugCoordinator::RpcShowMessage(std::initializer_list<StringSlice> ilist_msg,
-                                   std::initializer_list<StringSlice> ilist_hl) {
+                                      std::initializer_list<StringSlice> ilist_hl) {
   pdp_assert(ilist_msg.size() == ilist_hl.size());
 
   auto old_line_count = session_data.num_lines_written;
   auto bufnr = session_data.buffers[kPromptBuf];
 
   RpcBuilder builder;
-  vim_driver.BeginRpcRequest(builder, "nvim_buf_set_lines", bufnr, old_line_count,
-                                 old_line_count, true);
+  vim_driver.BeginRpcRequest(builder, "nvim_buf_set_lines", bufnr, old_line_count, old_line_count,
+                             true);
   builder.OpenShortArray();
   char *msg_out = builder.AddUninitializedString(TotalStringBytes(ilist_msg));
   builder.CloseShortArray();
@@ -211,8 +177,7 @@ void DebugCoordinator::RpcShowMessage(std::initializer_list<StringSlice> ilist_m
     int end_col = start_col + ilist_msg.begin()[i].Size();
 
     vim_driver.BeginRpcRequest(builder, "nvim_buf_set_extmark", bufnr,
-                                   session_data.namespaces[kHighlightNs], old_line_count,
-                                   start_col);
+                               session_data.namespaces[kHighlightNs], old_line_count, start_col);
     builder.OpenShortMap();
     builder.AddMapItem("end_col", end_col);
     builder.AddMapItem("hl_group", ilist_hl.begin()[i]);
@@ -232,25 +197,8 @@ int DebugCoordinator::GetExeTimetamp() {
   return session_data.GetExeTimestamp();
 }
 
-void DebugCoordinator::HandleResult(GdbResultKind kind, ScopedPtr<ExprBase> expr) {
-  if (PDP_LIKELY(kind == GdbResultKind::kDone)) {
-    // TODO
-  } else if (PDP_LIKELY(kind == GdbResultKind::kError)) {
-    // TODO
-  }
-}
-
-void DebugCoordinator::HandleAsync(GdbAsyncKind kind, ScopedPtr<ExprBase> expr) {
-  switch (kind) {
-    case GdbAsyncKind::kThreadSelected: {
-      // HandleThreadSelected h;
-      // return h(this, std::move(expr));
-    }
-  }
-}
-
 void DebugCoordinator::RegisterForPoll(PollTable &table) {
-  table.Register(gdb_driver.GetDescriptor());
+  gdb_async.RegisterForPoll(table);
   table.Register(vim_driver.GetDescriptor());
   if (ssh_driver) {
     ssh_driver->RegisterForPoll(table);
@@ -258,9 +206,7 @@ void DebugCoordinator::RegisterForPoll(PollTable &table) {
 }
 
 void DebugCoordinator::OnPollResults(PollTable &table) {
-  if (table.HasInputEventsUnchecked(gdb_driver.GetDescriptor())) {
-    PollGdb();
-  }
+  gdb_async.OnPollResults(table);
   if (table.HasInputEventsUnchecked(vim_driver.GetDescriptor())) {
     PollVim();
   }

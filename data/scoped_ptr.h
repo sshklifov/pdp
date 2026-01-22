@@ -11,6 +11,12 @@ template <typename T, typename Alloc = DefaultAllocator>
 struct ScopedPtr : public NonCopyable {
   ScopedPtr(T *ptr = nullptr, Alloc a = Alloc()) noexcept : ptr(ptr), allocator(a) {}
 
+  template <typename U = T, std::enable_if_t<std::is_default_constructible_v<U>, int> = 0>
+  ScopedPtr(size_t elements, Alloc a = Alloc()) noexcept : allocator(a) {
+    pdp_assert(elements > 0);
+    ptr = Allocate<T>(allocator, elements);
+  }
+
   ScopedPtr(ScopedPtr &&rhs) noexcept : ptr(rhs.ptr), allocator(rhs.allocator) {
     rhs.ptr = nullptr;
   }

@@ -1,11 +1,9 @@
 #pragma once
 
-#include "data/scoped_ptr.h"
+#include "coroutines/gdb_async_driver.h"
 #include "data/vector.h"
-#include "drivers/gdb_driver.h"
 #include "drivers/ssh_driver.h"
 #include "drivers/vim_driver.h"
-#include "parser/expr.h"
 #include "strings/dynamic_string.h"
 
 #include "debug_session.h"
@@ -62,12 +60,9 @@ struct DebugCoordinator {
   void RpcShowMessage(std::initializer_list<StringSlice> m, std::initializer_list<StringSlice> h);
 
  private:
-  void PollGdb();
   void PollVim();
 
   void RpcShowPacked(const StringSlice &fmt, PackedValue *args, uint64_t type_bits);
-  void HandleAsync(GdbAsyncKind kind, ScopedPtr<ExprBase> expr);
-  void HandleResult(GdbResultKind kind, ScopedPtr<ExprBase> expr);
 
   HandlerCoroutine InitializeNs();
   HandlerCoroutine InitializeBuffers();
@@ -75,7 +70,7 @@ struct DebugCoordinator {
   DefaultAllocator allocator;
   SshDriver *ssh_driver;
 
-  GdbDriver gdb_driver;
+  GdbAsyncDriver gdb_async;
   VimDriver vim_driver;
   DebugSession session_data;
 

@@ -8,7 +8,7 @@ namespace pdp {
 struct Milliseconds {
   explicit constexpr Milliseconds(int64_t value) : value(value) {}
 
-  constexpr int64_t GetMilli() const { return value; };
+  constexpr int64_t Get() const { return value; };
 
   bool operator<(const Milliseconds &other) const { return value < other.value; }
   bool operator>(const Milliseconds &other) const { return value > other.value; }
