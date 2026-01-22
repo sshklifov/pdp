@@ -14,12 +14,23 @@ static size_t TotalStringBytes(std::initializer_list<StringSlice> ilist) {
   return res;
 }
 
-DebugCoordinator::DebugCoordinator(int vim_input_fd, int vim_output_fd)
+DebugCoordinator::DebugCoordinator(const StringSlice &host, int vim_input_fd, int vim_output_fd,
+                                   ChildReaper &reaper)
     : vim_controller(vim_input_fd, vim_output_fd) {
-  gdb_driver.Start();
+  gdb_driver.Start(reaper);
+  if (!host.Empty()) {
+    ssh_driver = Allocate<SshDriver>(allocator, 1);
+    new (ssh_driver) SshDriver(host, reaper);
+  }
 
   InitializeNs();
   InitializeBuffers();
+}
+
+DebugCoordinator::~DebugCoordinator() {
+  if (ssh_driver) {
+    Deallocate<SshDriver>(allocator, ssh_driver);
+  }
 }
 
 HandlerCoroutine DebugCoordinator::InitializeNs() {

@@ -11,7 +11,7 @@ struct ReapRecord {
   int called = 0;
 };
 
-void OnReaped(void *ud, pid_t pid, int status) {
+void OnReaped(pid_t pid, int status, void *ud) {
   auto *rec = static_cast<ReapRecord *>(ud);
   rec->pid = pid;
   rec->status = status;
@@ -36,7 +36,7 @@ TEST_CASE("ChildReaper: reap single child") {
   ReapRecord rec;
   pid_t pid = ForkExit(42);
 
-  reaper.OnChildExited(&rec, pid, OnReaped);
+  reaper.OnChildExited(pid, OnReaped, &rec);
 
   reaper.ReapAll();
 
@@ -54,9 +54,9 @@ TEST_CASE("ChildReaper: reap multiple children") {
   pid_t p2 = ForkExit(2);
   pid_t p3 = ForkExit(3);
 
-  reaper.OnChildExited(&r1, p1, OnReaped);
-  reaper.OnChildExited(&r2, p2, OnReaped);
-  reaper.OnChildExited(&r3, p3, OnReaped);
+  reaper.OnChildExited(p1, OnReaped, &r1);
+  reaper.OnChildExited(p2, OnReaped, &r2);
+  reaper.OnChildExited(p3, OnReaped, &r3);
 
   reaper.ReapAll();
 

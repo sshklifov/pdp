@@ -12,6 +12,8 @@
 
 #define PDP_FRAME_ADDRESS(x) __builtin_frame_address(x)
 
+#define PDP_IGNORE(x) ((void)x)
+
 namespace pdp {
 
 using byte = unsigned char;

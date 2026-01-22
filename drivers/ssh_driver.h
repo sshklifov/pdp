@@ -32,7 +32,7 @@ struct SshDriver : public NonCopyableNonMovable {
 
   void OnChildExited(pid_t pid, int status);
 
-  static void OnChildExited(void *user_data, pid_t pid, int status) {
+  static void OnChildExited(pid_t pid, int status, void *user_data) {
     static_cast<SshDriver *>(user_data)->OnChildExited(pid, status);
   }
 

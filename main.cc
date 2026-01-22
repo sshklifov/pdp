@@ -10,9 +10,13 @@ int main() {
 
   pdp::RedirectLogging("/home/stef/Downloads/output.txt");
 
+  pdp_info("Setting up SIGCHLD handler");
+  pdp::ChildReaper child_reaper;
+
   pdp_info("Starting coordinator");
-  pdp::DebugCoordinator coordinator(pdp::DuplicateForThisProcess(STDOUT_FILENO),
-                                    pdp::DuplicateForThisProcess(STDIN_FILENO));
+  pdp::StringSlice host("");
+  pdp::DebugCoordinator coordinator(host, pdp::DuplicateForThisProcess(STDOUT_FILENO),
+                                    pdp::DuplicateForThisProcess(STDIN_FILENO), child_reaper);
   coordinator.ReachIdle(pdp::Milliseconds(5000));
 
   // TODO IDEA: create a super class with all polled descriptors. poll them. then handle to

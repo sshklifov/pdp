@@ -3,12 +3,13 @@
 #include "data/scoped_ptr.h"
 #include "data/vector.h"
 #include "drivers/gdb_driver.h"
+#include "drivers/ssh_driver.h"
 #include "drivers/vim_driver.h"
 #include "parser/expr.h"
 #include "strings/dynamic_string.h"
 
-#include "handler_coroutine.h"
 #include "debug_session.h"
+#include "handler_coroutine.h"
 
 namespace pdp {
 
@@ -23,7 +24,10 @@ struct DebugCoordinator {
   friend struct IntegerRpcAwaiter;
   friend struct IntegerArrayRpcAwaiter;
 
-  DebugCoordinator(int vim_input_fd, int vim_output_fd);
+  DebugCoordinator(const StringSlice &host, int vim_input_fd, int vim_output_fd,
+                   ChildReaper &reaper);
+
+  ~DebugCoordinator();
 
   void PollGdb(Milliseconds timeout);
   void PollVim(Milliseconds timeout);
@@ -66,6 +70,9 @@ struct DebugCoordinator {
 
   HandlerCoroutine InitializeNs();
   HandlerCoroutine InitializeBuffers();
+
+  DefaultAllocator allocator;
+  SshDriver *ssh_driver;
 
   GdbDriver gdb_driver;
   VimDriver vim_controller;

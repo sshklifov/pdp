@@ -1,11 +1,15 @@
 #pragma once
 
+#include "core/once_guard.h"
 #include "strings/rolling_buffer.h"
+#include "system/child_reaper.h"
 #include "system/file_descriptor.h"
 #include "system/thread.h"
 #include "system/time_units.h"
 
+#include <sys/prctl.h>
 #include <unistd.h>
+#include <csignal>
 
 namespace pdp {
 
@@ -59,7 +63,7 @@ struct GdbDriver {
   ~GdbDriver();
 
   template <typename... Args>
-  void Start(const char *path, Args... argv) {
+  void Start(ChildReaper &reaper, const char *path, Args... argv) {
     static_assert((std::is_same_v<Args, const char *> && ...),
                   "All exec arguments must be exactly const char*");
 
@@ -72,6 +76,8 @@ struct GdbDriver {
     CheckFatal(pid, "GDB fork");
     if (pid == 0) {
       // child: GDB
+      prctl(PR_SET_PDEATHSIG, SIGTERM);
+
       dup2(in[0], STDIN_FILENO);
       dup2(out[1], STDOUT_FILENO);
       dup2(err[1], STDERR_FILENO);
@@ -88,21 +94,23 @@ struct GdbDriver {
     close(in[0]);
     close(out[1]);
     close(err[1]);
+    reaper.OnChildExited(pid, GdbDriver::OnGdbExited, this);
     Start(in[1], out[0], err[0]);
   }
 
-  void Start() {
-    Start("/usr/bin/gdb", "--quiet", "-iex", "set pagination off", "-iex", "set prompt", "-iex",
-          "set startup-with-shell off", "--interpreter=mi2", "Debug/pdp");
+  void Start(ChildReaper &reaper) {
+    Start(reaper, "/usr/bin/gdb", "--quiet", "-iex", "set pagination off", "-iex", "set prompt",
+          "-iex", "set startup-with-shell off", "--interpreter=mi2", "Debug/pdp");
   }
 
   void Start(int input_fd, int output_fd, int error_fd) {
+    started_once.Set();
     gdb_stdin.SetDescriptor(input_fd);
     gdb_stdout.SetDescriptor(output_fd);
     monitor_thread.Start(MonitorGdbStderr, error_fd);
   }
 
-  template <typename T, typename... Args>
+  template <typename... Args>
   void Send(uint32_t token, const StringSlice &fmt, Args &&...args) {
     auto packed_args = MakePackedArgs(std::forward<Args>(args)...);
     return Send(token, fmt, packed_args.slots, packed_args.type_bits);
@@ -110,12 +118,18 @@ struct GdbDriver {
 
   void Send(uint32_t token, const StringSlice &fmt, PackedValue *args, uint64_t type_bits);
 
-  void Send(uint32_t token, const StringSlice &msg);
-
   RecordKind Poll(Milliseconds timeout, GdbRecord *res);
 
  private:
   static void MonitorGdbStderr(std::atomic_bool *is_running, int fd);
+  static void OnGdbExited(pid_t pid, int status, void *user_data) {
+    PDP_IGNORE(pid);
+    static_cast<GdbDriver *>(user_data)->OnGdbExited(status);
+  }
+
+  void OnGdbExited(int status);
+
+  OnceGuard started_once;
 
   OutputDescriptor gdb_stdin;
   RollingBuffer gdb_stdout;

@@ -264,25 +264,18 @@ void GdbDriver::Send(uint32_t token, const StringSlice &fmt, PackedValue *args,
   }
 }
 
-void GdbDriver::Send(uint32_t token, const StringSlice &msg) {
-#ifdef PDP_ENABLE_ASSERT
-  pdp_assert(token > last_token);
-  last_token = token;
-#endif
-
-  StringBuilder<OneShotAllocator> builder;
-
-  size_t capacity = EstimateSize<decltype(token)>::value + msg.Size() + 1;
-  builder.ReserveFor(capacity);
-
-  builder.AppendUnchecked(token);
-  builder.AppendUnchecked(msg);
-  builder.AppendUnchecked('\n');
-
-  bool success = gdb_stdin.WriteExactly(builder.Data(), builder.Size(), Milliseconds(1000));
-  if (PDP_UNLIKELY(!success)) {
-    pdp_warning("Failed to submit request {}", builder.GetSlice());
+void GdbDriver::OnGdbExited(int status) {
+  if (WIFSIGNALED(status)) {
+    int sig = WTERMSIG(status);
+    pdp_error("Gdb terminated by signal {}", GetSignalDescription(sig));
+  } else if (WIFEXITED(status)) {
+    int exit_status = WEXITSTATUS(status);
+    pdp_warning("Gdb exited normally with code {}", exit_status);
+  } else {
+    pdp_error("Gdb unknown termination state");
   }
+  // TODO: Do this gracefully?
+  PDP_UNREACHABLE("Gdb child process exited");
 }
 
 };  // namespace pdp

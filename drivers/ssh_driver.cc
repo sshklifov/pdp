@@ -2,6 +2,7 @@
 
 #include <fcntl.h>
 #include <sys/poll.h>
+#include <sys/prctl.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #include <cerrno>
@@ -144,6 +145,8 @@ void SshDriver::DispatchAt(const StringSlice &command, size_t pos) {
 
   if (pid == 0) {
     // child
+    prctl(PR_SET_PDEATHSIG, SIGTERM);
+
     int devnull = open("/dev/null", O_RDONLY);
     dup2(devnull, STDIN_FILENO);
     close(devnull);
@@ -174,7 +177,7 @@ void SshDriver::DispatchAt(const StringSlice &command, size_t pos) {
   pdp_assert(active_queue[pos].pid == -1);
   active_queue[pos].pid = pid;
 
-  reaper.OnChildExited(this, pid, SshDriver::OnChildExited);
+  reaper.OnChildExited(pid, SshDriver::OnChildExited, this);
 }
 
 void SshDriver::ReadOutput(int fd, Vector<char> &out) {

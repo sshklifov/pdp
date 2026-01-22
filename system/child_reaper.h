@@ -1,24 +1,30 @@
 #pragma once
 
 #include "data/allocator.h"
+#include "strings/string_slice.h"
 
 #include <sys/types.h>
+#include <csignal>
 #include <cstddef>
 
 namespace pdp {
 
+inline StringSlice GetSignalDescription(int signal) { return StringSlice(sigabbrev_np(signal)); }
+
 struct ChildReaper {
-  using OnReapedChild = void (*)(void *, pid_t, int);
+  using OnReapedChild = void (*)(pid_t, int, void *);
 
   ChildReaper();
   ~ChildReaper();
 
-  void OnChildExited(void *user_data, pid_t pid, OnReapedChild cb);
+  void OnChildExited(pid_t pid, OnReapedChild cb, void *user_data);
   void Reap();
   void ReapAll();
 
  private:
-  void ReapWithOption(int option);
+  void WaitPid(int option);
+
+  static void OnAnyChildExited(int);
 
   static constexpr size_t max_children = 16;
 
@@ -30,6 +36,8 @@ struct ChildReaper {
 
   ChildRegistry *registry;
   unsigned num_children;
+
+  static sig_atomic_t can_wait_flag;
 
   DefaultAllocator allocator;
 };
