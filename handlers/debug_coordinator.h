@@ -10,6 +10,7 @@
 
 #include "debug_session.h"
 #include "handler_coroutine.h"
+#include "system/poll_table.h"
 
 namespace pdp {
 
@@ -29,14 +30,11 @@ struct DebugCoordinator {
 
   ~DebugCoordinator();
 
-  void PollGdb(Milliseconds timeout);
-  void PollVim(Milliseconds timeout);
-  void ReachIdle(Milliseconds timeout);
+  void RegisterForPoll(PollTable &table);
+  void OnPollResults(PollTable &table);
 
-  // awaitable = SshCommand()
-  // awaitable = <this, fd>
-  // await_resume -> return DynamicString
-  // TODO
+  bool IsIdle() const;
+  void PrintActivity() const;
 
   // TODO
   bool IsRemoteDebugging() const { return false; }
@@ -64,6 +62,9 @@ struct DebugCoordinator {
   void RpcShowMessage(std::initializer_list<StringSlice> m, std::initializer_list<StringSlice> h);
 
  private:
+  void PollGdb();
+  void PollVim();
+
   void RpcShowPacked(const StringSlice &fmt, PackedValue *args, uint64_t type_bits);
   void HandleAsync(GdbAsyncKind kind, ScopedPtr<ExprBase> expr);
   void HandleResult(GdbResultKind kind, ScopedPtr<ExprBase> expr);
@@ -75,7 +76,7 @@ struct DebugCoordinator {
   SshDriver *ssh_driver;
 
   GdbDriver gdb_driver;
-  VimDriver vim_controller;
+  VimDriver vim_driver;
   DebugSession session_data;
 
   HandlerTable suspended_handlers;
@@ -94,7 +95,7 @@ struct BooleanRpcAwaiter : public NonCopyableNonMovable {
     coordinator->suspended_handlers.Suspend(token, coro);
   }
 
-  bool await_resume() noexcept { return coordinator->vim_controller.ReadBoolResult(); }
+  bool await_resume() noexcept { return coordinator->vim_driver.ReadBoolResult(); }
 };
 
 struct StringRpcAwaiter {
@@ -109,7 +110,7 @@ struct StringRpcAwaiter {
     coordinator->suspended_handlers.Suspend(token, coro);
   }
 
-  DynamicString await_resume() noexcept { return coordinator->vim_controller.ReadStringResult(); }
+  DynamicString await_resume() noexcept { return coordinator->vim_driver.ReadStringResult(); }
 };
 
 struct IntegerRpcAwaiter {
@@ -124,7 +125,7 @@ struct IntegerRpcAwaiter {
     coordinator->suspended_handlers.Suspend(token, coro);
   }
 
-  int64_t await_resume() noexcept { return coordinator->vim_controller.ReadIntegerResult(); }
+  int64_t await_resume() noexcept { return coordinator->vim_driver.ReadIntegerResult(); }
 };
 
 struct IntegerArrayRpcAwaiter {
@@ -140,10 +141,10 @@ struct IntegerArrayRpcAwaiter {
   }
 
   Vector<int64_t> await_resume() noexcept {
-    uint32_t length = coordinator->vim_controller.OpenArrayResult();
+    uint32_t length = coordinator->vim_driver.OpenArrayResult();
     Vector<int64_t> list(length);
     for (uint32_t i = 0; i < length; ++i) {
-      list += coordinator->vim_controller.ReadIntegerResult();
+      list += coordinator->vim_driver.ReadIntegerResult();
     }
     return list;
   }

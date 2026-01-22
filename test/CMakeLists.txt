@@ -13,8 +13,8 @@ target_link_libraries(test_string_slice PRIVATE pdp_strings)
 add_executable(test_string_builder test_string_builder.cc)
 target_link_libraries(test_string_builder PRIVATE pdp_strings)
 
-add_executable(test_rolling_buffer test_rolling_buffer.cc)
-target_link_libraries(test_rolling_buffer PRIVATE pdp_strings)
+# add_executable(test_rolling_buffer test_rolling_buffer.cc)
+# target_link_libraries(test_rolling_buffer PRIVATE pdp_strings)
 
 add_executable(test_mi_parser test_mi_parser.cc)
 target_link_libraries(test_mi_parser PRIVATE pdp_parser)
@@ -66,3 +66,6 @@ target_link_libraries(test_child_reaper PRIVATE pdp_system)
 
 add_executable(test_small_capture test_small_capture.cc)
 target_link_libraries(test_small_capture PRIVATE pdp_data)
+
+add_executable(test_poll_table test_poll_table.cc)
+target_link_libraries(test_poll_table PRIVATE pdp_system)

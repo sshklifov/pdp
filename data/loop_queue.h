@@ -34,12 +34,13 @@ struct LoopQueue {
 
   size_t Size() const { return size; }
 
-  // T &operator[](size_t index) {
-  //   pdp_assert(index < Size());
-  //   return ptr[index];
-  // }
-
   T &At(size_t index) {
+    pdp_assert(index < Size());
+    size_t masked_index = (begin + index) & mask;
+    return ptr[masked_index];
+  }
+
+  const T &At(size_t index) const {
     pdp_assert(index < Size());
     size_t masked_index = (begin + index) & mask;
     return ptr[masked_index];

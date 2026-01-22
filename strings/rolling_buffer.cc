@@ -20,15 +20,33 @@ RollingBuffer::RollingBuffer()
   begin = ptr;
   end = ptr;
   limit = begin + default_buffer_size;
+  search_for_newlines = false;
+  input_fd = -1;
 }
 
-RollingBuffer::~RollingBuffer() { Deallocate<char>(allocator, ptr); }
+RollingBuffer::~RollingBuffer() {
+  Deallocate<char>(allocator, ptr);
+  pdp_assert(input_fd);
+  close(input_fd);
+}
 
-void RollingBuffer::SetDescriptor(int fd) { input.SetDescriptor(fd); }
+void RollingBuffer::SetDescriptor(int fd) {
+  pdp_assert(input_fd < 0);
+  input_fd = fd;
+  SetNonBlocking(input_fd);
+}
 
-MutableLine RollingBuffer::ReadLine(Milliseconds timeout) {
-  if (PDP_TRACE_UNLIKELY(begin != end)) {
+void RollingBuffer::SetBlockingDescriptor(int fd) {
+  pdp_assert(input_fd < 0);
+  input_fd = fd;
+}
+
+int RollingBuffer::GetDescriptor() const { return input_fd; }
+
+MutableLine RollingBuffer::ReadLine() {
+  if (PDP_UNLIKELY(search_for_newlines)) {
     char *pos = static_cast<char *>(memchr(begin, '\n', end - begin));
+    search_for_newlines = (pos != nullptr);
     if (pos) {
       ++pos;
       MutableLine res(begin, pos);
@@ -37,13 +55,11 @@ MutableLine RollingBuffer::ReadLine(Milliseconds timeout) {
     }
   }
 
-  Stopwatch now;
-  Milliseconds next_wait = timeout;
-  while (next_wait.GetMilli() > 0 && input.WaitForInput(next_wait)) {
+  for (;;) {
     ReserveForRead();
     const size_t remaining_bytes = limit - end;
     pdp_assert(remaining_bytes >= min_read_size);
-    ssize_t ret = input.ReadOnce(end, remaining_bytes);
+    ssize_t ret = read(input_fd, end, remaining_bytes);
     if (PDP_LIKELY(ret > 0)) {
       char *pos = static_cast<char *>(memchr(end, '\n', ret));
       end += ret;
@@ -52,16 +68,16 @@ MutableLine RollingBuffer::ReadLine(Milliseconds timeout) {
         ++pos;
         MutableLine res(begin, pos);
         begin = pos;
+        search_for_newlines = true;
         return res;
       }
     } else {
       if (PDP_UNLIKELY(errno != EAGAIN && errno != EWOULDBLOCK)) {
         Check(ret, "read");
       }
+      return MutableLine{};
     }
-    next_wait = timeout - now.ElapsedMilli();
   }
-  return MutableLine{};
 }
 
 void RollingBuffer::ReserveForRead() {

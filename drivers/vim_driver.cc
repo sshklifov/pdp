@@ -26,6 +26,8 @@ DynamicString Join(pdp::PackedValue *args, uint64_t num_slots, uint64_t type_bit
 VimDriver::VimDriver(int input_fd, int output_fd)
     : vim_input(input_fd), vim_output(output_fd), token(1) {}
 
+int VimDriver::GetDescriptor() const { return vim_output.GetDescriptor(); }
+
 uint32_t VimDriver::NextToken() const { return token; }
 
 uint32_t VimDriver::CreateNamespace(const StringSlice &ns) {
@@ -51,8 +53,8 @@ uint32_t VimDriver::OpenArrayResult() { return ReadRpcArrayLength(vim_output); }
 
 void VimDriver::SkipResult() { return SkipRpcValue(vim_output); }
 
-uint32_t VimDriver::PollResponseToken(Milliseconds timeout) {
-  const bool has_bytes = vim_output.WaitForBytes(timeout);
+uint32_t VimDriver::PollResponseToken() {
+  const bool has_bytes = vim_output.PollBytes();
   if (has_bytes) {
     ExpectRpcArrayWithLength(vim_output, 4);
     ExpectRpcInteger(vim_output, 1);

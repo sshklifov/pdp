@@ -5,8 +5,8 @@
 #include "system/child_reaper.h"
 #include "system/file_descriptor.h"
 #include "system/thread.h"
-#include "system/time_units.h"
 
+#include <fcntl.h>
 #include <sys/prctl.h>
 #include <unistd.h>
 #include <csignal>
@@ -31,14 +31,14 @@ enum class GdbAsyncKind {
 
 enum class GdbResultKind { kDone, kError, kUnknown };
 
-enum class RecordKind { kStream, kAsync, kResult, kNone };
+enum class GdbRecordKind { kStream, kAsync, kResult, kNone };
 
 union GdbRecord {
   GdbRecord() {}
 
-  RecordKind SetStream(const StringSlice &msg);
-  RecordKind SetAsync(GdbAsyncKind kind, const StringSlice &results);
-  RecordKind SetResult(uint32_t token, GdbResultKind kind, const StringSlice &results);
+  GdbRecordKind SetStream(const StringSlice &msg);
+  GdbRecordKind SetAsync(GdbAsyncKind kind, const StringSlice &results);
+  GdbRecordKind SetResult(uint32_t token, GdbResultKind kind, const StringSlice &results);
 
   struct GdbStream {
     StringSlice message;
@@ -68,9 +68,9 @@ struct GdbDriver {
                   "All exec arguments must be exactly const char*");
 
     int in[2], out[2], err[2];
-    CheckFatal(pipe(in), "GDB pipe(in)");
-    CheckFatal(pipe(out), "GDB pipe(out)");
-    CheckFatal(pipe(err), "GDB pipe(err)");
+    CheckFatal(pipe2(in, O_CLOEXEC), "GDB pipe(in)");
+    CheckFatal(pipe2(out, O_CLOEXEC), "GDB pipe(out)");
+    CheckFatal(pipe2(err, O_CLOEXEC), "GDB pipe(err)");
 
     pid_t pid = fork();
     CheckFatal(pid, "GDB fork");
@@ -118,7 +118,9 @@ struct GdbDriver {
 
   void Send(uint32_t token, const StringSlice &fmt, PackedValue *args, uint64_t type_bits);
 
-  RecordKind Poll(Milliseconds timeout, GdbRecord *res);
+  GdbRecordKind Poll(GdbRecord *res);
+
+  int GetDescriptor() const;
 
  private:
   static void MonitorGdbStderr(std::atomic_bool *is_running, int fd);

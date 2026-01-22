@@ -33,7 +33,7 @@ FileDescriptor::~FileDescriptor() { Check(close(fd), "close"); }
 
 bool FileDescriptor::IsValid() const { return fd >= 0; }
 
-int FileDescriptor::Value() const { return fd; }
+int FileDescriptor::GetDescriptor() const { return fd; }
 
 void FileDescriptor::SetDescriptor(int init_fd) {
   pdp_assert(fd < 0);
@@ -77,7 +77,7 @@ size_t InputDescriptor::ReadAtLeast(void *buf, size_t required_bytes, size_t fre
         return num_read;
       }
     } while (n != 0);
-    next_wait = timeout - stopwatch.ElapsedMilli();
+    next_wait = timeout - stopwatch.Elapsed();
   }
   return num_read;
 }
@@ -134,7 +134,7 @@ bool OutputDescriptor::WriteExactly(const void *buf, size_t bytes, Milliseconds 
         return true;
       }
     } while (n != 0);
-    next_wait = timeout - stopwatch.ElapsedMilli();
+    next_wait = timeout - stopwatch.Elapsed();
   }
   return num_written == bytes;
 }

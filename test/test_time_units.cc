@@ -39,9 +39,9 @@ TEST_CASE("Milliseconds: user-defined literal") {
 TEST_CASE("Stopwatch: elapsed time increases") {
   Stopwatch sw;
 
-  Milliseconds t1 = sw.ElapsedMilli();
+  Milliseconds t1 = sw.Elapsed();
   usleep(10'000);
-  Milliseconds t2 = sw.ElapsedMilli();
+  Milliseconds t2 = sw.Elapsed();
 
   CHECK(t2 >= t1 + Milliseconds(10));
 }
@@ -51,7 +51,7 @@ TEST_CASE("Stopwatch: reset works") {
 
   usleep(10'000);
   sw.Reset();
-  Milliseconds after = sw.ElapsedMilli();
+  Milliseconds after = sw.Elapsed();
 
   // After reset, elapsed should be smaller
   CHECK(after <= Milliseconds(5));
@@ -59,7 +59,7 @@ TEST_CASE("Stopwatch: reset works") {
 
 TEST_CASE("Stopwatch: elapsed is non-negative") {
   Stopwatch sw;
-  Milliseconds t = sw.ElapsedMilli();
+  Milliseconds t = sw.Elapsed();
 
   CHECK(t.GetMilli() >= 0);
 }

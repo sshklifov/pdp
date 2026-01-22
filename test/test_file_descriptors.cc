@@ -44,7 +44,7 @@ TEST_CASE("FileDescriptor default state and ownership") {
   {
     FileDescriptor owned(fds[0]);
     CHECK(owned.IsValid());
-    CHECK(owned.Value() == fds[0]);
+    CHECK(owned.GetDescriptor() == fds[0]);
   }
 
   CHECK(close(fds[0]) < 0);
@@ -62,9 +62,9 @@ TEST_CASE("FileDescriptor SetValue sets non-blocking flag") {
 
   fd.SetDescriptor(fds[0]);
   CHECK(fd.IsValid());
-  CHECK(fd.Value() == fds[0]);
+  CHECK(fd.GetDescriptor() == fds[0]);
 
-  int flags = fcntl(fd.Value(), F_GETFL, 0);
+  int flags = fcntl(fd.GetDescriptor(), F_GETFL, 0);
   bool is_nonblock = flags & O_NONBLOCK;
   CHECK(is_nonblock);
 

@@ -16,7 +16,7 @@ struct FileDescriptor : public NonCopyableNonMovable {
   ~FileDescriptor();
 
   bool IsValid() const;
-  int Value() const;
+  int GetDescriptor() const;
   void SetDescriptor(int init_fd);
 
  protected:

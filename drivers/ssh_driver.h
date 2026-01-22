@@ -8,7 +8,7 @@
 
 #include "strings/dynamic_string.h"
 #include "system/child_reaper.h"
-#include "system/time_units.h"
+#include "system/poll_table.h"
 
 #include <sys/poll.h>
 
@@ -23,12 +23,11 @@ struct SshDriver : public NonCopyableNonMovable {
   Capture *OnOutput(DynamicString request);
   Capture *OnOutput(StringSlice request);
 
-  void Poll(Milliseconds timeout);
+  void RegisterForPoll(PollTable &table);
+  void OnPollResults(PollTable &table);
 
  private:
-  void DispatchAt(const StringSlice &command, size_t pos);
-
-  static void ReadOutput(int fd, Vector<char> &out);
+  void SpawnChildAt(const StringSlice &command, size_t pos);
 
   void OnChildExited(pid_t pid, int status);
 

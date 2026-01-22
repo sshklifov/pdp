@@ -15,13 +15,17 @@ ByteStream::ByteStream(int fd) : ptr(Allocate<byte>(allocator, buffer_size)), st
 
 ByteStream::~ByteStream() { Deallocate<byte>(allocator, ptr); }
 
-bool ByteStream::HasBytes() const { return begin < end; }
+int ByteStream::GetDescriptor() const { return stream.GetDescriptor(); }
 
-bool ByteStream::WaitForBytes(Milliseconds timeout) {
-  if (PDP_LIKELY(HasBytes())) {
+bool ByteStream::PollBytes() {
+  if (PDP_LIKELY(begin < end)) {
     return true;
   }
-  return stream.WaitForInput(timeout);
+
+  size_t num_read = stream.ReadOnce(ptr, buffer_size);
+  begin = ptr;
+  end = ptr + num_read;
+  return num_read > 0;
 }
 
 uint8_t ByteStream::PeekByte() {
@@ -135,7 +139,7 @@ void ByteStream::Skip(size_t num_skipped) {
       end = ptr + num_read;
       return;
     }
-    next_wait = max_wait - stopwatch.ElapsedMilli();
+    next_wait = max_wait - stopwatch.Elapsed();
   }
   pdp_critical("Bytes remaining to skip: {}", num_skipped);
   PDP_UNREACHABLE("RPC stream timeout");

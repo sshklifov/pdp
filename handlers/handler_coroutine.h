@@ -70,7 +70,7 @@ struct HandlerTable {
     return false;
   }
 
-  void PrintSuspendedTokens() {
+  void PrintSuspendedTokens() const {
     pdp::StringBuilder builder;
     builder.Append("Suspended tokens: ");
     for (uint32_t i = 0; i < table.Size(); ++i) {

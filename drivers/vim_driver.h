@@ -13,6 +13,8 @@ DynamicString Join(pdp::PackedValue *slots, uint64_t num_slots, uint64_t type_bi
 struct VimDriver {
   VimDriver(int input_fd, int output_fd);
 
+  int GetDescriptor() const;
+
   // Send RPC methods
 
   uint32_t NextToken() const;
@@ -62,7 +64,8 @@ struct VimDriver {
 
   // Read RPC response methods
 
-  uint32_t PollResponseToken(Milliseconds timeout);
+  uint32_t PollResponseToken();
+
   bool ReadBoolResult();
   int64_t ReadIntegerResult();
   DynamicString ReadStringResult();

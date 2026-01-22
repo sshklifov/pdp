@@ -1,7 +1,10 @@
 #include "core/log.h"
 #include "handlers/debug_coordinator.h"
+#include "system/poll_table.h"
 
 #include <sys/prctl.h>
+
+using pdp::operator""_ms;
 
 int main() {
 #ifdef PDP_DEBUG_BUILD
@@ -11,28 +14,28 @@ int main() {
   pdp::RedirectLogging("/home/stef/Downloads/output.txt");
 
   pdp_info("Setting up SIGCHLD handler");
-  pdp::ChildReaper child_reaper;
+  pdp::ChildReaper reaper;
 
   pdp_info("Starting coordinator");
   pdp::StringSlice host("");
   pdp::DebugCoordinator coordinator(host, pdp::DuplicateForThisProcess(STDOUT_FILENO),
-                                    pdp::DuplicateForThisProcess(STDIN_FILENO), child_reaper);
-  coordinator.ReachIdle(pdp::Milliseconds(5000));
+                                    pdp::DuplicateForThisProcess(STDIN_FILENO), reaper);
 
-  // TODO IDEA: create a super class with all polled descriptors. poll them. then handle to
-  // -> gdb
-  // -> vim
-  // -> ssh
-  // any other class
-  // BIG BRAIN. single threaded. responsive af.
+  pdp::PollTable poller;
+  pdp_info("Polling until idle state is reached");
 
-  while (true) {
-    coordinator.PollGdb(pdp::Milliseconds(100));
-    coordinator.PollVim(pdp::Milliseconds(100));
+  pdp::Stopwatch stopwatch;
+  while (!coordinator.IsIdle() && stopwatch.Elapsed() < 5000_ms) {
+    // Poll file descriptors
+    coordinator.RegisterForPoll(poller);
+    poller.Poll(pdp::Milliseconds(100));
+    coordinator.OnPollResults(poller);
+    poller.Reset();
+    // Check for exited children.
+    reaper.Reap();
   }
 
-  // gdb:
-  // vim:
+  pdp_info("Done! Exitting cleanly...");
 
   return 0;
 }

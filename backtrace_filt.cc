@@ -296,8 +296,8 @@ int main() {
   emhash8::Map<pdp::DynamicString, FileSymbolResolver> resolver_map;
 
   pdp::RollingBuffer buffer;
-  buffer.SetDescriptor(pdp::DuplicateForThisProcess(STDIN_FILENO));
-  pdp::MutableLine line = buffer.ReadLine(pdp::Milliseconds(1000));
+  buffer.SetBlockingDescriptor(pdp::DuplicateForThisProcess(STDIN_FILENO));
+  pdp::MutableLine line = buffer.ReadLine();
   while (line.begin < line.end) {
     auto [exe, addr] = SplitExecutableAndAddress(line);
     if (!exe.Empty() && !addr.Empty()) {
@@ -320,7 +320,7 @@ int main() {
     } else {
       WriteSlice(pdp::StringSlice(line.begin, line.end));
     }
-    line = buffer.ReadLine(pdp::Milliseconds(1000));
+    line = buffer.ReadLine();
   }
 
   return 0;

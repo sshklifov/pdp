@@ -11,6 +11,7 @@
 // POWER
 
 #include "core/check.h"
+#include "core/once_guard.h"
 
 #include <malloc.h>
 
@@ -67,24 +68,21 @@ struct MallocAllocator {
 
 namespace impl {
 struct _OnceAllocator {
-  _OnceAllocator() : entered(false) {}
-
   void *AllocateRaw(size_t bytes) {
-    pdp_assert(!entered);
-    entered = true;
+    guard.Set();
     return helper_alloc.AllocateRaw(bytes);
   }
 
   void DeallocateRaw(void *ptr) { return helper_alloc.DeallocateRaw(ptr); }
 
   void *ReallocateRaw(void *ptr, size_t new_bytes) {
-    pdp_assert(!ptr);
+    guard.Set();
     return realloc(ptr, new_bytes);
   }
 
  private:
   MallocAllocator helper_alloc;
-  bool entered;
+  OnceGuard guard;
 };
 
 }  // namespace impl

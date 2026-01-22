@@ -16,7 +16,7 @@ static size_t TotalStringBytes(std::initializer_list<StringSlice> ilist) {
 
 DebugCoordinator::DebugCoordinator(const StringSlice &host, int vim_input_fd, int vim_output_fd,
                                    ChildReaper &reaper)
-    : vim_controller(vim_input_fd, vim_output_fd) {
+    : vim_driver(vim_input_fd, vim_output_fd) {
   gdb_driver.Start(reaper);
   if (!host.Empty()) {
     ssh_driver = Allocate<SshDriver>(allocator, 1);
@@ -34,14 +34,14 @@ DebugCoordinator::~DebugCoordinator() {
 }
 
 HandlerCoroutine DebugCoordinator::InitializeNs() {
-  uint32_t start_token = vim_controller.CreateNamespace("PromptDebugHighlight");
-  vim_controller.CreateNamespace("PromptDebugPC");
-  vim_controller.CreateNamespace("PromptDebugRegister");
-  vim_controller.CreateNamespace("PromptDebugPrompt");
-  vim_controller.CreateNamespace("PromptDebugConcealVar");
-  vim_controller.CreateNamespace("PromptDebugConcealJump");
-  vim_controller.CreateNamespace("PromptDebugBreakpoint");
-  pdp_assert(vim_controller.NextToken() - start_token == kTotalNs);
+  uint32_t start_token = vim_driver.CreateNamespace("PromptDebugHighlight");
+  vim_driver.CreateNamespace("PromptDebugPC");
+  vim_driver.CreateNamespace("PromptDebugRegister");
+  vim_driver.CreateNamespace("PromptDebugPrompt");
+  vim_driver.CreateNamespace("PromptDebugConcealVar");
+  vim_driver.CreateNamespace("PromptDebugConcealJump");
+  vim_driver.CreateNamespace("PromptDebugBreakpoint");
+  pdp_assert(vim_driver.NextToken() - start_token == kTotalNs);
 
   session_data.namespaces[kHighlightNs] = co_await IntegerRpcAwaiter(this, start_token);
   session_data.namespaces[kProgramCounterNs] = co_await IntegerRpcAwaiter(this, start_token + 1);
@@ -54,9 +54,9 @@ HandlerCoroutine DebugCoordinator::InitializeNs() {
 
 HandlerCoroutine DebugCoordinator::InitializeBuffers() {
   Vector<int64_t> buffers = co_await RpcListBuffers();
-  uint32_t token = vim_controller.NextToken();
+  uint32_t token = vim_driver.NextToken();
   for (size_t i = 0; i < buffers.Size(); ++i) {
-    vim_controller.Bufname(buffers[i]);
+    vim_driver.Bufname(buffers[i]);
   }
   session_data.buffers[kCaptureBuf] = -1;
   session_data.buffers[kAsmBuf] = -1;
@@ -98,10 +98,10 @@ HandlerCoroutine DebugCoordinator::InitializeBuffers() {
     }
   }
 
-  token = vim_controller.NextToken();
+  token = vim_driver.NextToken();
   for (size_t i = 0; i < kTotalBufs; ++i) {
     if (session_data.buffers[i] < 0) {
-      vim_controller.SendRpcRequest("nvim_create_buf", true, false);
+      vim_driver.SendRpcRequest("nvim_create_buf", true, false);
     }
   }
   // TODO wtf naming returned by vim...
@@ -109,23 +109,23 @@ HandlerCoroutine DebugCoordinator::InitializeBuffers() {
   for (size_t i = 0; i < kTotalBufs; ++i) {
     if (session_data.buffers[i] < 0) {
       session_data.buffers[i] = co_await IntegerRpcAwaiter(this, token);
-      vim_controller.SendRpcRequest("nvim_buf_set_name", session_data.buffers[i], names[i]);
+      vim_driver.SendRpcRequest("nvim_buf_set_name", session_data.buffers[i], names[i]);
       ++token;
     }
   }
 
-  vim_controller.SendRpcRequest("nvim_buf_set_lines", session_data.buffers[kPromptBuf], 0, -1,
+  vim_driver.SendRpcRequest("nvim_buf_set_lines", session_data.buffers[kPromptBuf], 0, -1,
                                 false, std::initializer_list<StringSlice>{});
-  vim_controller.SendRpcRequest("nvim_buf_set_option", session_data.buffers[kPromptBuf], "modified",
+  vim_driver.SendRpcRequest("nvim_buf_set_option", session_data.buffers[kPromptBuf], "modified",
                                 false);
   session_data.num_lines_written = 0;
 }
 
-void DebugCoordinator::PollGdb(Milliseconds timeout) {
+void DebugCoordinator::PollGdb() {
   GdbRecord record;
-  RecordKind kind = gdb_driver.Poll(timeout, &record);
-  if (PDP_UNLIKELY(kind != RecordKind::kNone)) {
-    if (kind == RecordKind::kStream) {
+  GdbRecordKind kind = gdb_driver.Poll(&record);
+  if (PDP_UNLIKELY(kind != GdbRecordKind::kNone)) {
+    if (kind == GdbRecordKind::kStream) {
       HandleStream(this, record.stream.message);
     } else {
       MiFirstPass first_pass(record.result_or_async.results);
@@ -139,9 +139,9 @@ void DebugCoordinator::PollGdb(Milliseconds timeout) {
         pdp_error("Pass #2 failed on: {}", record.result_or_async.results);
         return;
       }
-      if (kind == RecordKind::kAsync) {
+      if (kind == GdbRecordKind::kAsync) {
         HandleAsync(static_cast<GdbAsyncKind>(record.result_or_async.kind), std::move(expr));
-      } else if (kind == RecordKind::kResult) {
+      } else if (kind == GdbRecordKind::kResult) {
         HandleResult(static_cast<GdbResultKind>(record.result_or_async.kind), std::move(expr));
       } else {
         pdp_assert(false);
@@ -151,12 +151,12 @@ void DebugCoordinator::PollGdb(Milliseconds timeout) {
 }
 
 IntegerArrayRpcAwaiter DebugCoordinator::RpcListBuffers() {
-  uint32_t list_token = vim_controller.SendRpcRequest("nvim_list_bufs");
+  uint32_t list_token = vim_driver.SendRpcRequest("nvim_list_bufs");
   return IntegerArrayRpcAwaiter(this, list_token);
 }
 
 void DebugCoordinator::RpcClearNamespace(int bufnr, int ns) {
-  vim_controller.SendRpcRequest("nvim_buf_clear_namespace", bufnr, ns, 0, -1);
+  vim_driver.SendRpcRequest("nvim_buf_clear_namespace", bufnr, ns, 0, -1);
 }
 
 void DebugCoordinator::RpcShowNormal(const StringSlice &msg) {
@@ -164,7 +164,7 @@ void DebugCoordinator::RpcShowNormal(const StringSlice &msg) {
 
   auto old_line_count = session_data.num_lines_written;
   auto bufnr = session_data.buffers[kPromptBuf];
-  vim_controller.SendRpcRequest("nvim_buf_set_lines", bufnr, old_line_count, old_line_count, true,
+  vim_driver.SendRpcRequest("nvim_buf_set_lines", bufnr, old_line_count, old_line_count, true,
                                 std::initializer_list<StringSlice>{msg});
   session_data.num_lines_written++;
 }
@@ -192,7 +192,7 @@ void DebugCoordinator::RpcShowMessage(std::initializer_list<StringSlice> ilist_m
   auto bufnr = session_data.buffers[kPromptBuf];
 
   RpcBuilder builder;
-  vim_controller.BeginRpcRequest(builder, "nvim_buf_set_lines", bufnr, old_line_count,
+  vim_driver.BeginRpcRequest(builder, "nvim_buf_set_lines", bufnr, old_line_count,
                                  old_line_count, true);
   builder.OpenShortArray();
   char *msg_out = builder.AddUninitializedString(TotalStringBytes(ilist_msg));
@@ -202,7 +202,7 @@ void DebugCoordinator::RpcShowMessage(std::initializer_list<StringSlice> ilist_m
     memcpy(msg_out, msg.Data(), msg.Size());
     msg_out += msg.Size();
   }
-  vim_controller.EndRpcRequest(builder);
+  vim_driver.EndRpcRequest(builder);
 
   session_data.num_lines_written++;
 
@@ -210,19 +210,19 @@ void DebugCoordinator::RpcShowMessage(std::initializer_list<StringSlice> ilist_m
   for (size_t i = 0; i < ilist_hl.size(); ++i) {
     int end_col = start_col + ilist_msg.begin()[i].Size();
 
-    vim_controller.BeginRpcRequest(builder, "nvim_buf_set_extmark", bufnr,
+    vim_driver.BeginRpcRequest(builder, "nvim_buf_set_extmark", bufnr,
                                    session_data.namespaces[kHighlightNs], old_line_count,
                                    start_col);
     builder.OpenShortMap();
     builder.AddMapItem("end_col", end_col);
     builder.AddMapItem("hl_group", ilist_hl.begin()[i]);
     builder.CloseShortMap();
-    vim_controller.EndRpcRequest(builder);
+    vim_driver.EndRpcRequest(builder);
 
     start_col = end_col;
   }
 
-  vim_controller.SendRpcRequest("nvim_buf_set_option", bufnr, "modified", false);
+  vim_driver.SendRpcRequest("nvim_buf_set_option", bufnr, "modified", false);
 }
 
 int DebugCoordinator::GetExeTimetamp() {
@@ -249,15 +249,35 @@ void DebugCoordinator::HandleAsync(GdbAsyncKind kind, ScopedPtr<ExprBase> expr) 
   }
 }
 
-void DebugCoordinator::PollVim(Milliseconds timeout) {
-  uint32_t token = vim_controller.PollResponseToken(timeout);
-  if (token != vim_controller.kInvalidToken) {
+void DebugCoordinator::RegisterForPoll(PollTable &table) {
+  table.Register(gdb_driver.GetDescriptor());
+  table.Register(vim_driver.GetDescriptor());
+  if (ssh_driver) {
+    ssh_driver->RegisterForPoll(table);
+  }
+}
+
+void DebugCoordinator::OnPollResults(PollTable &table) {
+  if (table.HasInputEventsUnchecked(gdb_driver.GetDescriptor())) {
+    PollGdb();
+  }
+  if (table.HasInputEventsUnchecked(vim_driver.GetDescriptor())) {
+    PollVim();
+  }
+  if (ssh_driver) {
+    ssh_driver->OnPollResults(table);
+  }
+}
+
+void DebugCoordinator::PollVim() {
+  uint32_t token = vim_driver.PollResponseToken();
+  if (token != vim_driver.kInvalidToken) {
 #if PDP_TRACE_RPC_TOKENS
     pdp_trace("Response: token={}", token);
 #endif
-    const bool rpc_payload_read = suspended_handlers.Resume(token);
-    if (!rpc_payload_read) {
-      vim_controller.SkipResult();
+    const bool token_handled = suspended_handlers.Resume(token);
+    if (!token_handled) {
+      vim_driver.SkipResult();
 #if PDP_TRACE_RPC_TOKENS
       pdp_trace("Skipped: token={}", token);
 #endif
@@ -265,21 +285,16 @@ void DebugCoordinator::PollVim(Milliseconds timeout) {
   }
 }
 
-void DebugCoordinator::ReachIdle(Milliseconds timeout) {
-  Stopwatch stopwatch;
-  auto next_wait = timeout;
-  while (!suspended_handlers.Empty() && next_wait > 0_ms) {
-    PollVim(next_wait > 5_ms ? next_wait : 5_ms);
-    next_wait = timeout - stopwatch.ElapsedMilli();
-  }
-  if (PDP_UNLIKELY(!suspended_handlers.Empty())) {
+bool DebugCoordinator::IsIdle() const { return suspended_handlers.Empty(); }
+
+void DebugCoordinator::PrintActivity() const {
+  if (PDP_LIKELY(!suspended_handlers.Empty())) {
     suspended_handlers.PrintSuspendedTokens();
-    PDP_UNREACHABLE("Failed to process all coroutines within timeout");
   }
 }
 
 BooleanRpcAwaiter DebugCoordinator::RpcBufExists(int bufnr) {
-  uint32_t token = vim_controller.SendRpcRequest("nvim_buf_is_valid", bufnr);
+  uint32_t token = vim_driver.SendRpcRequest("nvim_buf_is_valid", bufnr);
   return BooleanRpcAwaiter(this, token);
 }
 

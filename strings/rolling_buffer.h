@@ -15,15 +15,17 @@ struct MutableLine {
 
 struct RollingBuffer {
   static constexpr size_t min_read_size = 4_KB;
-  static constexpr size_t default_buffer_size = 1_MB;
-  static constexpr size_t max_capacity = 1_GB;
+  static constexpr size_t default_buffer_size = 16_KB;
+  static constexpr size_t max_capacity = 512_MB;
 
   RollingBuffer();
   ~RollingBuffer();
 
   void SetDescriptor(int fd);
+  void SetBlockingDescriptor(int fd);
+  int GetDescriptor() const;
 
-  MutableLine ReadLine(Milliseconds timeout);
+  MutableLine ReadLine();
 
  private:
   void ReserveForRead();
@@ -33,7 +35,8 @@ struct RollingBuffer {
   char *__restrict__ end;
   const char *__restrict__ limit;
 
-  InputDescriptor input;
+  bool search_for_newlines;
+  int input_fd;
   DefaultAllocator allocator;
 
 #ifdef PDP_TRACE_ROLLING_BUFFER

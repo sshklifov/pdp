@@ -3,11 +3,22 @@
 
 #include "drivers/gdb_driver.h"
 
+#include <sys/poll.h>
 #include <unistd.h>
 
 using namespace pdp;
 
 namespace {
+
+pdp::GdbRecordKind ReadWithTimeout(GdbDriver &gdb, GdbRecord *res, Milliseconds timeout) {
+  struct pollfd poll_args;
+  poll_args.fd = gdb.GetDescriptor();
+  poll_args.events = POLLIN;
+  poll_args.revents = 0;
+
+  poll(&poll_args, 1, timeout.GetMilli());
+  return gdb.Poll(res);
+}
 
 struct FakeGdb {
   int stdin_read;    // what GdbDriver writes to
@@ -65,9 +76,9 @@ TEST_CASE("GdbDriver Poll parses result record") {
   fake.WriteStdout("42^done\n");
 
   GdbRecord rec;
-  RecordKind kind = driver.Poll(Milliseconds(10), &rec);
+  GdbRecordKind kind = ReadWithTimeout(driver, &rec, Milliseconds(10));
 
-  CHECK(kind == RecordKind::kResult);
+  CHECK(kind == GdbRecordKind::kResult);
   CHECK(rec.result_or_async.token == 42);
   CHECK(rec.result_or_async.kind == (uint32_t)GdbResultKind::kDone);
 }
@@ -79,9 +90,9 @@ TEST_CASE("GdbDriver Poll parses async stopped event") {
   fake.WriteStdout("*stopped,reason=\"breakpoint-hit\"\n");
 
   GdbRecord rec;
-  RecordKind kind = driver.Poll(Milliseconds(10), &rec);
+  GdbRecordKind kind = ReadWithTimeout(driver, &rec, Milliseconds(10));
 
-  CHECK(kind == RecordKind::kAsync);
+  CHECK(kind == GdbRecordKind::kAsync);
   CHECK(rec.result_or_async.kind == (uint32_t)GdbAsyncKind::kStopped);
   CHECK(rec.result_or_async.results == StringSlice("reason=\"breakpoint-hit\""));
 }
@@ -91,8 +102,8 @@ TEST_CASE("GdbDriver Poll times out cleanly") {
   auto fake = SetupFakeGdb(driver);
 
   GdbRecord rec;
-  RecordKind kind = driver.Poll(Milliseconds(10), &rec);
-  CHECK(kind == RecordKind::kNone);
+  GdbRecordKind kind = ReadWithTimeout(driver, &rec, Milliseconds(10));
+  CHECK(kind == GdbRecordKind::kNone);
 }
 
 TEST_CASE("GdbDriver Poll parses stream output record") {
@@ -103,9 +114,9 @@ TEST_CASE("GdbDriver Poll parses stream output record") {
   fake.WriteStdout("~\"hello from gdb\\n\"\n");
 
   GdbRecord rec;
-  RecordKind kind = driver.Poll(Milliseconds(10), &rec);
+  GdbRecordKind kind = ReadWithTimeout(driver, &rec, Milliseconds(10));
 
-  CHECK(kind == RecordKind::kStream);
+  CHECK(kind == GdbRecordKind::kStream);
   CHECK(rec.stream.message == StringSlice("hello from gdb\n"));
 }
 
@@ -116,9 +127,9 @@ TEST_CASE("GdbDriver Poll maps unknown async event to kUnknown") {
   fake.WriteStdout("=some-new-event,foo=\"bar\"\n");
 
   GdbRecord rec;
-  RecordKind kind = driver.Poll(Milliseconds(10), &rec);
+  GdbRecordKind kind = ReadWithTimeout(driver, &rec, Milliseconds(10));
 
-  CHECK(kind == RecordKind::kAsync);
+  CHECK(kind == GdbRecordKind::kAsync);
   CHECK(rec.result_or_async.kind == (uint32_t)GdbAsyncKind::kUnknown);
   CHECK(rec.result_or_async.results == StringSlice("foo=\"bar\""));
 }

@@ -63,8 +63,9 @@ inline void HandleProgramRun(DebugCoordinator *d, ScopedPtr<ExprBase> expr) {
     d->RpcShowNormal("Local debugging");
   }
   d->RpcShowNormal("Process id: {}", pid);
+  d->Session().pid = pid;
 
-  // TODO 
+  // TODO
   return;
 }
 

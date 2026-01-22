@@ -2,7 +2,6 @@
 
 #include "core/check.h"
 #include "parser/mi_parser.h"
-#include "tracing/trace_likely.h"
 
 #include <unistd.h>
 
@@ -148,23 +147,23 @@ GdbResultKind ClassifyResult(StringSlice name) {
   return GdbResultKind::kUnknown;
 }
 
-RecordKind GdbRecord::SetStream(const StringSlice &msg) {
+GdbRecordKind GdbRecord::SetStream(const StringSlice &msg) {
   stream.message = msg;
-  return RecordKind::kStream;
+  return GdbRecordKind::kStream;
 }
 
-RecordKind GdbRecord::SetAsync(GdbAsyncKind kind, const StringSlice &results) {
+GdbRecordKind GdbRecord::SetAsync(GdbAsyncKind kind, const StringSlice &results) {
   result_or_async.token = 0;
   result_or_async.kind = static_cast<uint32_t>(kind);
   result_or_async.results = results;
-  return RecordKind::kAsync;
+  return GdbRecordKind::kAsync;
 }
 
-RecordKind GdbRecord::SetResult(uint32_t token, GdbResultKind kind, const StringSlice &results) {
+GdbRecordKind GdbRecord::SetResult(uint32_t token, GdbResultKind kind, const StringSlice &results) {
   result_or_async.token = token;
   result_or_async.kind = static_cast<uint32_t>(kind);
   result_or_async.results = results;
-  return RecordKind::kResult;
+  return GdbRecordKind::kResult;
 }
 
 GdbDriver::GdbDriver()
@@ -195,11 +194,11 @@ void GdbDriver::MonitorGdbStderr(std::atomic_bool *is_running, int fd) {
   }
 }
 
-RecordKind GdbDriver::Poll(Milliseconds timeout, GdbRecord *res) {
-  MutableLine line = gdb_stdout.ReadLine(timeout);
+GdbRecordKind GdbDriver::Poll(GdbRecord *res) {
+  MutableLine line = gdb_stdout.ReadLine();
   size_t length = line.end - line.begin;
-  if (PDP_TRACE_LIKELY(length <= 1)) {
-    return RecordKind::kNone;
+  if (PDP_LIKELY(length <= 1)) {
+    return GdbRecordKind::kNone;
   }
   pdp_assert(line.begin[length - 1] == '\n');
 
@@ -238,8 +237,10 @@ RecordKind GdbDriver::Poll(Milliseconds timeout, GdbRecord *res) {
     GdbAsyncKind kind = ClassifyAsync(StringSlice(name_begin, name_end));
     return res->SetAsync(kind, results);
   }
-  return RecordKind::kNone;
+  return GdbRecordKind::kNone;
 }
+
+int GdbDriver::GetDescriptor() const { return gdb_stdout.GetDescriptor(); }
 
 void GdbDriver::Send(uint32_t token, const StringSlice &fmt, PackedValue *args,
                      uint64_t type_bits) {

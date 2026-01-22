@@ -46,7 +46,7 @@ struct Stopwatch {
 
   void Reset() { clock_gettime(CLOCK_MONOTONIC, &last_checkpoint); }
 
-  Milliseconds ElapsedMilli() const {
+  Milliseconds Elapsed() const {
     struct timespec now;
     clock_gettime(CLOCK_MONOTONIC, &now);
 
