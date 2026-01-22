@@ -64,11 +64,12 @@ struct GdbDriver {
                   "All exec arguments must be exactly const char*");
 
     int in[2], out[2], err[2];
-    pipe(in);
-    pipe(out);
-    pipe(err);
+    CheckFatal(pipe(in), "GDB pipe(in)");
+    CheckFatal(pipe(out), "GDB pipe(out)");
+    CheckFatal(pipe(err), "GDB pipe(err)");
 
     pid_t pid = fork();
+    CheckFatal(pid, "GDB fork");
     if (pid == 0) {
       // child: GDB
       dup2(in[0], STDIN_FILENO);
@@ -79,9 +80,8 @@ struct GdbDriver {
       close(out[0]);
       close(err[0]);
 
-      int ret = execl(path, path, argv..., (char *)0);
-      Check(ret, "execlp");
-      _exit(1);
+      execl(path, path, argv..., (char *)0);
+      _exit(127);
     }
 
     // parent
@@ -103,14 +103,14 @@ struct GdbDriver {
   }
 
   template <typename T, typename... Args>
-  bool Send(uint32_t token, const StringSlice &fmt, Args &&...args) {
+  void Send(uint32_t token, const StringSlice &fmt, Args &&...args) {
     auto packed_args = MakePackedArgs(std::forward<Args>(args)...);
     return Send(token, fmt, packed_args.slots, packed_args.type_bits);
   }
 
-  bool Send(uint32_t token, const StringSlice &fmt, PackedValue *args, uint64_t type_bits);
+  void Send(uint32_t token, const StringSlice &fmt, PackedValue *args, uint64_t type_bits);
 
-  bool Send(uint32_t token, const StringSlice &msg);
+  void Send(uint32_t token, const StringSlice &msg);
 
   RecordKind Poll(Milliseconds timeout, GdbRecord *res);
 

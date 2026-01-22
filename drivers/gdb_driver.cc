@@ -241,7 +241,7 @@ RecordKind GdbDriver::Poll(Milliseconds timeout, GdbRecord *res) {
   return RecordKind::kNone;
 }
 
-bool GdbDriver::Send(uint32_t token, const StringSlice &fmt, PackedValue *args,
+void GdbDriver::Send(uint32_t token, const StringSlice &fmt, PackedValue *args,
                      uint64_t type_bits) {
 #ifdef PDP_ENABLE_ASSERT
   pdp_assert(token > last_token);
@@ -262,10 +262,9 @@ bool GdbDriver::Send(uint32_t token, const StringSlice &fmt, PackedValue *args,
   if (PDP_UNLIKELY(!success)) {
     pdp_warning("Failed to submit request {}", builder.GetSlice());
   }
-  return success;
 }
 
-bool GdbDriver::Send(uint32_t token, const StringSlice &msg) {
+void GdbDriver::Send(uint32_t token, const StringSlice &msg) {
 #ifdef PDP_ENABLE_ASSERT
   pdp_assert(token > last_token);
   last_token = token;
@@ -284,7 +283,6 @@ bool GdbDriver::Send(uint32_t token, const StringSlice &msg) {
   if (PDP_UNLIKELY(!success)) {
     pdp_warning("Failed to submit request {}", builder.GetSlice());
   }
-  return success;
 }
 
 };  // namespace pdp

@@ -9,10 +9,19 @@
 
 namespace pdp {
 
+namespace impl {
+
+template <typename T, typename Alloc>
+struct _VectorPrivAcess;
+
+}  // namespace impl
+
 template <typename T, typename Alloc = DefaultAllocator>
 struct Vector : public NonCopyable {
   static_assert(pdp::IsReallocatable<T>::value, "T must be movable with realloc");
   static_assert(std::is_nothrow_destructible_v<T>, "T must be noexcept destructible");
+
+  friend struct impl::_VectorPrivAcess<T, Alloc>;
 
   Vector(Alloc alloc = Alloc()) noexcept : ptr(nullptr), size(0), capacity(0), allocator(alloc) {}
 
@@ -27,19 +36,7 @@ struct Vector : public NonCopyable {
     other.ptr = nullptr;
   }
 
-  Vector &operator=(Vector &&other) {
-    pdp_assert(this != &other);
-    if (this != &other) {
-      Deallocate<T>(allocator, ptr);
-      ptr = other.ptr;
-      size = other.size;
-      capacity = other.capacity;
-      allocator = other.allocator;
-
-      other.ptr = nullptr;
-    }
-    return (*this);
-  }
+  Vector &operator=(Vector &&other) = delete;
 
   ~Vector() {
     // TODO check disassembly here
@@ -80,6 +77,8 @@ struct Vector : public NonCopyable {
   bool Empty() const { return size == 0; }
   size_t Size() const { return size; }
   size_t Capacity() const { return capacity; }
+
+  void Clear() { size = 0; }
 
   void Destroy() {
     // TODO is this only because of the tests?
@@ -168,6 +167,41 @@ struct Vector : public NonCopyable {
 
   Alloc allocator;
 };
+
+namespace impl {
+
+template <typename T, typename Alloc>
+struct _VectorPrivAcess {
+  _VectorPrivAcess(Vector<T, Alloc> &v) : v(v) {}
+
+  Vector<T, Alloc> &Get() { return v; }
+
+  size_t Free() const { return v.capacity - v.size; }
+
+  void Commit(size_t n) {
+    pdp_assert(v.Size() + n <= v.Capacity());
+    v.size += n;
+  }
+
+  [[nodiscard]] T *ReleaseData() {
+    T *res = v.ptr;
+    v.ptr = nullptr;
+    return res;
+  }
+
+  bool IsHoldingData() { return v.ptr != nullptr; }
+
+  void Reset() {
+    v.ptr = nullptr;
+    v.size = 0;
+    v.capacity = 0;
+  }
+
+ private:
+  Vector<T, Alloc> &v;
+};
+
+}  // namespace impl
 
 template <typename T>
 struct IsReallocatable<Vector<T, DefaultAllocator>>

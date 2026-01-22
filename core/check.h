@@ -51,4 +51,8 @@ bool Check(int result, const char *operation);
 /// @return True if the operation executed successfully and false otherwise.
 bool Check(void *pointer, const char *operation);
 
+void CheckFatal(int result, const char *operation);
+
+void CheckFatal(void *pointer, const char *operation);
+
 };  // namespace pdp

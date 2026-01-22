@@ -375,3 +375,19 @@ TEST_CASE("AppendUninitialized appends raw space and preserves existing data") {
 
   CHECK(b.GetSlice() == StringSlice("hello world!!!"));
 }
+
+TEST_CASE("StringBuilder::Truncate") {
+  StringBuilder<> b;
+
+  b.Append("abcdef");
+  REQUIRE(b.GetSlice() == StringSlice("abcdef"));
+
+  b.Truncate(3);
+  CHECK(b.GetSlice() == StringSlice("abc"));
+
+  b.Append("XYZ");
+  CHECK(b.GetSlice() == StringSlice("abcXYZ"));
+
+  b.Truncate(0);
+  CHECK(b.GetSlice().Size() == 0);
+}

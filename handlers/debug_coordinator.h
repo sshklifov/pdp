@@ -61,8 +61,8 @@ struct DebugCoordinator {
 
  private:
   void RpcShowPacked(const StringSlice &fmt, PackedValue *args, uint64_t type_bits);
-  void HandleAsync(GdbAsyncKind kind, ScopedPtr<ExprBase> &&expr);
-  void HandleResult(GdbResultKind kind, ScopedPtr<ExprBase> &&expr);
+  void HandleAsync(GdbAsyncKind kind, ScopedPtr<ExprBase> expr);
+  void HandleResult(GdbResultKind kind, ScopedPtr<ExprBase> expr);
 
   HandlerCoroutine InitializeNs();
   HandlerCoroutine InitializeBuffers();

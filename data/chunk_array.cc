@@ -5,23 +5,6 @@ namespace pdp {
 
 namespace impl {
 
-template <>
-struct _StackPrivAccess<DefaultAllocator> {
-  _StackPrivAccess(Stack<byte *> &s) : s(s) {}
-
-  [[nodiscard]] ChunkHandle ReleaseChunks() {
-    ChunkHandle handle(s.ptr, s.size);
-    pdp_assert(s.ptr);
-    s.ptr = nullptr;
-    return handle;
-  }
-
-  bool IsHoldingChunks() const { return s.ptr != nullptr; }
-
- private:
-  Stack<byte *> &s;
-};
-
 }  // namespace impl
 
 ChunkHandle::ChunkHandle(byte **chunks, size_t num_chunks)
@@ -41,8 +24,10 @@ ChunkHandle::~ChunkHandle() {
 }
 
 ChunkHandle ChunkArray::ReleaseChunks() {
-  impl::_StackPrivAccess<DefaultAllocator> _stack_priv(chunks);
-  return _stack_priv.ReleaseChunks();
+  impl::_VectorPrivAcess<byte *, DefaultAllocator> _stack_priv(chunks);
+  byte **data = _stack_priv.ReleaseData();
+  auto num_chunks = chunks.Size();
+  return ChunkHandle(data, num_chunks);
 }
 
 ChunkArray::ChunkArray() : chunks(16) {
@@ -59,8 +44,8 @@ ChunkArray::~ChunkArray() {
             allocated_bytes);
   pdp_trace("Total {} calls to malloc", chunks.Size());
 #endif
-  impl::_StackPrivAccess<DefaultAllocator> _stack_priv(chunks);
-  if (_stack_priv.IsHoldingChunks()) {
+  impl::_VectorPrivAcess<byte *, DefaultAllocator> _stack_priv(chunks);
+  if (_stack_priv.IsHoldingData()) {
     for (size_t i = 0; i < chunks.Size(); ++i) {
       allocator.DeallocateRaw(chunks[i]);
     }

@@ -125,7 +125,7 @@ bool ReadRpcBoolean(ByteStream &s) {
 DynamicString ReadRpcString(ByteStream &s) {
   auto length = ReadRpcStringLength(s);
   DynamicString res;
-  impl::_InPlaceStringInit string_init(res);
+  impl::_DynamicStringPrivInit string_init(res);
   char *buf = string_init(length);
   s.Memcpy(buf, length);
   return res;

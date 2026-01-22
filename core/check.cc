@@ -92,4 +92,16 @@ bool Check(void *pointer, const char *operation) {
   return is_successful;
 }
 
+void CheckFatal(int result, const char *operation) {
+  if (PDP_UNLIKELY(!Check(result, operation))) {
+    std::terminate();
+  }
+}
+
+void CheckFatal(void *result, const char *operation) {
+  if (PDP_UNLIKELY(!Check(result, operation))) {
+    std::terminate();
+  }
+}
+
 };  // namespace pdp

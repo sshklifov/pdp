@@ -1,5 +1,6 @@
 add_library(pdp_system STATIC
   file_descriptor.cc
+  child_reaper.cc
 )
 
 target_include_directories(pdp_system PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

@@ -4,18 +4,8 @@
 
 namespace pdp {
 
-namespace impl {
-
-template <typename Alloc>
-struct _StackPrivAccess;
-
-}  // namespace impl
-
 template <typename T, typename Alloc = DefaultAllocator>
 struct Stack : public Vector<T, Alloc> {
-  // Required for chunk_array.cc only. So it is declared there.
-  friend struct impl::_StackPrivAccess<Alloc>;
-
   using Vector<T, Alloc>::Vector;
 
   void Push(T &&value) { (*this) += std::move(value); }

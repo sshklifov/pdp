@@ -13,11 +13,11 @@ inline HandlerCoroutine ClearCursorSign(DebugCoordinator *d) {
   }
 }
 
-inline void PlaceAsmCursor(DebugCoordinator *d, ScopedPtr<ExprBase> &&expr) {
+inline void PlaceAsmCursor(DebugCoordinator *d, ScopedPtr<ExprBase> expr) {
   // TODO
 }
 
-inline void PlaceSourceCursor(DebugCoordinator *d, ScopedPtr<ExprBase> &&expr) {
+inline void PlaceSourceCursor(DebugCoordinator *d, ScopedPtr<ExprBase> expr) {
   // int ns = d->GetSessionData().namespaces[kProgramCounterNs];
   // TODO get()
   // auto filename = expr[""]
@@ -32,7 +32,7 @@ inline void PlaceSourceCursor(DebugCoordinator *d, ScopedPtr<ExprBase> &&expr) {
   // TODO check timestamp. LOL this is difficult...
 }
 
-inline void PlaceCursorSign(DebugCoordinator *d, ScopedPtr<ExprBase> &&expr) {
+inline void PlaceCursorSign(DebugCoordinator *d, ScopedPtr<ExprBase> expr) {
   if (d->Session().asm_mode) {
     PlaceAsmCursor(d, std::move(expr));
   } else {
@@ -40,12 +40,12 @@ inline void PlaceCursorSign(DebugCoordinator *d, ScopedPtr<ExprBase> &&expr) {
   }
 }
 
-inline void RefreshCursorSign(DebugCoordinator *d, ScopedPtr<ExprBase> &&expr) {
+inline void RefreshCursorSign(DebugCoordinator *d, ScopedPtr<ExprBase> expr) {
   ClearCursorSign(d);
   PlaceCursorSign(d, std::move(expr));
 }
 
-inline void HandleThreadSelect(DebugCoordinator *d, ScopedPtr<ExprBase> &&expr) {
+inline void HandleThreadSelect(DebugCoordinator *d, ScopedPtr<ExprBase> expr) {
   LooseTypedView dict(expr);
 
   d->Session().selected_thread = dict["new-thread-id"].AsInteger();
@@ -54,7 +54,7 @@ inline void HandleThreadSelect(DebugCoordinator *d, ScopedPtr<ExprBase> &&expr) 
   RefreshCursorSign(d, std::move(expr));
 }
 
-inline void HandleProgramRun(DebugCoordinator *d, ScopedPtr<ExprBase> &&expr) {
+inline void HandleProgramRun(DebugCoordinator *d, ScopedPtr<ExprBase> expr) {
   LooseTypedView dict(expr);
   int64_t pid = dict["pid"].AsInteger();
   if (d->IsRemoteDebugging()) {

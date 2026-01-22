@@ -99,6 +99,51 @@ TEST_CASE("Substr(pos)") {
   CHECK(sub[3] == 'f');
 }
 
+TEST_CASE("StringSlice::GetLeft(size_t)") {
+  StringSlice s("abcdef");
+
+  SUBCASE("zero length") {
+    auto left = s.GetLeft(0ul);
+    CHECK(left.Size() == 0);
+    CHECK(left.Begin() == s.Begin());
+  }
+
+  SUBCASE("partial") {
+    auto left = s.GetLeft(3);
+    CHECK(left.Size() == 3);
+    CHECK(left == StringSlice("abc"));
+  }
+
+  SUBCASE("full size") {
+    auto left = s.GetLeft(s.Size());
+    CHECK(left.Size() == s.Size());
+    CHECK(left == s);
+  }
+}
+
+TEST_CASE("StringSlice::GetLeft(const char*)") {
+  StringSlice s("abcdef");
+
+  SUBCASE("begin iterator") {
+    auto left = s.GetLeft(s.Begin());
+    CHECK(left.Size() == 0);
+    CHECK(left.Begin() == s.Begin());
+  }
+
+  SUBCASE("middle iterator") {
+    const char *it = s.Begin() + 4;
+    auto left = s.GetLeft(it);
+    CHECK(left.Size() == 4);
+    CHECK(left == StringSlice("abcd"));
+  }
+
+  SUBCASE("end iterator") {
+    auto left = s.GetLeft(s.End());
+    CHECK(left.Size() == s.Size());
+    CHECK(left == s);
+  }
+}
+
 TEST_CASE("DropLeft(pointer)") {
   StringSlice s("abcdef");
 

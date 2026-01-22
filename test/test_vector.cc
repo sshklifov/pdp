@@ -17,7 +17,6 @@ TEST_CASE("Vector type traits") {
   static_assert(!std::is_copy_assignable_v<Vector<int>>);
 
   static_assert(std::is_move_constructible_v<Vector<int>>);
-  static_assert(std::is_move_assignable_v<Vector<int>>);
 
   static_assert(noexcept(Vector<int>{}));
 }
@@ -152,32 +151,6 @@ TEST_CASE("Vector preserves elements across growth and updates allocator counter
 
   // Now destroy: should release the buffer => 0 allocations, 0 bytes.
   v.Destroy();
-  CHECK(!stats.HasLeaks());
-}
-
-TEST_CASE("Move assignment leaks existing allocation") {
-  TrackingAllocator::Stats stats{};
-  TrackingAllocator alloc(&stats);
-
-  Vector<uint32_t, TrackingAllocator> a(2, alloc);
-  a += 1;
-
-  Vector<uint32_t, TrackingAllocator> b(4, alloc);
-  b += 9;
-  b += 8;
-
-  CHECK(stats.GetActiveAllocations() == 2);
-
-  // This should free b's buffer, then take a's.
-  b = std::move(a);
-  CHECK(b.Size() == 1);
-  CHECK(b[0] == 1);
-
-  // After move, there should still be exactly 1 active allocation (b's new buffer).
-  CHECK(stats.GetActiveAllocations() == 1);
-
-  // Clean up any remaining allocation(s).
-  b.Destroy();
   CHECK(!stats.HasLeaks());
 }
 

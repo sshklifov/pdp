@@ -46,6 +46,8 @@ void Log(const char *filename, unsigned line, Level level, const StringSlice &fm
 
 void LogUnformatted(const StringSlice &str);
 
+void LogMultiLine(const char *filename, unsigned line, Level level, StringSlice msg);
+
 }  // namespace pdp
 
 // The constexpr variable is forced so GetBasename is computed at compile time and loaded directly
@@ -54,6 +56,12 @@ void LogUnformatted(const StringSlice &str);
   do {                                                        \
     constexpr const char *_bn = ::pdp::GetBasename(__FILE__); \
     ::pdp::Log(_bn, __LINE__, level, __VA_ARGS__);            \
+  } while (0)
+
+#define PDP_LOG_MULTI_LINE(level, msg)                        \
+  do {                                                        \
+    constexpr const char *_bn = ::pdp::GetBasename(__FILE__); \
+    ::pdp::LogMultiLine(_bn, __LINE__, level, msg);           \
   } while (0)
 
 /// @brief Disable atrace calls on macro level
@@ -86,5 +94,7 @@ void LogUnformatted(const StringSlice &str);
 #define pdp_warning(fmt, ...) PDP_LOG(::pdp::Level::kWarn, fmt, ##__VA_ARGS__)
 
 #define pdp_error(fmt, ...) PDP_LOG(::pdp::Level::kError, fmt, ##__VA_ARGS__)
+
+#define pdp_error_multiline(msg) PDP_LOG_MULTI_LINE(::pdp::Level::kError, msg)
 
 #define pdp_critical(fmt, ...) PDP_LOG(::pdp::Level::kCrit, fmt, ##__VA_ARGS__)

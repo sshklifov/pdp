@@ -37,9 +37,6 @@ target_link_libraries(test_rpc_parser PRIVATE pdp_parser)
 add_executable(show_nvim_api_info show_nvim_api_info.cc)
 target_link_libraries(show_nvim_api_info PRIVATE pdp_parser)
 
-# add_executable(test_callback_table test_callback_table.cc)
-# target_link_libraries(test_callback_table PRIVATE pdp_data)
-
 add_executable(test_emhash test_emhash.cc)
 target_link_libraries(test_emhash PRIVATE external)
 
@@ -63,3 +60,9 @@ target_link_libraries(test_gdb_driver PRIVATE pdp_drivers)
 
 add_executable(test_loop_queue test_loop_queue.cc)
 target_link_libraries(test_loop_queue PRIVATE pdp_data)
+
+add_executable(test_child_reaper test_child_reaper.cc)
+target_link_libraries(test_child_reaper PRIVATE pdp_system)
+
+add_executable(test_small_capture test_small_capture.cc)
+target_link_libraries(test_small_capture PRIVATE pdp_data)

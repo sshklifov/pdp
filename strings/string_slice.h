@@ -88,6 +88,11 @@ struct StringSlice {
     return StringSlice(ptr, n);
   }
 
+  constexpr StringSlice GetLeft(const char *it) {
+    pdp_assert_non_constexpr(it <= End());
+    return StringSlice(ptr, it);
+  }
+
   constexpr void DropLeft(const char *it) {
     pdp_assert_non_constexpr(it >= Begin() && it <= End());
     size -= it - ptr;

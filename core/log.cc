@@ -72,21 +72,30 @@ static constexpr size_t EstimateLogLevelSize() {
   return max;
 }
 
-static void Pad2Unchecked(byte value, StringBuilder<OneShotAllocator> &out) {
+static constexpr size_t EstimateHeaderSize() {
+  constexpr size_t constexpr_estimate = ConstexprLength("[2026-01-02 11:42:27.380] [] [:] \n") +
+                                        EstimateLogLevelSize() + EstimateSize<unsigned>::value;
+  return constexpr_estimate;
+}
+
+template <typename Alloc>
+void Pad2Unchecked(byte value, StringBuilder<Alloc> &out) {
   pdp_assert(value <= 99);
   out.AppendUnchecked(static_cast<char>('0' + value / 10));
   out.AppendUnchecked(static_cast<char>('0' + value % 10));
 }
 
-static void Pad3Unchecked(unsigned value, StringBuilder<OneShotAllocator> &out) {
+template <typename Alloc>
+void Pad3Unchecked(unsigned value, StringBuilder<Alloc> &out) {
   pdp_assert(value <= 999);
   auto dig3 = value / 100;
   out.AppendUnchecked(static_cast<char>('0' + dig3));
   Pad2Unchecked(value - dig3 * 100, out);
 }
 
-static void WriteLogHeader(const StringSlice &filename, unsigned line, Level level,
-                           StringBuilder<OneShotAllocator> &out) {
+template <typename Alloc>
+void WriteLogHeader(const StringSlice &filename, unsigned line, Level level,
+                    StringBuilder<Alloc> &out) {
   // Capture current wall-clock time with nanosecond precision.
   timespec ts;
   memset(&ts, 0, sizeof(timespec));
@@ -144,17 +153,41 @@ void Log(const char *f, unsigned line, Level level, const StringSlice &fmt, Pack
   StringSlice filename(f);
   StringBuilder<OneShotAllocator> builder;
 
-  constexpr size_t constexpr_estimate = ConstexprLength("[2026-01-02 11:42:27.380] [] [:] \n") +
-                                        EstimateLogLevelSize() +
-                                        EstimateSize<decltype(line)>::value;
   const size_t capacity =
-      constexpr_estimate + filename.Size() + fmt.Size() + RunEstimator(args, type_bits);
+      EstimateHeaderSize() + filename.Size() + fmt.Size() + RunEstimator(args, type_bits);
   builder.ReserveFor(capacity);
 
   WriteLogHeader(filename, line, level, builder);
   builder.AppendPackUnchecked(fmt, args, type_bits);
   builder.AppendUnchecked('\n');
   LogUnformatted(builder.GetSlice());
+}
+
+void LogMultiLine(const char *f, unsigned line, Level level, StringSlice msg) {
+  if (PDP_UNLIKELY(!ShouldLogAt(level))) {
+    return;
+  }
+  StringSlice filename(f);
+  StringBuilder builder;
+  builder.ReserveFor(EstimateHeaderSize() + filename.Size());
+
+  WriteLogHeader(filename, line, level, builder);
+  const size_t header_size = builder.Size();
+
+  auto it = msg.MemChar('\n');
+  while (PDP_LIKELY(it)) {
+    it += 1;
+    builder.Append(msg.GetLeft(it));
+    LogUnformatted(builder.GetSlice());
+    builder.Truncate(header_size);
+
+    msg.DropLeft(it);
+    it = msg.MemChar('\n');
+  }
+  if (PDP_UNLIKELY(!msg.Empty())) {
+    builder.Append(msg.GetLeft(it));
+    LogUnformatted(builder.GetSlice());
+  }
 }
 
 void LogUnformatted(const StringSlice &str) {

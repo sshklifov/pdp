@@ -8,12 +8,12 @@ namespace pdp {
 
 namespace impl {
 
-struct _InPlaceStringInit;
+struct _DynamicStringPrivInit;
 
 }  // namespace impl
 
 struct DynamicString : public NonCopyable {
-  friend struct impl::_InPlaceStringInit;
+  friend struct impl::_DynamicStringPrivInit;
 
   DynamicString() : ptr(nullptr), size(0) {}
 
@@ -25,6 +25,8 @@ struct DynamicString : public NonCopyable {
   }
 
   DynamicString(const char *begin, const char *end) : DynamicString(begin, end - begin) {}
+
+  explicit DynamicString(const StringSlice &rhs) : DynamicString(rhs.Begin(), rhs.Size()) {}
 
   DynamicString(DynamicString &&rhs) : ptr(rhs.ptr), size(rhs.size) { rhs.ptr = nullptr; }
 
@@ -68,8 +70,8 @@ struct IsReallocatable<DynamicString> : std::true_type {};
 
 namespace impl {
 
-struct _InPlaceStringInit {
-  _InPlaceStringInit(DynamicString &s) : str(s) {}
+struct _DynamicStringPrivInit {
+  _DynamicStringPrivInit(DynamicString &s) : str(s) {}
 
   char *operator()(size_t length) {
     pdp_assert(!str.ptr);
@@ -82,6 +84,13 @@ struct _InPlaceStringInit {
     str.ptr = buf;
     str.size = length;
     return buf;
+  }
+
+  void operator()(char *data, size_t length) {
+    pdp_assert(data[length] == '\0');
+    pdp_assert(!str.ptr);
+    str.ptr = data;
+    str.size = length;
   }
 
  private:

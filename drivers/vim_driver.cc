@@ -8,7 +8,7 @@ DynamicString Join(pdp::PackedValue *args, uint64_t num_slots, uint64_t type_bit
   StringSlice sep = ", ";
   const size_t bytes = RunEstimator(args, type_bits) + num_slots * sep.Size();
   DynamicString res;
-  impl::_InPlaceStringInit string_init(res);
+  impl::_DynamicStringPrivInit string_init(res);
   char *s = string_init(bytes);
 
   Formatter fmt(s, s + bytes);

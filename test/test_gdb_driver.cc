@@ -49,8 +49,7 @@ TEST_CASE("GdbDriver Send writes command to stdin") {
   GdbDriver driver;
   auto fake = SetupFakeGdb(driver);
 
-  bool ok = driver.Send(42, StringSlice("-exec-run"));
-  REQUIRE(ok);
+  driver.Send(42, StringSlice("-exec-run"));
 
   std::string received = fake.ReadStdin();
 

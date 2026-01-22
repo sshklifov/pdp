@@ -17,9 +17,17 @@ int DuplicateForThisProcess(int fd) {
   return dupped;
 }
 
+void SetNonBlocking(int fd) {
+  int flags = fcntl(fd, F_GETFL, 0);
+  int ret = fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+  if (PDP_UNLIKELY(!Check(ret, "fcntl"))) {
+    PDP_UNREACHABLE("Cannot setup non-blocking IO");
+  }
+}
+
 FileDescriptor::FileDescriptor() : fd(-1) {}
 
-FileDescriptor::FileDescriptor(int descriptor) : fd(descriptor) { SetNonBlocking(); }
+FileDescriptor::FileDescriptor(int descriptor) : fd(descriptor) { SetNonBlocking(fd); }
 
 FileDescriptor::~FileDescriptor() { Check(close(fd), "close"); }
 
@@ -30,7 +38,7 @@ int FileDescriptor::Value() const { return fd; }
 void FileDescriptor::SetDescriptor(int init_fd) {
   pdp_assert(fd < 0);
   fd = init_fd;
-  SetNonBlocking();
+  SetNonBlocking(fd);
 }
 
 bool FileDescriptor::WaitForEvents(int events, Milliseconds timeout) {
@@ -38,6 +46,7 @@ bool FileDescriptor::WaitForEvents(int events, Milliseconds timeout) {
   struct pollfd poll_args;
   poll_args.fd = fd;
   poll_args.events = events;
+  poll_args.revents = 0;
 
   int ret = poll(&poll_args, 1, timeout.GetMilli());
   if (ret <= 0) {
@@ -45,14 +54,6 @@ bool FileDescriptor::WaitForEvents(int events, Milliseconds timeout) {
     return false;
   }
   return (poll_args.revents & events);
-}
-
-void FileDescriptor::SetNonBlocking() {
-  int flags = fcntl(fd, F_GETFL, 0);
-  int ret = fcntl(fd, F_SETFL, flags | O_NONBLOCK);
-  if (PDP_UNLIKELY(!Check(ret, "fcntl"))) {
-    PDP_UNREACHABLE("Cannot setup non-blocking IO");
-  }
 }
 
 bool InputDescriptor::WaitForInput(Milliseconds timeout) { return WaitForEvents(POLLIN, timeout); }

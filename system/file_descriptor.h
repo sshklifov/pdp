@@ -8,6 +8,7 @@
 namespace pdp {
 
 int DuplicateForThisProcess(int fd);
+void SetNonBlocking(int fd);
 
 struct FileDescriptor : public NonCopyableNonMovable {
   FileDescriptor();
@@ -19,8 +20,6 @@ struct FileDescriptor : public NonCopyableNonMovable {
   void SetDescriptor(int init_fd);
 
  protected:
-  void SetNonBlocking();
-
   bool WaitForEvents(int events, Milliseconds timeout);
 
   int fd;

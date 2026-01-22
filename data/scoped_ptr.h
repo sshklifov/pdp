@@ -28,6 +28,16 @@ struct ScopedPtr : public NonCopyable {
 
   const T *operator->() const { return ptr; }
 
+  template <typename U = T>
+  std::enable_if_t<!std::is_void_v<U>, U &> operator*() {
+    return *ptr;
+  }
+
+  template <typename U = T>
+  std::enable_if_t<!std::is_void_v<U>, const U &> &operator*() const {
+    return *ptr;
+  }
+
   T *Get() { return ptr; }
   const T *Get() const { return ptr; }
 

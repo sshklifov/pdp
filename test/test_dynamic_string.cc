@@ -73,7 +73,7 @@ TEST_CASE("DynamicString GetSlice returns correct view") {
 
 TEST_CASE("InPlaceStringInit initializes empty DynamicString") {
   DynamicString s;
-  impl::_InPlaceStringInit init(s);
+  impl::_DynamicStringPrivInit init(s);
 
   char *buf = init(6);
   memcpy(buf, "foobar", 6);

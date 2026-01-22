@@ -568,6 +568,12 @@ struct StringBuilder : public SmallBufferStorage<char, Alloc> {
 
   StringSlice GetSlice() const { return StringSlice(begin, end); }
 
+  void Truncate(size_t old_size) {
+    auto new_end = this->begin + old_size;
+    pdp_assert(new_end < this->end);
+    this->end = new_end;
+  }
+
   // Unsafe Append methods.
 
   template <typename T>

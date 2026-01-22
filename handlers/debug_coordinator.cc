@@ -221,7 +221,7 @@ int DebugCoordinator::GetExeTimetamp() {
   return session_data.GetExeTimestamp();
 }
 
-void DebugCoordinator::HandleResult(GdbResultKind kind, ScopedPtr<ExprBase> &&expr) {
+void DebugCoordinator::HandleResult(GdbResultKind kind, ScopedPtr<ExprBase> expr) {
   if (PDP_LIKELY(kind == GdbResultKind::kDone)) {
     // TODO
   } else if (PDP_LIKELY(kind == GdbResultKind::kError)) {
@@ -229,7 +229,7 @@ void DebugCoordinator::HandleResult(GdbResultKind kind, ScopedPtr<ExprBase> &&ex
   }
 }
 
-void DebugCoordinator::HandleAsync(GdbAsyncKind kind, ScopedPtr<ExprBase> &&expr) {
+void DebugCoordinator::HandleAsync(GdbAsyncKind kind, ScopedPtr<ExprBase> expr) {
   switch (kind) {
     case GdbAsyncKind::kThreadSelected: {
       // HandleThreadSelected h;
