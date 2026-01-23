@@ -225,7 +225,7 @@ struct TestPair {
 };
 
 template <>
-struct pdp::IsReallocatable<TestPair> : std::true_type {};
+struct pdp::CanReallocate<TestPair> : std::true_type {};
 
 TEST_CASE("Emplace constructs simple struct and appends it") {
   Vector<TestPair> v(2);

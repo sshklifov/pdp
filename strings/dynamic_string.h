@@ -66,7 +66,7 @@ struct DynamicString : public NonCopyable {
 };
 
 template <>
-struct IsReallocatable<DynamicString> : std::true_type {};
+struct CanReallocate<DynamicString> : std::true_type {};
 
 namespace impl {
 

@@ -35,6 +35,12 @@ bool FileDescriptor::IsValid() const { return fd >= 0; }
 
 int FileDescriptor::GetDescriptor() const { return fd; }
 
+void FileDescriptor::Close() {
+  pdp_assert(IsValid());
+  Check(close(fd), "FileDescriptor::Close");
+  fd = -1;
+}
+
 void FileDescriptor::SetDescriptor(int init_fd) {
   pdp_assert(fd < 0);
   fd = init_fd;
@@ -99,6 +105,20 @@ size_t InputDescriptor::ReadAvailable(void *buf, size_t max_bytes) {
   } while (num_read < max_bytes);
   pdp_assert(num_read == max_bytes);
   return num_read;
+}
+
+size_t InputDescriptor::ReadAvailable(pdp::Vector<char> &out) {
+  impl::_VectorPrivAcess<char, DefaultAllocator> _vector_priv(out);
+  size_t num_read = 0;
+  for (;;) {
+    _vector_priv.Get().ReserveFor(1024);
+    size_t ret = ReadOnce(_vector_priv.Get().End(), _vector_priv.Free());
+    if (ret <= 0) {
+      return num_read;
+    }
+    _vector_priv.Commit(ret);
+    num_read += ret;
+  }
 }
 
 size_t InputDescriptor::ReadOnce(void *buf, size_t size) {

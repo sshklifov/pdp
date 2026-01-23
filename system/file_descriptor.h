@@ -1,6 +1,7 @@
 #pragma once
 
 #include "data/non_copyable.h"
+#include "data/vector.h"
 #include "time_units.h"
 
 #include <cstddef>
@@ -18,6 +19,7 @@ struct FileDescriptor : public NonCopyableNonMovable {
   bool IsValid() const;
   int GetDescriptor() const;
   void SetDescriptor(int init_fd);
+  void Close();
 
  protected:
   bool WaitForEvents(int events, Milliseconds timeout);
@@ -34,10 +36,9 @@ struct InputDescriptor : public FileDescriptor {
   bool ReadExactly(void *buf, size_t size, Milliseconds timeout);
 
   size_t ReadAvailable(void *buf, size_t max_bytes);
+  size_t ReadAvailable(pdp::Vector<char> &out);
 
   size_t ReadOnce(void *buf, size_t size);
-
- private:
 };
 
 struct OutputDescriptor : public FileDescriptor {

@@ -6,6 +6,8 @@
 
 namespace pdp {
 
+bool WriteFully(int fd, const void *data, size_t bytes);
+
 /// @brief Returns a pointer to the basename of the path-like string.
 constexpr const char *GetBasename(const StringSlice &name) {
   const char *basename = name.MemReverseChar('/');

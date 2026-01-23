@@ -40,7 +40,7 @@ constexpr std::size_t operator""_GB(unsigned long long gigabytes) {
 }
 
 template <typename T>
-struct IsReallocatable : std::bool_constant<std::is_trivially_move_constructible_v<T>> {};
+struct CanReallocate : std::bool_constant<std::is_trivially_move_constructible_v<T>> {};
 
 struct AlignmentTraits {
   static constexpr uint32_t AlignUp(uint32_t bytes) {

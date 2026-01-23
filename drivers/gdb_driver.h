@@ -139,7 +139,7 @@ struct GdbDriver {
   RollingBuffer gdb_stdout;
   InputDescriptor gdb_stderr;
 
-  pdp::ScopedPtr<char> error_buffer;
+  pdp::ScopedArrayPtr<char> error_buffer;
   static constexpr size_t max_error_length = 256;
 };
 

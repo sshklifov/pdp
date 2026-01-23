@@ -1,4 +1,5 @@
 #include <fcntl.h>
+#include "data/scoped_ptr.h"
 #define PACKAGE_VERSION
 #include <bfd.h>
 
@@ -10,22 +11,10 @@
 #include "data/vector.h"
 #include "external/emhash8.h"
 #include "strings/dynamic_string.h"
-#include "strings/rolling_buffer.h"
 #include "strings/string_builder.h"
 
 void WriteSlice(const pdp::StringSlice &str) {
-  // Write buffer in a loop to handle partial writes from write(2).
-  ssize_t num_written = 0;
-  ssize_t remaining = str.Size();
-  do {
-    ssize_t ret = write(STDOUT_FILENO, str.Data() + num_written, remaining);
-    if (PDP_UNLIKELY(ret < 0)) {
-      // Not much you can do except accepting the partial write and moving on.
-      return;
-    }
-    num_written += ret;
-    remaining -= ret;
-  } while (PDP_UNLIKELY(remaining));
+  pdp::WriteFully(STDOUT_FILENO, str.Data(), str.Size());
 }
 
 void WriteFileError(const char *fmt, const char *filename) {
@@ -198,17 +187,16 @@ class FileSymbolResolver : public pdp::NonCopyableNonMovable {
 };
 
 template <>
-struct pdp::IsReallocatable<FileSymbolResolver> : std::true_type {};
+struct pdp::CanReallocate<FileSymbolResolver> : std::true_type {};
 
 struct ExecutableAndAddress {
   pdp::DynamicString executable;
   pdp::DynamicString addr;
 };
 
-ExecutableAndAddress SplitExecutableAndAddress(pdp::MutableLine line) {
-  char *close_bracket = line.end - 2;
-  if (close_bracket <= line.begin || *close_bracket != ')' ||
-      (*line.begin != '.' && *line.begin != '/')) {
+ExecutableAndAddress SplitExecutableAndAddress(char *begin, char *end) {
+  char *close_bracket = end - 2;
+  if (close_bracket <= begin || *close_bracket != ')' || (*begin != '.' && *begin != '/')) {
     return {};
   }
   char *it = close_bracket - 1;
@@ -232,12 +220,12 @@ ExecutableAndAddress SplitExecutableAndAddress(pdp::MutableLine line) {
   }
 
   *it = '\0';
-  if (access(line.begin, X_OK) != 0) {
+  if (access(begin, X_OK) != 0) {
     return {};
   }
   *it = '(';
 
-  pdp::DynamicString exe(line.begin, it);
+  pdp::DynamicString exe(begin, it);
   pdp::DynamicString sym(it + 2, close_bracket);
   return ExecutableAndAddress{std::move(exe), std::move(sym)};
 }
@@ -295,11 +283,10 @@ int main() {
   const bool enable_inlining = true;
   emhash8::Map<pdp::DynamicString, FileSymbolResolver> resolver_map;
 
-  pdp::RollingBuffer buffer;
-  buffer.SetBlockingDescriptor(pdp::DuplicateForThisProcess(STDIN_FILENO));
-  pdp::MutableLine line = buffer.ReadLine();
-  while (line.begin < line.end) {
-    auto [exe, addr] = SplitExecutableAndAddress(line);
+  pdp::ScopedArrayPtr<char> buffer(4096);
+  while (fgets(buffer.Get(), 4096, stdin)) {
+    const size_t num_read = strlen(buffer.Get());
+    auto [exe, addr] = SplitExecutableAndAddress(buffer.Get(), buffer.Get() + num_read);
     if (!exe.Empty() && !addr.Empty()) {
       auto it = resolver_map.Find(exe);
       if (it == resolver_map.End()) {
@@ -315,12 +302,11 @@ int main() {
       if (!source_lines.Empty()) {
         WriteSlice(builder.GetSlice());
       } else {
-        WriteSlice(pdp::StringSlice(line.begin, line.end));
+        WriteSlice(pdp::StringSlice(buffer.Get(), buffer.Get() + num_read));
       }
     } else {
-      WriteSlice(pdp::StringSlice(line.begin, line.end));
+      WriteSlice(pdp::StringSlice(buffer.Get(), buffer.Get() + num_read));
     }
-    line = buffer.ReadLine();
   }
 
   return 0;

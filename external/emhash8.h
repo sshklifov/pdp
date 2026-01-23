@@ -73,7 +73,7 @@ class Map : public pdp::NonCopyable {
   };
 
   static_assert(std::is_nothrow_destructible_v<Entry>, "K and V must be noexcept destructible");
-  static_assert(pdp::IsReallocatable<K>::value && pdp::IsReallocatable<V>::value,
+  static_assert(pdp::CanReallocate<K>::value && pdp::CanReallocate<V>::value,
                 "K and V must be movable with realloc");
   static_assert(std::is_invocable_v<const pdp::Hash<K>, K>, "Hash function missing for K");
 

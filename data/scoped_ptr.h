@@ -11,12 +11,6 @@ template <typename T, typename Alloc = DefaultAllocator>
 struct ScopedPtr : public NonCopyable {
   ScopedPtr(T *ptr = nullptr, Alloc a = Alloc()) noexcept : ptr(ptr), allocator(a) {}
 
-  template <typename U = T, std::enable_if_t<std::is_default_constructible_v<U>, int> = 0>
-  ScopedPtr(size_t elements, Alloc a = Alloc()) noexcept : allocator(a) {
-    pdp_assert(elements > 0);
-    ptr = Allocate<T>(allocator, elements);
-  }
-
   ScopedPtr(ScopedPtr &&rhs) noexcept : ptr(rhs.ptr), allocator(rhs.allocator) {
     rhs.ptr = nullptr;
   }
@@ -43,6 +37,39 @@ struct ScopedPtr : public NonCopyable {
   std::enable_if_t<!std::is_void_v<U>, const U &> &operator*() const {
     return *ptr;
   }
+
+  T *Get() { return ptr; }
+  const T *Get() const { return ptr; }
+
+ private:
+  T *ptr;
+  Alloc allocator;
+};
+
+template <typename T, typename Alloc = DefaultAllocator>
+struct ScopedArrayPtr : public NonCopyable {
+  template <typename U = T, std::enable_if_t<std::is_default_constructible_v<U>, int> = 0>
+  ScopedArrayPtr(size_t elements, Alloc a = Alloc()) noexcept : allocator(a) {
+    pdp_assert(elements > 0);
+    ptr = Allocate<T>(allocator, elements);
+  }
+
+  ScopedArrayPtr(ScopedArrayPtr &&rhs) noexcept : ptr(rhs.ptr), allocator(rhs.allocator) {
+    rhs.ptr = nullptr;
+  }
+
+  void operator=(ScopedArrayPtr &&rhs) = delete;
+
+  ~ScopedArrayPtr() {
+    static_assert(std::is_trivially_destructible_v<T>);
+    allocator.DeallocateRaw(ptr);
+  }
+
+  operator bool() const { return ptr != nullptr; }
+
+  T &operator[](size_t idx) { return ptr[idx]; }
+
+  const T &operator[](size_t idx) const { return ptr[idx]; }
 
   T *Get() { return ptr; }
   const T *Get() const { return ptr; }

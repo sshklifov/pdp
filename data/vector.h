@@ -18,7 +18,7 @@ struct _VectorPrivAcess;
 
 template <typename T, typename Alloc = DefaultAllocator>
 struct Vector : public NonCopyable {
-  static_assert(pdp::IsReallocatable<T>::value, "T must be movable with realloc");
+  static_assert(pdp::CanReallocate<T>::value, "T must be movable with realloc");
   static_assert(std::is_nothrow_destructible_v<T>, "T must be noexcept destructible");
 
   friend struct impl::_VectorPrivAcess<T, Alloc>;
@@ -204,7 +204,6 @@ struct _VectorPrivAcess {
 }  // namespace impl
 
 template <typename T>
-struct IsReallocatable<Vector<T, DefaultAllocator>>
-    : std::bool_constant<IsReallocatable<T>::value> {};
+struct CanReallocate<Vector<T, DefaultAllocator>> : std::bool_constant<CanReallocate<T>::value> {};
 
 };  // namespace pdp

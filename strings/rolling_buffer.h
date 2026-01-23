@@ -22,7 +22,6 @@ struct RollingBuffer {
   ~RollingBuffer();
 
   void SetDescriptor(int fd);
-  void SetBlockingDescriptor(int fd);
   int GetDescriptor() const;
 
   MutableLine ReadLine();
@@ -36,7 +35,7 @@ struct RollingBuffer {
   const char *__restrict__ limit;
 
   bool search_for_newlines;
-  int input_fd;
+  InputDescriptor input_fd;
   DefaultAllocator allocator;
 
 #ifdef PDP_TRACE_ROLLING_BUFFER

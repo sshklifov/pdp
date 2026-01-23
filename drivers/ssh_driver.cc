@@ -5,29 +5,10 @@
 #include <sys/prctl.h>
 #include <sys/wait.h>
 #include <unistd.h>
-#include <cerrno>
 #include "core/log.h"
-#include "strings/string_builder.h"
 #include "system/file_descriptor.h"
 
 namespace pdp {
-
-static void ReadOutput(int fd, Vector<char> &out) {
-  impl::_VectorPrivAcess<char, DefaultAllocator> _vector_priv(out);
-  for (;;) {
-    _vector_priv.Get().ReserveFor(1024);
-    ssize_t ret = read(fd, _vector_priv.Get().End(), _vector_priv.Free());
-    if (PDP_UNLIKELY(ret < 0)) {
-      if (PDP_LIKELY(errno != EAGAIN && errno != EWOULDBLOCK)) {
-        Check(ret, "read");
-      }
-      return;
-    } else if (ret == 0) {
-      return;
-    }
-    _vector_priv.Commit(BitCast<size_t>(ret));
-  }
-}
 
 static DynamicString ToDynamicString(Vector<char> &v) {
   v += '\0';
@@ -78,23 +59,23 @@ SshDriver::Capture *SshDriver::OnOutput(StringSlice request) {
 
 void SshDriver::RegisterForPoll(PollTable &table) {
   for (size_t i = 0; i < max_children; ++i) {
-    if (active_queue[i].output_fd >= 0) {
-      table.Register(active_queue[i].output_fd);
-      pdp_assert(active_queue[i].error_fd >= 0);
-      table.Register(active_queue[i].error_fd);
+    if (active_queue[i].ssh_output.IsValid()) {
+      table.Register(active_queue[i].ssh_output.GetDescriptor());
+      pdp_assert(active_queue[i].ssh_error.IsValid());
+      table.Register(active_queue[i].ssh_error.GetDescriptor());
     }
   }
 }
 
 void SshDriver::OnPollResults(PollTable &table) {
   for (size_t i = 0; i < max_children; ++i) {
-    if (active_queue[i].output_fd >= 0) {
-      if (table.HasInputEvents(active_queue[i].output_fd)) {
-        ReadOutput(active_queue[i].output_fd, active_queue[i].output);
+    if (active_queue[i].ssh_output.IsValid()) {
+      if (table.HasInputEvents(active_queue[i].ssh_output.GetDescriptor())) {
+        active_queue[i].ssh_output.ReadAvailable(active_queue[i].buffer_output);
       }
-      pdp_assert(active_queue[i].error_fd >= 0);
-      if (table.HasInputEvents(active_queue[i].error_fd)) {
-        ReadOutput(active_queue[i].error_fd, active_queue[i].errors);
+      pdp_assert(active_queue[i].ssh_error.IsValid());
+      if (table.HasInputEvents(active_queue[i].ssh_error.GetDescriptor())) {
+        active_queue[i].ssh_error.ReadAvailable(active_queue[i].buffer_error);
       }
     }
   }
@@ -104,24 +85,22 @@ void SshDriver::OnChildExited(pid_t pid, int status) {
   for (size_t i = 0; i < max_children; ++i) {
     if (pid == active_queue[i].pid) {
       if (PDP_LIKELY(WIFEXITED(status) && WEXITSTATUS(status) == 0)) {
-        active_queue[i].cb(ToDynamicString(active_queue[i].output));
+        active_queue[i].cb(ToDynamicString(active_queue[i].buffer_output));
       } else {
         pdp_error("SSH command failed!");
       }
 
-      if (PDP_UNLIKELY(!active_queue[i].errors.Empty())) {
-        StringSlice errors(active_queue[i].errors.Data(), active_queue[i].errors.Size());
+      if (PDP_UNLIKELY(!active_queue[i].buffer_error.Empty())) {
+        StringSlice errors(active_queue[i].buffer_error.Data(),
+                           active_queue[i].buffer_error.Size());
         pdp_error_multiline(errors);
       }
 
-      pdp_assert(active_queue[i].output_fd >= 0);
-      close(active_queue[i].output_fd);
-      active_queue[i].output_fd = -1;
-      pdp_assert(active_queue[i].error_fd >= 0);
-      active_queue[i].error_fd = -1;
       active_queue[i].pid = -1;
-      active_queue[i].output.Clear();
-      active_queue[i].errors.Clear();
+      active_queue[i].ssh_output.Close();
+      active_queue[i].ssh_error.Close();
+      active_queue[i].buffer_output.Clear();
+      active_queue[i].buffer_error.Clear();
 
       if (PDP_UNLIKELY(!pending_queue.Empty())) {
         auto command = std::move(pending_queue.Front().request);
@@ -167,13 +146,9 @@ void SshDriver::SpawnChildAt(const StringSlice &command, size_t pos) {
   close(out[1]);
   close(err[1]);
 
-  SetNonBlocking(out[0]);
-  SetNonBlocking(err[0]);
+  active_queue[pos].ssh_output.SetDescriptor(out[0]);
+  active_queue[pos].ssh_error.SetDescriptor(err[0]);
 
-  pdp_assert(active_queue[pos].output_fd == -1);
-  active_queue[pos].output_fd = out[0];
-  pdp_assert(active_queue[pos].error_fd == -1);
-  active_queue[pos].error_fd = err[0];
   pdp_assert(active_queue[pos].pid == -1);
   active_queue[pos].pid = pid;
 

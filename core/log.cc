@@ -16,6 +16,8 @@ static std::atomic_int log_level = static_cast<int>(pdp::Level::kInfo);
 /// @note Each process has its own copy of this variable.
 static std::atomic_int log_output_fd = -1;
 
+// TODO remove atomics and accept asyncs.
+
 namespace pdp {
 
 static void TerminateHandler() {
@@ -23,6 +25,21 @@ static void TerminateHandler() {
   if (PDP_LIKELY(fd > 0)) {
     close(fd);
   }
+}
+
+bool WriteFully(int fd, const void *data, size_t bytes) {
+  // Write buffer in a loop to handle partial writes from write(2).
+  size_t num_written = 0;
+  do {
+    ssize_t ret = write(fd, static_cast<const byte *>(data) + num_written, bytes);
+    if (PDP_UNLIKELY(ret < 0)) {
+      // Not much you can do except accepting the partial write and moving on.
+      return false;
+    }
+    num_written += BitCast<size_t>(ret);
+    bytes -= BitCast<size_t>(ret);
+  } while (PDP_UNLIKELY(bytes > 0));
+  return true;
 }
 
 void RedirectLogging(const char *filename) {
@@ -192,22 +209,9 @@ void LogMultiLine(const char *f, unsigned line, Level level, StringSlice msg) {
 
 void LogUnformatted(const StringSlice &str) {
   const int fd = log_output_fd.load();
-
   // Safeguard against blasting the terminal with output.
-  const ssize_t max_length = 65535;
-
-  // Write buffer in a loop to handle partial writes from write(2).
-  ssize_t num_written = 0;
-  ssize_t remaining = str.Size() > max_length ? max_length : str.Size();
-  do {
-    ssize_t ret = write(fd, str.Data() + num_written, remaining);
-    if (PDP_UNLIKELY(ret < 0)) {
-      // Not much you can do except accepting the partial write and moving on.
-      return;
-    }
-    num_written += ret;
-    remaining -= ret;
-  } while (PDP_UNLIKELY(remaining));
+  const size_t max_length = 65535;
+  WriteFully(fd, str.Data(), str.Size() < max_length ? str.Size() : max_length);
 }
 
 LogLevelRAII::LogLevelRAII(Level new_level) {

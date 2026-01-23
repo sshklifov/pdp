@@ -8,6 +8,7 @@
 
 #include "strings/dynamic_string.h"
 #include "system/child_reaper.h"
+#include "system/file_descriptor.h"
 #include "system/poll_table.h"
 
 #include <sys/poll.h>
@@ -47,13 +48,13 @@ struct SshDriver : public NonCopyableNonMovable {
   LoopQueue<PendingOperation> pending_queue;
 
   struct ActiveOperation {
-    ActiveOperation() : output_fd(-1), error_fd(-1), pid(-1) {}
+    ActiveOperation() : pid(-1) {}
 
-    int output_fd;
-    int error_fd;
     pid_t pid;
-    Vector<char> output;
-    Vector<char> errors;
+    InputDescriptor ssh_output;
+    InputDescriptor ssh_error;
+    Vector<char> buffer_output;
+    Vector<char> buffer_error;
     Capture cb;
   };
 

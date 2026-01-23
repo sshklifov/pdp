@@ -21,27 +21,13 @@ RollingBuffer::RollingBuffer()
   end = ptr;
   limit = begin + default_buffer_size;
   search_for_newlines = false;
-  input_fd = -1;
 }
 
-RollingBuffer::~RollingBuffer() {
-  Deallocate<char>(allocator, ptr);
-  pdp_assert(input_fd);
-  close(input_fd);
-}
+RollingBuffer::~RollingBuffer() { Deallocate<char>(allocator, ptr); }
 
-void RollingBuffer::SetDescriptor(int fd) {
-  pdp_assert(input_fd < 0);
-  input_fd = fd;
-  SetNonBlocking(input_fd);
-}
+void RollingBuffer::SetDescriptor(int fd) { input_fd.SetDescriptor(fd); }
 
-void RollingBuffer::SetBlockingDescriptor(int fd) {
-  pdp_assert(input_fd < 0);
-  input_fd = fd;
-}
-
-int RollingBuffer::GetDescriptor() const { return input_fd; }
+int RollingBuffer::GetDescriptor() const { return input_fd.GetDescriptor(); }
 
 MutableLine RollingBuffer::ReadLine() {
   if (PDP_UNLIKELY(search_for_newlines)) {
@@ -59,7 +45,7 @@ MutableLine RollingBuffer::ReadLine() {
     ReserveForRead();
     const size_t remaining_bytes = limit - end;
     pdp_assert(remaining_bytes >= min_read_size);
-    ssize_t ret = read(input_fd, end, remaining_bytes);
+    ssize_t ret = input_fd.ReadOnce(end, remaining_bytes);
     if (PDP_LIKELY(ret > 0)) {
       char *pos = static_cast<char *>(memchr(end, '\n', ret));
       end += ret;
