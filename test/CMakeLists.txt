@@ -69,3 +69,6 @@ target_link_libraries(test_small_capture PRIVATE pdp_data)
 
 add_executable(test_poll_table test_poll_table.cc)
 target_link_libraries(test_poll_table PRIVATE pdp_system)
+
+add_executable(test_execution_tracer test_execution_tracer.cc)
+target_link_libraries(test_execution_tracer PRIVATE pdp_tracing)

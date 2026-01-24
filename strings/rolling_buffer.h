@@ -9,6 +9,26 @@ struct MutableLine {
   MutableLine() : begin(nullptr), end(nullptr) {}
   MutableLine(char *b, char *e) : begin(b), end(e) {}
 
+  bool Empty() const { return begin == end; }
+  size_t Size() const { return end - begin; }
+  size_t Length() const { return end - begin; }
+
+  StringSlice ToSlice() const { return StringSlice(begin, end); }
+
+  char *Begin() { return begin; }
+  char *End() { return end; }
+
+  char &operator[](size_t idx) {
+    pdp_assert(begin + idx < end);
+    return begin[idx];
+  }
+
+  char operator[](size_t idx) const {
+    pdp_assert(begin + idx < end);
+    return begin[idx];
+  }
+
+ private:
   char *begin;
   char *end;
 };
@@ -25,6 +45,8 @@ struct RollingBuffer {
   int GetDescriptor() const;
 
   MutableLine ReadLine();
+
+  void WaitForLine(Milliseconds timeout);
 
  private:
   void ReserveForRead();

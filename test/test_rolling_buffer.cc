@@ -25,8 +25,8 @@ pdp::StringSlice ReadWithTimeout(RollingBuffer &buffer, Milliseconds timeout) {
 
   Stopwatch stopw;
   auto next_wait = timeout;
-  while (next_wait.GetMilli() > 0) {
-    poll(&poll_args, 1, timeout.GetMilli());
+  while (next_wait.Get() > 0) {
+    poll(&poll_args, 1, timeout.Get());
     auto m = buffer.ReadLine();
     if (m.end - m.begin > 1) {
       return StringSlice(m.begin, m.end);

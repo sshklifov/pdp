@@ -5,14 +5,9 @@
 #include <sys/prctl.h>
 
 using pdp::operator""_ms;
+using pdp::g_recorder;
 
-int main() {
-#ifdef PDP_DEBUG_BUILD
-  prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY);
-#endif
-
-  pdp::RedirectLogging("/home/stef/Downloads/output.txt");
-
+void ApplicationMain() {
   pdp_info("Setting up SIGCHLD handler");
   pdp::ChildReaper reaper;
 
@@ -25,7 +20,7 @@ int main() {
   pdp_info("Polling until idle state is reached");
 
   pdp::Stopwatch stopwatch;
-  while (!coordinator.IsIdle() && stopwatch.Elapsed() < 5000_ms) {
+  while (!coordinator.IsIdle() && g_recorder.IsTimeLess(stopwatch.Elapsed(), 5000_ms)) {
     // Poll file descriptors
     coordinator.RegisterForPoll(poller);
     poller.Poll(pdp::Milliseconds(100));
@@ -34,8 +29,33 @@ int main() {
     // Check for exited children.
     reaper.Reap();
   }
+  pdp_info("Done! Exitting ApplicationMain()...");
+}
 
-  pdp_info("Done! Exitting cleanly...");
+int main(int argc, char **argv) {
+#ifdef PDP_DEBUG_BUILD
+  prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY);
+#endif
 
+  // TODO for Release logging not working
+
+#ifdef PDP_DEBUG_BUILD
+  if (argc > 2 && pdp::StringSlice(argv[2]) == "--output") {
+    pdp::RedirectLogging(pdp::DuplicateForThisProcess(STDOUT_FILENO));
+  } else {
+    pdp::RedirectLogging(PDP_LOG_PATH);
+  }
+
+  if (argc > 1 && pdp::StringSlice(argv[1]) == "--replay") {
+    g_recorder.StartReplaying();
+  } else {
+    g_recorder.StartRecording();
+  }
+#endif
+
+  ApplicationMain();
+
+  g_recorder.CheckForEndOfStream();
+  g_recorder.Stop();
   return 0;
 }

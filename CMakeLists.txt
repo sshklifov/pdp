@@ -100,14 +100,19 @@ if(BUILD_TESTS)
   add_subdirectory(test)
 endif()
 
+set(PDP_LOG_PATH "${CMAKE_BINARY_DIR}/log.txt")
+
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
   find_path(BFD_INCLUDE_DIR NAMES bfd.h)
   find_library(BFD_LIBRARY NAMES bfd)
-  add_executable(backtrace_filt backtrace_filt.cc)
-  target_include_directories(backtrace_filt PRIVATE ${BFD_INCLUDE_DIR})
-  target_link_libraries(backtrace_filt PRIVATE ${BFD_LIBRARY} pdp_strings)
+  add_executable(follow_log follow_log.cc)
+
+  target_compile_definitions(follow_log PRIVATE PDP_LOG_PATH="${PDP_LOG_PATH}")
+  target_include_directories(follow_log PRIVATE ${BFD_INCLUDE_DIR})
+  target_link_libraries(follow_log PRIVATE ${BFD_LIBRARY} pdp_core pdp_strings)
 endif()
 
 add_executable(pdp main.cc)
+target_compile_definitions(pdp PRIVATE PDP_LOG_PATH="${PDP_LOG_PATH}")
 target_link_libraries(pdp PRIVATE pdp_drivers pdp_coroutines)
 target_compile_features(pdp PRIVATE cxx_std_20)

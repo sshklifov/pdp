@@ -36,7 +36,7 @@ TEST_CASE("ChildReaper: reap single child") {
   ReapRecord rec;
   pid_t pid = ForkExit(42);
 
-  reaper.OnChildExited(pid, OnReaped, &rec);
+  reaper.WatchChild(pid, OnReaped, &rec);
 
   reaper.ReapAll();
 
@@ -54,9 +54,9 @@ TEST_CASE("ChildReaper: reap multiple children") {
   pid_t p2 = ForkExit(2);
   pid_t p3 = ForkExit(3);
 
-  reaper.OnChildExited(p1, OnReaped, &r1);
-  reaper.OnChildExited(p2, OnReaped, &r2);
-  reaper.OnChildExited(p3, OnReaped, &r3);
+  reaper.WatchChild(p1, OnReaped, &r1);
+  reaper.WatchChild(p2, OnReaped, &r2);
+  reaper.WatchChild(p3, OnReaped, &r3);
 
   reaper.ReapAll();
 

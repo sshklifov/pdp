@@ -17,14 +17,21 @@ struct ChildReaper {
   ChildReaper();
   ~ChildReaper();
 
-  void OnChildExited(pid_t pid, OnReapedChild cb, void *user_data);
+  void WatchChild(pid_t pid, OnReapedChild cb, void *user_data);
+  void *UnwatchChild(pid_t pid);
+
   void Reap();
   void ReapAll();
+
+  static void PrintStatus(pid_t pid, int status);
+  static void PrintStatus(const StringSlice &pretty_name, int status);
 
  private:
   void WaitPid(int option);
 
-  static void OnAnyChildExited(int);
+  static void DefaultHandler(pid_t pid, int status, void *);
+
+  static void OnSigChild(int);
 
   static constexpr size_t max_children = 16;
 
@@ -37,7 +44,7 @@ struct ChildReaper {
   ChildRegistry *registry;
   unsigned num_children;
 
-  static sig_atomic_t can_wait_flag;
+  static sig_atomic_t has_more_children;
 
   DefaultAllocator allocator;
 };

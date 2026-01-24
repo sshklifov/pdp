@@ -1,14 +1,20 @@
 #include "child_reaper.h"
 #include "core/check.h"
+#include "core/log.h"
+#include "tracing/execution_tracer.h"
 
 #include <sys/wait.h>
 #include <cstring>
 
 namespace pdp {
 
-sig_atomic_t ChildReaper::can_wait_flag = 0;
+sig_atomic_t ChildReaper::has_more_children = 0;
 
-void ChildReaper::OnAnyChildExited(int) { can_wait_flag = 1; }
+void ChildReaper::OnSigChild(int) { has_more_children = 1; }
+
+void ChildReaper::DefaultHandler(pid_t pid, int status, void *) {
+  ChildReaper::PrintStatus(pid, status);
+}
 
 ChildReaper::ChildReaper() {
   num_children = 0;
@@ -18,16 +24,16 @@ ChildReaper::ChildReaper() {
   struct sigaction sa;
   sigemptyset(&sa.sa_mask);
   sa.sa_flags = SA_NOCLDSTOP | SA_RESTART;
-  sa.sa_handler = OnAnyChildExited;
+  sa.sa_handler = OnSigChild;
   CheckFatal(sigaction(SIGCHLD, &sa, NULL), "ChildReaper: sigaction");
 }
 
 ChildReaper::~ChildReaper() {
-  pdp_assert(num_children == 0);
+  ReapAll();
   Deallocate<ChildRegistry>(allocator, registry);
 }
 
-void ChildReaper::OnChildExited(pid_t pid, OnReapedChild cb, void *user_data) {
+void ChildReaper::WatchChild(pid_t pid, OnReapedChild cb, void *user_data) {
   for (size_t i = 0; i < max_children; ++i) {
     if (registry[i].pid < 0) {
       registry[i].pid = pid;
@@ -40,8 +46,45 @@ void ChildReaper::OnChildExited(pid_t pid, OnReapedChild cb, void *user_data) {
   PDP_UNREACHABLE("ChildReaper: too many children registered!");
 }
 
+void *ChildReaper::UnwatchChild(pid_t pid) {
+  for (size_t i = 0; i < max_children; ++i) {
+    if (registry[i].pid == pid) {
+      registry[i].pid = pid;
+      registry[i].reap_handler = DefaultHandler;
+      void *ud = registry[i].user_data;
+      registry[i].user_data = nullptr;
+      return ud;
+    }
+  }
+  PDP_UNREACHABLE("ChildReaper: failed to find watch!");
+}
+
+void ChildReaper::PrintStatus(pid_t pid, int status) {
+  char str[EstimateSizeV<pid_t>];
+  Formatter fmt(str);
+  fmt.AppendUnchecked(pid);
+  PrintStatus(StringSlice(str, fmt.End()), status);
+}
+
+void ChildReaper::PrintStatus(const StringSlice &name, int status) {
+  if (WIFSIGNALED(status)) {
+    int sig = WTERMSIG(status);
+    pdp_warning("Child {} terminated by signal {}", name, GetSignalDescription(sig));
+  } else if (WIFEXITED(status)) {
+    int exit_status = WEXITSTATUS(status);
+    if (exit_status != 0) {
+      pdp_warning("Child {} exited with code {}", name, exit_status);
+    } else {
+      pdp_info("Child {} exited normally", name);
+    }
+  } else {
+    pdp_warning("Child {} unknown termination state");
+  }
+}
+
 void ChildReaper::Reap() {
-  if (PDP_UNLIKELY(can_wait_flag)) {
+  const bool enable_optimization = g_recorder.IsNormal();
+  if (PDP_UNLIKELY(enable_optimization && has_more_children)) {
     WaitPid(WNOHANG);
   }
 }
@@ -59,7 +102,8 @@ void ChildReaper::WaitPid(int option) {
   }
 
   int status = 0;
-  pid_t pid = waitpid(-1, &status, option);
+  pid_t pid = g_recorder.SyscallWaitPid(&status, option);
+  has_more_children = (pid > 0);
   if (pid > 0) {
     for (size_t i = 0; i < max_children; ++i) {
       if (pid == registry[i].pid) {

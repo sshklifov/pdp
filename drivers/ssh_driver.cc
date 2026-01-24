@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include "core/log.h"
 #include "system/file_descriptor.h"
+#include "tracing/execution_tracer.h"
 
 namespace pdp {
 
@@ -38,7 +39,7 @@ SshDriver::~SshDriver() {
 SshDriver::Capture *SshDriver::OnOutput(DynamicString request) {
   for (size_t i = 0; i < max_children; ++i) {
     if (active_queue[i].pid < 0) {
-      SpawnChildAt(request.GetSlice(), i);
+      SpawnChildAt(request.ToSlice(), i);
       return &active_queue[i].cb;
     }
   }
@@ -106,7 +107,7 @@ void SshDriver::OnChildExited(pid_t pid, int status) {
         auto command = std::move(pending_queue.Front().request);
         active_queue[i].cb = pending_queue.Front().callback;
         pending_queue.PopFront();
-        SpawnChildAt(command.GetSlice(), i);
+        SpawnChildAt(command.ToSlice(), i);
       }
       return;
     }
@@ -119,7 +120,7 @@ void SshDriver::SpawnChildAt(const StringSlice &command, size_t pos) {
   CheckFatal(pipe2(out, O_CLOEXEC), "SSH stdout pipe");
   CheckFatal(pipe2(err, O_CLOEXEC), "SSH stderr pipe");
 
-  pid_t pid = fork();
+  pid_t pid = g_recorder.SyscallFork();
   CheckFatal(pid, "SSH fork");
 
   if (pid == 0) {
@@ -152,7 +153,7 @@ void SshDriver::SpawnChildAt(const StringSlice &command, size_t pos) {
   pdp_assert(active_queue[pos].pid == -1);
   active_queue[pos].pid = pid;
 
-  reaper.OnChildExited(pid, SshDriver::OnChildExited, this);
+  reaper.WatchChild(pid, SshDriver::OnChildExited, this);
 }
 
 }  // namespace pdp

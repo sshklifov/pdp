@@ -44,14 +44,11 @@ int main() {
   pdp_info("=== Core library test ===");
 
   pdp_info("Testing logging");
-  const pdp::Level levels[] = {pdp::Level::kInfo, pdp::Level::kWarn, pdp::Level::kError};
-  for (auto level : levels) {
-    pdp_info("Changing log level");
-    pdp::LogLevelRAII level_raii(level);
-    pdp_info("info message");
-    pdp_warning("warn message");
-    pdp_error("error message");
-  }
+  pdp_trace("trace message");
+  pdp_info("info logging");
+  pdp_warning("warn message");
+  pdp_error("error message");
+  pdp_critical("critical message");
 
   pdp_info("Testing PDP_TRACE_LIKELY / PDP_TRACE_UNLIKELY with mispredictions.");
   const size_t mispredictions = 4;

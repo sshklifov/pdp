@@ -5,6 +5,12 @@
 #include <cstddef>
 
 #ifdef PDP_ENABLE_ASSERT
+#define PDP_TRAP() __builtin_trap()
+#else
+#define PDP_TRAP() (void)0
+#endif
+
+#ifdef PDP_ENABLE_ASSERT
 #define pdp_assert(x)                                                   \
   do {                                                                  \
     if (PDP_UNLIKELY(!((x)))) {                                         \
@@ -53,6 +59,6 @@ bool Check(void *pointer, const char *operation);
 
 void CheckFatal(int result, const char *operation);
 
-void CheckFatal(void *pointer, const char *operation);
+void CheckFatal(const void *pointer, const char *operation);
 
 };  // namespace pdp

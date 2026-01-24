@@ -12,16 +12,16 @@ void GdbAsyncDriver::RegisterForPoll(PollTable &table) {
 
 void GdbAsyncDriver::OnPollResults(PollTable &table) {
   if (table.HasInputEventsUnchecked(gdb_driver.GetDescriptor())) {
-    PollForRecords();
+    DrainRecords();
   } else if (table.HasInputEventsUnchecked(gdb_driver.GetErrorDescriptor())) {
-    gdb_driver.PollForErrors();
+    DrainErrors();
   }
 }
 
-void GdbAsyncDriver::PollForRecords() {
+void GdbAsyncDriver::DrainRecords() {
   GdbRecord record;
   GdbRecordKind kind = gdb_driver.PollForRecords(&record);
-  if (PDP_UNLIKELY(kind != GdbRecordKind::kNone)) {
+  while (kind != GdbRecordKind::kNone) {
     if (kind == GdbRecordKind::kStream) {
       HandleStream(record.stream.message);
     } else {
@@ -44,6 +44,16 @@ void GdbAsyncDriver::PollForRecords() {
         pdp_assert(false);
       }
     }
+    kind = gdb_driver.PollForRecords(&record);
+  }
+}
+
+void GdbAsyncDriver::DrainErrors() {
+  StringSlice error = gdb_driver.PollForErrors();
+  while (!error.Empty()) {
+    pdp_error("Gdb error");
+    pdp_error_multiline(error);
+    error = gdb_driver.PollForErrors();
   }
 }
 

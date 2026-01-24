@@ -6,12 +6,10 @@ namespace pdp {
 
 DynamicString Join(pdp::PackedValue *args, uint64_t num_slots, uint64_t type_bits) {
   StringSlice sep = ", ";
-  const size_t bytes = RunEstimator(args, type_bits) + num_slots * sep.Size();
-  DynamicString res;
-  impl::_DynamicStringPrivInit string_init(res);
-  char *s = string_init(bytes);
+  const size_t bytes = RunEstimator(args, type_bits) + num_slots * sep.Size() + 1;
+  ScopedArrayPtr<char> ptr(bytes);
 
-  Formatter fmt(s, s + bytes);
+  Formatter fmt(ptr.Get(), ptr.Get() + bytes);
   while (type_bits) {
     size_t num_slots_used = fmt.AppendPackedValueUnchecked(args, type_bits);
     args += num_slots_used;
@@ -20,6 +18,13 @@ DynamicString Join(pdp::PackedValue *args, uint64_t num_slots, uint64_t type_bit
       fmt.AppendUnchecked(sep);
     }
   }
+
+  auto length = fmt.End() - ptr.Get();
+  ptr.Get()[length] = '\0';
+
+  DynamicString res;
+  impl::_DynamicStringPrivInit string_init(res);
+  string_init(ptr.Release(), length);
   return res;
 }
 

@@ -21,14 +21,9 @@ void Log(const char *filename, unsigned line, Level level, const StringSlice &fm
          PackedValue *args, uint64_t type_bits);
 
 void RedirectLogging(const char *filename);
+void RedirectLogging(int fd);
 
-struct LogLevelRAII {
-  explicit LogLevelRAII(Level new_level);
-  ~LogLevelRAII();
-
- private:
-  int restored_level;
-};
+bool LockLogFile(int fd);
 
 // TODO comments
 

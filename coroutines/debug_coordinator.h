@@ -60,7 +60,7 @@ struct DebugCoordinator {
   void RpcShowMessage(std::initializer_list<StringSlice> m, std::initializer_list<StringSlice> h);
 
  private:
-  void PollVim();
+  void DrainVim();
 
   void RpcShowPacked(const StringSlice &fmt, PackedValue *args, uint64_t type_bits);
 

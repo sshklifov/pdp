@@ -2,6 +2,7 @@
 #include "check.h"
 
 #include <fcntl.h>
+#include <sys/file.h>
 #include <unistd.h>
 #include <cstring>
 #include <ctime>
@@ -47,11 +48,21 @@ void RedirectLogging(const char *filename) {
   if (PDP_UNLIKELY(fd < 0)) {
     PDP_UNREACHABLE("Failed to redirect logging!");
   }
+  RedirectLogging(fd);
+}
+
+void RedirectLogging(int fd) {
+  if (flock(fd, LOCK_EX) < 0) {
+    close(fd);
+    PDP_UNREACHABLE("Failed to obtain an exclusive lock on log file!");
+  }
+
   int old_fd = log_output_fd.exchange(fd);
   pdp_assert(old_fd < 0);
-
   std::set_terminate(TerminateHandler);
 }
+
+bool LockLogFile(int fd) { return flock(fd, LOCK_SH | LOCK_NB) == 0; }
 
 static bool ShouldLogAt(Level level) {
   return log_level.load(std::memory_order_relaxed) <= static_cast<int>(level);
@@ -91,7 +102,7 @@ static constexpr size_t EstimateLogLevelSize() {
 
 static constexpr size_t EstimateHeaderSize() {
   constexpr size_t constexpr_estimate = ConstexprLength("[2026-01-02 11:42:27.380] [] [:] \n") +
-                                        EstimateLogLevelSize() + EstimateSize<unsigned>::value;
+                                        EstimateLogLevelSize() + EstimateSizeV<unsigned>;
   return constexpr_estimate;
 }
 
@@ -177,7 +188,7 @@ void Log(const char *f, unsigned line, Level level, const StringSlice &fmt, Pack
   WriteLogHeader(filename, line, level, builder);
   builder.AppendPackUnchecked(fmt, args, type_bits);
   builder.AppendUnchecked('\n');
-  LogUnformatted(builder.GetSlice());
+  LogUnformatted(builder.ToSlice());
 }
 
 void LogMultiLine(const char *f, unsigned line, Level level, StringSlice msg) {
@@ -195,7 +206,7 @@ void LogMultiLine(const char *f, unsigned line, Level level, StringSlice msg) {
   while (PDP_LIKELY(it)) {
     it += 1;
     builder.Append(msg.GetLeft(it));
-    LogUnformatted(builder.GetSlice());
+    LogUnformatted(builder.ToSlice());
     builder.Truncate(header_size);
 
     msg.DropLeft(it);
@@ -203,7 +214,7 @@ void LogMultiLine(const char *f, unsigned line, Level level, StringSlice msg) {
   }
   if (PDP_UNLIKELY(!msg.Empty())) {
     builder.Append(msg.GetLeft(it));
-    LogUnformatted(builder.GetSlice());
+    LogUnformatted(builder.ToSlice());
   }
 }
 
@@ -213,12 +224,5 @@ void LogUnformatted(const StringSlice &str) {
   const size_t max_length = 65535;
   WriteFully(fd, str.Data(), str.Size() < max_length ? str.Size() : max_length);
 }
-
-LogLevelRAII::LogLevelRAII(Level new_level) {
-  pdp_assert(new_level != Level::kTrace);
-  restored_level = log_level.exchange(static_cast<int>(new_level));
-}
-
-LogLevelRAII::~LogLevelRAII() { log_level.store(restored_level); }
 
 }  // namespace pdp

@@ -64,7 +64,7 @@ TEST_CASE("DynamicString equality with StringSlice") {
 
 TEST_CASE("DynamicString GetSlice returns correct view") {
   DynamicString s("view", 4);
-  StringSlice slice = s.GetSlice();
+  StringSlice slice = s.ToSlice();
 
   CHECK(slice.Data() == s.Data());
   CHECK(slice.Size() == 4);

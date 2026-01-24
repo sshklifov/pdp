@@ -1,5 +1,4 @@
 #include <fcntl.h>
-#include "data/scoped_ptr.h"
 #define PACKAGE_VERSION
 #include <bfd.h>
 
@@ -11,6 +10,7 @@
 #include "data/vector.h"
 #include "external/emhash8.h"
 #include "strings/dynamic_string.h"
+#include "strings/rolling_buffer.h"
 #include "strings/string_builder.h"
 
 void WriteSlice(const pdp::StringSlice &str) {
@@ -20,7 +20,7 @@ void WriteSlice(const pdp::StringSlice &str) {
 void WriteFileError(const char *fmt, const char *filename) {
   pdp::StringBuilder builder;
   builder.AppendFormat(fmt, pdp::StringSlice(filename));
-  WriteSlice(builder.GetSlice());
+  WriteSlice(builder.ToSlice());
 }
 
 class FileSymbolResolver : public pdp::NonCopyableNonMovable {
@@ -195,7 +195,12 @@ struct ExecutableAndAddress {
 };
 
 ExecutableAndAddress SplitExecutableAndAddress(char *begin, char *end) {
-  char *close_bracket = end - 2;
+  if (PDP_UNLIKELY(*end != '\n')) {
+    WriteSlice("You messed up the new lines again...\n");
+    abort();
+  }
+
+  char *close_bracket = end - 1;
   if (close_bracket <= begin || *close_bracket != ')' || (*begin != '.' && *begin != '/')) {
     return {};
   }
@@ -240,7 +245,7 @@ void ShowResolverInfo(const emhash8::Map<pdp::DynamicString, FileSymbolResolver>
         const bool is_libc = strstr(it->key.Data(), "libc.so");
         has_errors = !is_libc;
       } else {
-        WriteSlice(it->key.GetSlice());
+        WriteSlice(it->key.ToSlice());
         WriteSlice("\n");
       }
     }
@@ -275,7 +280,7 @@ int main() {
   prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY);
 
   if (bfd_init() != BFD_INIT_MAGIC) {
-    WriteSlice("Tool is compiled with a different libbfd version!");
+    WriteSlice("Tool is compiled with a different libbfd version!\n");
     return 1;
   }
 
@@ -283,29 +288,46 @@ int main() {
   const bool enable_inlining = true;
   emhash8::Map<pdp::DynamicString, FileSymbolResolver> resolver_map;
 
-  pdp::ScopedArrayPtr<char> buffer(4096);
-  while (fgets(buffer.Get(), 4096, stdin)) {
-    const size_t num_read = strlen(buffer.Get());
-    auto [exe, addr] = SplitExecutableAndAddress(buffer.Get(), buffer.Get() + num_read);
+  int fd = open(PDP_LOG_PATH, O_RDONLY, 0644);
+  if (PDP_UNLIKELY(fd < 0)) {
+    pdp_error("Failed to open {}!", pdp::StringSlice(PDP_LOG_PATH));
+    return 1;
+  }
+
+  pdp::RollingBuffer input;
+  input.SetDescriptor(fd);
+
+  while (true) {
+    pdp::MutableLine line = input.ReadLine();
+    if (line.Empty()) {
+      if (pdp::LockLogFile(input.GetDescriptor())) {
+        return 0;
+      } else {
+        input.WaitForLine(pdp::Milliseconds(1000));
+        continue;
+      }
+    }
+
+    auto [exe, addr] = SplitExecutableAndAddress(line.Begin(), line.End() - 1);
     if (!exe.Empty() && !addr.Empty()) {
       auto it = resolver_map.Find(exe);
       if (it == resolver_map.End()) {
         const char *hm = exe.Data();
         it = resolver_map.Emplace(std::move(exe), hm, max_function_length, enable_inlining);
       }
-      const auto &source_lines = it->value.Resolve(addr.GetSlice());
+      const auto &source_lines = it->value.Resolve(addr.ToSlice());
       pdp::StringBuilder builder;
       for (size_t i = 0; i < source_lines.Size(); ++i) {
         it->value.Format(source_lines[i], builder);
         builder.Append("\n");
       }
       if (!source_lines.Empty()) {
-        WriteSlice(builder.GetSlice());
+        WriteSlice(builder.ToSlice());
       } else {
-        WriteSlice(pdp::StringSlice(buffer.Get(), buffer.Get() + num_read));
+        WriteSlice(line.ToSlice());
       }
     } else {
-      WriteSlice(pdp::StringSlice(buffer.Get(), buffer.Get() + num_read));
+      WriteSlice(line.ToSlice());
     }
   }
 

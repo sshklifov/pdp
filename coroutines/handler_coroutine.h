@@ -76,7 +76,7 @@ struct HandlerTable {
     for (uint32_t i = 0; i < table.Size(); ++i) {
       builder.AppendFormat("{} ", table.At(i).token);
     }
-    pdp_critical(builder.GetSlice());
+    pdp_critical(builder.ToSlice());
   }
 
  private:

@@ -14,7 +14,8 @@ struct GdbAsyncDriver {
   void OnPollResults(PollTable &table);
 
  private:
-  void PollForRecords();
+  void DrainRecords();
+  void DrainErrors();
 
   void HandleStream(const StringSlice &msg);
   void HandleAsync(GdbAsyncKind kind, ScopedPtr<ExprBase> expr);

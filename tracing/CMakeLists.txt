@@ -1,6 +1,11 @@
-add_library(pdp_tracing INTERFACE)
+add_library(pdp_tracing STATIC
+  execution_tracer.cc
+)
 
-#target_include_directories(pdp_tracing INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_definitions(pdp_tracing PRIVATE
+  PDP_RECORDER_PATH=\"${CMAKE_BINARY_DIR}/capture.bin\"
+)
 
-target_link_libraries(pdp_tracing INTERFACE pdp_core pdp_tracing)
+target_include_directories(pdp_tracing PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
+target_link_libraries(pdp_tracing PUBLIC pdp_core)

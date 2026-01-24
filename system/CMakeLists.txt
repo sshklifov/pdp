@@ -5,4 +5,4 @@ add_library(pdp_system STATIC
 
 target_include_directories(pdp_system PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
-target_link_libraries(pdp_system PUBLIC pdp_core)
+target_link_libraries(pdp_system PUBLIC pdp_core pdp_tracing)

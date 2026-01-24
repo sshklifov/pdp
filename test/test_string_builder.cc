@@ -66,12 +66,12 @@ TEST_CASE("StringBuilder GetSlice") {
   b.Append(StringSlice("hello"));
   CHECK(b.Length() == 5);
 
-  StringSlice s = b.GetSlice();
+  StringSlice s = b.ToSlice();
   CHECK(s == StringSlice("hello"));
 
   b.Append(' ');
   b.Append(5);
-  CHECK(b.GetSlice() == StringSlice("hello 5"));
+  CHECK(b.ToSlice() == StringSlice("hello 5"));
 }
 
 TEST_CASE("AppendUnchecked(char) and Append(char) produce same output") {
@@ -86,9 +86,9 @@ TEST_CASE("AppendUnchecked(char) and Append(char) produce same output") {
   b.Append('x');
   b.Append('y');
 
-  CHECK(a.GetSlice() == b.GetSlice());
-  CHECK(a.GetSlice() == StringSlice("xy"));
-  CHECK(b.GetSlice() == StringSlice("xy"));
+  CHECK(a.ToSlice() == b.ToSlice());
+  CHECK(a.ToSlice() == StringSlice("xy"));
+  CHECK(b.ToSlice() == StringSlice("xy"));
 }
 
 TEST_CASE("AppendUnchecked(StringSlice) and Append(StringSlice)") {
@@ -100,13 +100,13 @@ TEST_CASE("AppendUnchecked(StringSlice) and Append(StringSlice)") {
   a.AppendUnchecked(StringSlice("hello"));
   b.Append(StringSlice("hello"));
 
-  CHECK(a.GetSlice() == StringSlice("hello"));
-  CHECK(b.GetSlice() == StringSlice("hello"));
-  CHECK(a.GetSlice() == b.GetSlice());
+  CHECK(a.ToSlice() == StringSlice("hello"));
+  CHECK(b.ToSlice() == StringSlice("hello"));
+  CHECK(a.ToSlice() == b.ToSlice());
 
   a.AppendUnchecked(StringSlice(" "));
   a.AppendUnchecked(StringSlice("world"));
-  CHECK(a.GetSlice() == StringSlice("hello world"));
+  CHECK(a.ToSlice() == StringSlice("hello world"));
 }
 
 TEST_CASE("AppendUnchecked(unsigned) formatting") {
@@ -114,19 +114,19 @@ TEST_CASE("AppendUnchecked(unsigned) formatting") {
   b.ReserveFor(128);
 
   b.AppendUnchecked(uint32_t{0});
-  CHECK(b.GetSlice() == StringSlice("0"));
+  CHECK(b.ToSlice() == StringSlice("0"));
 
   b.Clear();
   b.AppendUnchecked(uint32_t{7});
-  CHECK(b.GetSlice() == StringSlice("7"));
+  CHECK(b.ToSlice() == StringSlice("7"));
 
   b.Clear();
   b.AppendUnchecked(uint32_t{10});
-  CHECK(b.GetSlice() == StringSlice("10"));
+  CHECK(b.ToSlice() == StringSlice("10"));
 
   b.Clear();
   b.AppendUnchecked(uint32_t{123456});
-  CHECK(b.GetSlice() == StringSlice("123456"));
+  CHECK(b.ToSlice() == StringSlice("123456"));
 }
 
 TEST_CASE("AppendUnchecked(signed) formatting incl edge cases") {
@@ -134,26 +134,26 @@ TEST_CASE("AppendUnchecked(signed) formatting incl edge cases") {
   b.ReserveFor(128);
 
   b.AppendUnchecked(int32_t{0});
-  CHECK(b.GetSlice() == StringSlice("0"));
+  CHECK(b.ToSlice() == StringSlice("0"));
 
   b.Clear();
   b.AppendUnchecked(int32_t{42});
-  CHECK(b.GetSlice() == StringSlice("42"));
+  CHECK(b.ToSlice() == StringSlice("42"));
 
   b.Clear();
   b.AppendUnchecked(int32_t{-42});
-  CHECK(b.GetSlice() == StringSlice("-42"));
+  CHECK(b.ToSlice() == StringSlice("-42"));
 
   // nasty: min value
   b.Clear();
   b.AppendUnchecked(std::numeric_limits<int32_t>::min());
-  auto s = b.GetSlice();
+  auto s = b.ToSlice();
   CHECK(s.Size() == 11);
   CHECK(s == "-2147483648");
 
   b.Clear();
   b.AppendUnchecked(std::numeric_limits<int64_t>::min());
-  s = b.GetSlice();
+  s = b.ToSlice();
   CHECK(s == "-9223372036854775808");
 }
 
@@ -163,7 +163,7 @@ TEST_CASE("AppendUnchecked recursion check") {
     StringBuilder<> b;
     b.ReserveFor(20);
     b.AppendUnchecked((char *)asd);
-    CHECK(b.GetSlice() == StringSlice("asd"));
+    CHECK(b.ToSlice() == StringSlice("asd"));
   }
 
   SUBCASE("AppendUnchecked(char[])") {
@@ -171,7 +171,7 @@ TEST_CASE("AppendUnchecked recursion check") {
     StringBuilder<> b;
     b.ReserveFor(20);
     b.AppendUnchecked(digits);
-    CHECK(b.GetSlice() == StringSlice("0123456789"));
+    CHECK(b.ToSlice() == StringSlice("0123456789"));
   }
 
   SUBCASE("AppendUnchecked(const char*)") {
@@ -179,7 +179,7 @@ TEST_CASE("AppendUnchecked recursion check") {
     StringBuilder<> b;
     b.ReserveFor(20);
     b.AppendUnchecked(def);
-    CHECK(b.GetSlice() == StringSlice("def"));
+    CHECK(b.ToSlice() == StringSlice("def"));
   }
 
   SUBCASE("AppendUnchecked(const char)") {
@@ -187,7 +187,7 @@ TEST_CASE("AppendUnchecked recursion check") {
     StringBuilder<> b;
     b.ReserveFor(20);
     b.AppendUnchecked(bracket);
-    CHECK(b.GetSlice() == StringSlice("{"));
+    CHECK(b.ToSlice() == StringSlice("{"));
   }
 }
 
@@ -195,60 +195,60 @@ TEST_CASE("Append(T) with various types") {
   SUBCASE("Append(StringSlice)") {
     StringBuilder<> b;
     b.Append(StringSlice("hi"));
-    CHECK(b.GetSlice() == StringSlice("hi"));
+    CHECK(b.ToSlice() == StringSlice("hi"));
   }
 
   SUBCASE("Append(char)") {
     StringBuilder<> b;
     b.Append('A');
-    CHECK(b.GetSlice() == StringSlice("A"));
+    CHECK(b.ToSlice() == StringSlice("A"));
   }
 
   SUBCASE("Append(unsigned)") {
     StringBuilder<> b;
     b.Append(uint32_t{123});
-    CHECK(b.GetSlice() == StringSlice("123"));
+    CHECK(b.ToSlice() == StringSlice("123"));
   }
 
   SUBCASE("Append(signed)") {
     StringBuilder<> b;
     b.Append(int32_t{-5});
-    CHECK(b.GetSlice() == StringSlice("-5"));
+    CHECK(b.ToSlice() == StringSlice("-5"));
   }
 
   SUBCASE("Append(pointer)") {
     void *ptr = reinterpret_cast<void *>(0xdeadbeef);
     StringBuilder<> b;
     b.Append(ptr);
-    CHECK(b.GetSlice() == StringSlice("0xdeadbeef"));
+    CHECK(b.ToSlice() == StringSlice("0xdeadbeef"));
   }
 
   SUBCASE("Append(char*)") {
     char asd[] = "asd";
     StringBuilder<> b;
     b.Append((char *)asd);
-    CHECK(b.GetSlice() == StringSlice("asd"));
+    CHECK(b.ToSlice() == StringSlice("asd"));
   }
 
   SUBCASE("Append(char[])") {
     char digits[] = "0123456789";
     StringBuilder<> b;
     b.Append(digits);
-    CHECK(b.GetSlice() == StringSlice("0123456789"));
+    CHECK(b.ToSlice() == StringSlice("0123456789"));
   }
 
   SUBCASE("Append(const char*)") {
     const char *def = "def";
     StringBuilder<> b;
     b.Append(def);
-    CHECK(b.GetSlice() == StringSlice("def"));
+    CHECK(b.ToSlice() == StringSlice("def"));
   }
 
   SUBCASE("Append(const char)") {
     const char bracket = '{';
     StringBuilder<> b;
     b.Append(bracket);
-    CHECK(b.GetSlice() == StringSlice("{"));
+    CHECK(b.ToSlice() == StringSlice("{"));
   }
 }
 
@@ -256,22 +256,22 @@ TEST_CASE("Appendf basic replacement") {
   StringBuilder<> b;
 
   b.AppendFormat("hello {}", StringSlice("world"));
-  CHECK(b.GetSlice() == StringSlice("hello world"));
+  CHECK(b.ToSlice() == StringSlice("hello world"));
 
   b.Clear();
   b.AppendFormat("{}+{}={}", 2, 3, 5);
-  CHECK(b.GetSlice() == StringSlice("2+3=5"));
+  CHECK(b.ToSlice() == StringSlice("2+3=5"));
 
   b.Clear();
   b.AppendFormat("X{}Y{}Z", 'a', 'b');
-  CHECK(b.GetSlice() == StringSlice("XaYbZ"));
+  CHECK(b.ToSlice() == StringSlice("XaYbZ"));
 }
 
 TEST_CASE("Appendf braces behavior (escaped or malformed-ish sequences)") {
   SUBCASE("No args: Appendf(fmt) should append fmt as-is when non-empty") {
     StringBuilder<> b;
     b.AppendFormat("plain text");
-    CHECK(b.GetSlice() == StringSlice("plain text"));
+    CHECK(b.ToSlice() == StringSlice("plain text"));
   }
 
   SUBCASE("Empty fmt with no args does nothing") {
@@ -289,21 +289,21 @@ TEST_CASE("Appendf braces behavior (escaped or malformed-ish sequences)") {
     // finds '{' after 'a' -> appends 'a', drops to "{b{}c"
     // drops '{', next is 'b' != '}' => appends '{' literally, recurse with same arg on "b{}c"
     // finds '{' before '{}' -> appends 'b', drops, sees '}' => appends arg(7), then "c"
-    CHECK(b.GetSlice() == StringSlice("a{b7c"));
+    CHECK(b.ToSlice() == StringSlice("a{b7c"));
   }
 
   SUBCASE("Consecutive placeholders") {
     StringBuilder<> b;
     b.ReserveFor(200);
     b.AppendFormat("{}{}{}", 1, 2, 3);
-    CHECK(b.GetSlice() == StringSlice("123"));
+    CHECK(b.ToSlice() == StringSlice("123"));
   }
 
   SUBCASE("Text after last placeholder") {
     StringBuilder<> b;
     b.ReserveFor(200);
     b.AppendFormat("v={}.", 9);
-    CHECK(b.GetSlice() == StringSlice("v=9."));
+    CHECK(b.ToSlice() == StringSlice("v=9."));
   }
 }
 
@@ -319,7 +319,7 @@ TEST_CASE("Appendf equivalence: Appendf vs manual Append") {
   b.Append(StringSlice("QQ"));
   b.Append("z");
 
-  CHECK(a.GetSlice() == b.GetSlice());
+  CHECK(a.ToSlice() == b.ToSlice());
 }
 
 TEST_CASE("Multiple appends grow content correctly") {
@@ -329,7 +329,7 @@ TEST_CASE("Multiple appends grow content correctly") {
   for (int i = 0; i < 50; ++i) b.Append('a');
   CHECK(b.Length() == 50);
 
-  auto s = b.GetSlice();
+  auto s = b.ToSlice();
   CHECK(s.Size() == 50);
   for (size_t i = 0; i < s.Size(); ++i) CHECK(s[i] == 'a');
 }
@@ -373,21 +373,21 @@ TEST_CASE("AppendUninitialized appends raw space and preserves existing data") {
   p[3] = 'l';
   p[4] = 'd';
 
-  CHECK(b.GetSlice() == StringSlice("hello world!!!"));
+  CHECK(b.ToSlice() == StringSlice("hello world!!!"));
 }
 
 TEST_CASE("StringBuilder::Truncate") {
   StringBuilder<> b;
 
   b.Append("abcdef");
-  REQUIRE(b.GetSlice() == StringSlice("abcdef"));
+  REQUIRE(b.ToSlice() == StringSlice("abcdef"));
 
   b.Truncate(3);
-  CHECK(b.GetSlice() == StringSlice("abc"));
+  CHECK(b.ToSlice() == StringSlice("abc"));
 
   b.Append("XYZ");
-  CHECK(b.GetSlice() == StringSlice("abcXYZ"));
+  CHECK(b.ToSlice() == StringSlice("abcXYZ"));
 
   b.Truncate(0);
-  CHECK(b.GetSlice().Size() == 0);
+  CHECK(b.ToSlice().Size() == 0);
 }

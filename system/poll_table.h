@@ -2,6 +2,7 @@
 
 #include "data/allocator.h"
 #include "time_units.h"
+#include "tracing/execution_tracer.h"
 
 #include <sys/poll.h>
 
@@ -30,7 +31,7 @@ struct PollTable {
     InsertionSort();
 
     pdp_assert(size > 0);
-    int ret = poll(table, size, timeout.Get());
+    int ret = g_recorder.SyscallPoll(table, size, timeout.Get());
     if (ret <= 0) {
       Check(ret, "poll");
       return false;

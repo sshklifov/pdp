@@ -41,6 +41,12 @@ struct ScopedPtr : public NonCopyable {
   T *Get() { return ptr; }
   const T *Get() const { return ptr; }
 
+  [[nodiscard]] T *Release() {
+    T *res = ptr;
+    ptr = nullptr;
+    return res;
+  }
+
  private:
   T *ptr;
   Alloc allocator;
@@ -73,6 +79,12 @@ struct ScopedArrayPtr : public NonCopyable {
 
   T *Get() { return ptr; }
   const T *Get() const { return ptr; }
+
+  [[nodiscard]] T *Release() {
+    T *res = ptr;
+    ptr = nullptr;
+    return res;
+  }
 
  private:
   T *ptr;

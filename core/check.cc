@@ -82,7 +82,7 @@ bool Check(int result, const char *operation) {
   return is_successful;
 }
 
-bool Check(void *pointer, const char *operation) {
+bool Check(const void *pointer, const char *operation) {
   bool is_successful = (pointer != nullptr && pointer != MAP_FAILED);
   if (PDP_UNLIKELY(!is_successful)) {
     OnCheckFailed();
@@ -98,7 +98,7 @@ void CheckFatal(int result, const char *operation) {
   }
 }
 
-void CheckFatal(void *result, const char *operation) {
+void CheckFatal(const void *result, const char *operation) {
   if (PDP_UNLIKELY(!Check(result, operation))) {
     std::terminate();
   }

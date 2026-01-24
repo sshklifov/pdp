@@ -45,6 +45,9 @@ template <>
 struct EstimateSize<int64_t>
     : public std::integral_constant<unsigned, std::numeric_limits<int64_t>::digits10 + 2> {};
 
+template <typename T>
+inline constexpr unsigned EstimateSizeV = EstimateSize<T>::value;
+
 // Run time size estimator (exact).
 
 inline uint32_t CountDigits10(uint64_t n) {
@@ -302,25 +305,25 @@ inline size_t RunEstimator(PackedValue *args, uint64_t type_bits) {
   while (type_bits > 0) {
     switch (type_bits & 0xF) {
       case kBool:
-        bytes += EstimateSize<decltype(args[i]._bool)>::value;
+        bytes += EstimateSizeV<decltype(args[i]._bool)>;
         break;
       case kChar:
-        bytes += EstimateSize<decltype(args[i]._char)>::value;
+        bytes += EstimateSizeV<decltype(args[i]._char)>;
         break;
       case kInt32:
-        bytes += EstimateSize<decltype(args[i]._int32)>::value;
+        bytes += EstimateSizeV<decltype(args[i]._int32)>;
         break;
       case kUint32:
-        bytes += EstimateSize<decltype(args[i]._uint32)>::value;
+        bytes += EstimateSizeV<decltype(args[i]._uint32)>;
         break;
       case kInt64:
-        bytes += EstimateSize<decltype(args[i]._int64)>::value;
+        bytes += EstimateSizeV<decltype(args[i]._int64)>;
         break;
       case kUint64:
-        bytes += EstimateSize<decltype(args[i]._uint64)>::value;
+        bytes += EstimateSizeV<decltype(args[i]._uint64)>;
         break;
       case kPtr:
-        bytes += EstimateSize<decltype(args[i]._ptr)>::value;
+        bytes += EstimateSizeV<decltype(args[i]._ptr)>;
         break;
       case kStr:
         ++i;
@@ -409,6 +412,9 @@ struct SmallBufferStorage {
 
 struct Formatter : public NonCopyableNonMovable {
   Formatter(char *write_ptr, const char *limit_ptr) : end(write_ptr), limit(limit_ptr) {}
+
+  template <size_t N>
+  Formatter(char (&buf)[N]) : Formatter(buf, buf + N) {}
 
   char *End() { return end; }
 
@@ -566,7 +572,7 @@ struct StringBuilder : public SmallBufferStorage<char, Alloc> {
   using SmallBufferStorage<char, Alloc>::end;
   using SmallBufferStorage<char, Alloc>::limit;
 
-  StringSlice GetSlice() const { return StringSlice(begin, end); }
+  StringSlice ToSlice() const { return StringSlice(begin, end); }
 
   void Truncate(size_t old_size) {
     auto new_end = this->begin + old_size;
@@ -593,7 +599,7 @@ struct StringBuilder : public SmallBufferStorage<char, Alloc> {
   }
 
   // Safe Append version.
-  template <typename T, size_t U = EstimateSize<std::decay_t<T>>::value>
+  template <typename T, size_t U = EstimateSizeV<std::decay_t<T>>>
   void Append(T &&value) {
     this->ReserveFor(U);
     AppendUnchecked(std::forward<T>(value));
@@ -601,13 +607,13 @@ struct StringBuilder : public SmallBufferStorage<char, Alloc> {
 
   void Append(const char *str) { Append(StringSlice(str)); }
 
-  void Append(const StringSlice &str) {
+  void Append(StringSlice str) {
     this->ReserveFor(str.Size());
     AppendUnchecked(str);
   }
 
   void Append(Hex64 hex) {
-    this->ReserveFor(EstimateSize<void *>::value);
+    this->ReserveFor(EstimateSizeV<void *>);
     AppendUnchecked(BitCast<void *>(hex.value));
   }
 

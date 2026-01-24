@@ -12,7 +12,7 @@ static size_t TotalStringBytes(std::initializer_list<StringSlice> ilist) {
 
 DebugCoordinator::DebugCoordinator(const StringSlice &host, int vim_input_fd, int vim_output_fd,
                                    ChildReaper &reaper)
-    : gdb_async(reaper), vim_driver(vim_input_fd, vim_output_fd) {
+    : ssh_driver(nullptr), gdb_async(reaper), vim_driver(vim_input_fd, vim_output_fd) {
   if (!host.Empty()) {
     ssh_driver = Allocate<SshDriver>(allocator, 1);
     new (ssh_driver) SshDriver(host, reaper);
@@ -66,7 +66,7 @@ HandlerCoroutine DebugCoordinator::InitializeBuffers() {
 
   for (size_t i = 0; i < buffers.Size(); ++i) {
     auto str = co_await StringRpcAwaiter(this, token + i);
-    StringSlice name = str.GetSlice();
+    StringSlice name = str.ToSlice();
     if (name.Size() >= 1) {
       switch (name[name.Size() - 1]) {
         case 'e':
@@ -139,7 +139,7 @@ void DebugCoordinator::RpcShowPacked(const StringSlice &fmt, PackedValue *args,
                                      uint64_t type_bits) {
   StringBuilder builder;
   builder.AppendPack(fmt, args, type_bits);
-  RpcShowNormal(builder.GetSlice());
+  RpcShowNormal(builder.ToSlice());
 }
 
 void DebugCoordinator::RpcShowWarning(const StringSlice &msg) { RpcShowMessage(msg, "WarningMsg"); }
@@ -208,16 +208,16 @@ void DebugCoordinator::RegisterForPoll(PollTable &table) {
 void DebugCoordinator::OnPollResults(PollTable &table) {
   gdb_async.OnPollResults(table);
   if (table.HasInputEventsUnchecked(vim_driver.GetDescriptor())) {
-    PollVim();
+    DrainVim();
   }
   if (ssh_driver) {
     ssh_driver->OnPollResults(table);
   }
 }
 
-void DebugCoordinator::PollVim() {
+void DebugCoordinator::DrainVim() {
   uint32_t token = vim_driver.PollResponseToken();
-  if (token != vim_driver.kInvalidToken) {
+  while (token != vim_driver.kInvalidToken) {
 #if PDP_TRACE_RPC_TOKENS
     pdp_trace("Response: token={}", token);
 #endif
@@ -228,6 +228,7 @@ void DebugCoordinator::PollVim() {
       pdp_trace("Skipped: token={}", token);
 #endif
     }
+    token = vim_driver.PollResponseToken();
   }
 }
 

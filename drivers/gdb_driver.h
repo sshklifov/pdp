@@ -6,6 +6,7 @@
 #include "strings/rolling_buffer.h"
 #include "system/child_reaper.h"
 #include "system/file_descriptor.h"
+#include "tracing/execution_tracer.h"
 
 #include <fcntl.h>
 #include <sys/prctl.h>
@@ -60,9 +61,10 @@ GdbResultKind ClassifyResult(StringSlice name);
 
 struct GdbDriver {
   GdbDriver();
+  ~GdbDriver();
 
   template <typename... Args>
-  void Start(ChildReaper &reaper, const char *path, Args... argv) {
+  void Start(ChildReaper &r, const char *path, Args... argv) {
     static_assert((std::is_same_v<Args, const char *> && ...),
                   "All exec arguments must be exactly const char*");
 
@@ -71,7 +73,7 @@ struct GdbDriver {
     CheckFatal(pipe2(out, O_CLOEXEC), "GDB pipe(out)");
     CheckFatal(pipe2(err, O_CLOEXEC), "GDB pipe(err)");
 
-    pid_t pid = fork();
+    pid_t pid = g_recorder.SyscallFork();
     CheckFatal(pid, "GDB fork");
     if (pid == 0) {
       // child: GDB
@@ -93,7 +95,8 @@ struct GdbDriver {
     close(in[0]);
     close(out[1]);
     close(err[1]);
-    reaper.OnChildExited(pid, GdbDriver::OnGdbExited, this);
+    r.WatchChild(pid, GdbDriver::OnGdbExited, this);
+    gdb_pid = pid;
     Start(in[1], out[0], err[0]);
   }
 
@@ -121,22 +124,25 @@ struct GdbDriver {
   int GetErrorDescriptor() const;
 
   GdbRecordKind PollForRecords(GdbRecord *res);
-  void PollForErrors();
+  StringSlice PollForErrors();
 
  private:
   static void MonitorGdbStderr(std::atomic_bool *is_running, int fd);
   static void OnGdbExited(pid_t pid, int status, void *user_data) {
     PDP_IGNORE(pid);
-    static_cast<GdbDriver *>(user_data)->OnGdbExited(status);
-  }
+    PDP_IGNORE(user_data);
+    ChildReaper::PrintStatus("Gdb", status);
 
-  void OnGdbExited(int status);
+    // TODO: Stop execution!
+  }
 
   OnceGuard started_once;
   MonotonicCheck token_checker;
 
-  OutputDescriptor gdb_stdin;
+  pid_t gdb_pid;
+
   RollingBuffer gdb_stdout;
+  OutputDescriptor gdb_stdin;
   InputDescriptor gdb_stderr;
 
   pdp::ScopedArrayPtr<char> error_buffer;

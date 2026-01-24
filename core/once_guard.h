@@ -17,6 +17,8 @@ struct OnceGuard {
     value = false;
   }
 
+  void Check(bool expected_value) const { pdp_assert(value == expected_value); }
+
  private:
   bool value;
 };
@@ -24,6 +26,7 @@ struct OnceGuard {
 struct OnceGuard {
   void Set() {}
   void Reset() {}
+  void Check() {}
 };
 #endif
 

@@ -167,21 +167,30 @@ GdbRecordKind GdbRecord::SetResult(uint32_t token, GdbResultKind kind, const Str
   return GdbRecordKind::kResult;
 }
 
-GdbDriver::GdbDriver() : error_buffer(max_error_length) {}
+GdbDriver::GdbDriver() : gdb_pid(-1), error_buffer(max_error_length) {
+  // TODO
+}
+
+GdbDriver::~GdbDriver() {
+  started_once.Check(true);
+  const bool synthetic_pid = g_recorder.IsReplaying();
+  if (!synthetic_pid && gdb_pid > 0) {
+    kill(gdb_pid, SIGTERM);
+  }
+}
 
 GdbRecordKind GdbDriver::PollForRecords(GdbRecord *res) {
   MutableLine line = gdb_stdout.ReadLine();
-  size_t length = line.end - line.begin;
-  if (PDP_LIKELY(length <= 1)) {
+  if (PDP_LIKELY(line.Empty())) {
     return GdbRecordKind::kNone;
   }
-  pdp_assert(line.begin[length - 1] == '\n');
+  pdp_assert(line[line.Size() - 1] == '\n');
 
-  if (IsStreamMarker(*line.begin)) {
-    return res->SetStream(ProcessCstringInPlace(line.begin + 1, line.end - 1));
+  if (IsStreamMarker(line[0])) {
+    return res->SetStream(ProcessCstringInPlace(line.Begin() + 1, line.End() - 1));
   }
 
-  const char *it = line.begin;
+  const char *it = line.Begin();
   uint32_t token = 0;
   while (*it >= '0' && *it <= '9') {
     token *= 10;
@@ -198,7 +207,7 @@ GdbRecordKind GdbDriver::PollForRecords(GdbRecord *res) {
   }
   const char *name_end = it;
 
-  StringSlice results(it + 1, line.end);
+  StringSlice results(it + 1, line.End());
   if (!results.Empty()) {
     results.DropRight(1);
   }
@@ -215,16 +224,9 @@ GdbRecordKind GdbDriver::PollForRecords(GdbRecord *res) {
   return GdbRecordKind::kNone;
 }
 
-void GdbDriver::PollForErrors() {
-  for (;;) {
-    size_t n = gdb_stderr.ReadAvailable(error_buffer.Get(), max_error_length);
-    if (PDP_LIKELY(n > 0)) {
-      pdp_error("Gdb error");
-      pdp_error_multiline(StringSlice(error_buffer.Get(), n));
-    } else {
-      return;
-    }
-  }
+StringSlice GdbDriver::PollForErrors() {
+  size_t n = gdb_stderr.ReadAvailable(error_buffer.Get(), max_error_length);
+  return StringSlice(error_buffer.Get(), n);
 }
 
 int GdbDriver::GetDescriptor() const { return gdb_stdout.GetDescriptor(); }
@@ -242,22 +244,8 @@ void GdbDriver::Send(uint32_t token, const StringSlice &fmt, PackedValue *args,
 
   bool success = gdb_stdin.WriteExactly(builder.Data(), builder.Size(), Milliseconds(1000));
   if (PDP_UNLIKELY(!success)) {
-    pdp_warning("Failed to submit request {}", builder.GetSlice());
+    pdp_warning("Failed to submit request {}", builder.ToSlice());
   }
-}
-
-void GdbDriver::OnGdbExited(int status) {
-  if (WIFSIGNALED(status)) {
-    int sig = WTERMSIG(status);
-    pdp_error("Gdb terminated by signal {}", GetSignalDescription(sig));
-  } else if (WIFEXITED(status)) {
-    int exit_status = WEXITSTATUS(status);
-    pdp_warning("Gdb exited normally with code {}", exit_status);
-  } else {
-    pdp_error("Gdb unknown termination state");
-  }
-  // TODO: Do this gracefully?
-  PDP_UNREACHABLE("Gdb child process exited");
 }
 
 };  // namespace pdp

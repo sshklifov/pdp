@@ -11,8 +11,7 @@ namespace pdp {
 
 RollingBuffer::RollingBuffer()
 #ifdef PDP_TRACE_ROLLING_BUFFER
-    : capacity(default_buffer_size),
-      provide_bytes(names)
+    : provide_bytes(names)
 #endif
 {
   ptr = Allocate<char>(allocator, default_buffer_size);
@@ -65,6 +64,8 @@ MutableLine RollingBuffer::ReadLine() {
     }
   }
 }
+
+void RollingBuffer::WaitForLine(Milliseconds timeout) { input_fd.WaitForInput(timeout); }
 
 void RollingBuffer::ReserveForRead() {
   const bool empty = (begin == end);

@@ -46,11 +46,11 @@ struct DynamicString : public NonCopyable {
   constexpr size_t Size() const { return size; }
   constexpr size_t Length() const { return size; }
 
-  const StringSlice GetSlice() const { return StringSlice(ptr, size); }
+  const StringSlice ToSlice() const { return StringSlice(ptr, size); }
 
-  bool operator==(const DynamicString &other) const { return GetSlice() == other.GetSlice(); }
+  bool operator==(const DynamicString &other) const { return ToSlice() == other.ToSlice(); }
 
-  bool operator==(const StringSlice &other) const { return GetSlice() == other; }
+  bool operator==(const StringSlice &other) const { return ToSlice() == other; }
 
   bool operator!=(const DynamicString &other) const { return !(*this == other); }
 
