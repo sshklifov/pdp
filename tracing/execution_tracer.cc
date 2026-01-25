@@ -5,6 +5,7 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <cerrno>
 #include <climits>
 #include <cstdlib>
 #include <cstring>
@@ -151,6 +152,7 @@ _Replayer::_Replayer(const char *path) {
   CheckFatal(orig_ptr, "Replay::mmap");
   madvise(orig_ptr, total_bytes, MADV_SEQUENTIAL);
 
+  syscall_read_bytes = 0;
   ptr = orig_ptr;
   limit = orig_ptr + total_bytes;
 }
@@ -202,6 +204,10 @@ ssize_t _Replayer::ReplaySyscallRead(int fd, void *buf, size_t size) {
     pdp_assert(limit - ptr >= ret);
     memcpy(buf, ptr, static_cast<size_t>(ret));
     ptr += ret;
+    syscall_read_bytes += static_cast<unsigned>(ret);
+  } else if (ret < 0) {
+    // TODO?
+    errno = EAGAIN;
   }
   return ret;
 }
@@ -291,6 +297,13 @@ bool _Replayer::IsEndOfStream() const {
   return ptr == limit;
 }
 
+void _Replayer::PrintDiskUsage() {
+  size_t total_bytes = limit - orig_ptr;
+  pdp_info("Recording size: {}", MakeByteSize(total_bytes));
+  auto percent_sys_read = syscall_read_bytes * 100 / total_bytes;
+  pdp_info("Of which {}\% cannot be optimized", percent_sys_read);
+}
+
 }  // namespace impl
 
 ExecutionTracer::ExecutionTracer() : mode(ExecMode::kNormal) {}
@@ -310,6 +323,7 @@ void ExecutionTracer::CheckForEndOfStream() {
   if (mode == ExecMode::kReplay) {
     if (AsReplay()->IsEndOfStream()) {
       pdp_info("Replay EOS reached.");
+      AsReplay()->PrintDiskUsage();
     } else {
       pdp_warning("Replay still in progress, stopping...");
     }

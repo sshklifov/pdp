@@ -1,3 +1,4 @@
+#include "core/log.h"
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 
@@ -391,3 +392,77 @@ TEST_CASE("StringBuilder::Truncate") {
   b.Truncate(0);
   CHECK(b.ToSlice().Size() == 0);
 }
+
+TEST_CASE("Append(ByteSize) formats bytes with correct units") {
+  StringBuilder<> b;
+  b.ReserveFor(64);
+
+  auto check = [&](uint64_t value, const char *expected) {
+    b.Clear();
+    b.AppendUnchecked(pdp::ByteSize{value});
+    auto actual = b.ToSlice();
+    // bool match = actual == StringSlice(expected);
+    CHECK(actual == StringSlice(expected));
+  };
+
+  // -----------------------------
+  // Bytes (B)
+  // -----------------------------
+  check(0, "0B");
+  check(1, "1B");
+  check(10, "10B");
+  check(1023, "1023B");  // boundary: last byte before K
+
+  // -----------------------------
+  // Kilobytes (K)
+  // -----------------------------
+  check(1024, "1K");  // exact boundary
+  check(1025, "1K");  // truncation check
+  check(2047, "1K");
+  check(2048, "2K");
+
+  // -----------------------------
+  // Megabytes (M)
+  // -----------------------------
+  check(1024ull * 1024 - 1, "1023K");
+  check(1024ull * 1024, "1M");
+  check(1024ull * 1024 + 1, "1M");
+  check(1024ull * 1024 * 2, "2M");
+
+  // -----------------------------
+  // Gigabytes (G)
+  // -----------------------------
+  check(1024ull * 1024 * 1024 - 1, "1023M");
+  check(1024ull * 1024 * 1024, "1G");
+  check(1024ull * 1024 * 1024 + 123456, "1G");
+  check(1024ull * 1024 * 1024 * 3, "3G");
+
+  // -----------------------------
+  // Terabytes (T)
+  // -----------------------------
+  check(1024ull * 1024 * 1024 * 1024 - 1, "1023G");
+  check(1024ull * 1024 * 1024 * 1024, "1T");
+  check(1024ull * 1024 * 1024 * 1024 + 1, "1T");
+  check(1024ull * 1024 * 1024 * 1024 * 5, "5T");
+}
+
+TEST_CASE("AppendUnchecked(ByteSize) max value fits EstimateSize") {
+  StringBuilder<> b;
+
+  constexpr uint64_t max = std::numeric_limits<uint64_t>::max();
+  constexpr unsigned max_size = pdp::EstimateSize<pdp::ByteSize>::value;
+
+  b.ReserveFor(64);
+  b.AppendUnchecked(pdp::ByteSize{max});
+
+  auto s = b.ToSlice();
+
+  // Must not exceed compile-time estimate
+  CHECK(s.Size() <= max_size);
+
+  // Sanity: must end with a valid unit
+  char unit = s.Data()[s.Size() - 1];
+  CHECK((unit == 'T'));
+}
+
+// 16777215T

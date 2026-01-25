@@ -48,6 +48,7 @@ struct _Replayer {
   ~_Replayer();
 
   bool IsEndOfStream() const;
+  void PrintDiskUsage();
 
   ssize_t ReplaySyscallRead(int fd, void *buf, size_t size);
   int ReplaySyscallPoll(struct pollfd *poll_args, nfds_t n);
@@ -66,6 +67,7 @@ struct _Replayer {
   static int ReplayInteger(const byte *in);
 
   int recording_fd;
+  unsigned syscall_read_bytes;
   const byte *__restrict ptr;
   byte *__restrict orig_ptr;
   const byte *__restrict limit;

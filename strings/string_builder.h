@@ -15,6 +15,26 @@ constexpr bool IsCStringV =
     std::is_pointer_v<std::decay_t<T>> &&
     std::is_same_v<std::remove_cv_t<std::remove_pointer_t<std::decay_t<T>>>, char>;
 
+// Special formatters
+
+struct Hex64 {
+  uint64_t value;
+};
+
+template <typename T, std::enable_if_t<std::is_unsigned_v<T>, int> = 0>
+Hex64 MakeHex(T value) {
+  return Hex64{value};
+}
+
+struct ByteSize {
+  uint64_t value;
+};
+
+template <typename T, std::enable_if_t<std::is_unsigned_v<T>, int> = 0>
+ByteSize MakeByteSize(T value) {
+  return ByteSize{value};
+}
+
 // Compile time size estimator (inexact).
 
 template <typename T>
@@ -44,6 +64,10 @@ struct EstimateSize<uint64_t>
 template <>
 struct EstimateSize<int64_t>
     : public std::integral_constant<unsigned, std::numeric_limits<int64_t>::digits10 + 2> {};
+
+template <>
+struct EstimateSize<ByteSize>
+    : public std::integral_constant<unsigned, std::numeric_limits<uint32_t>::digits10> {};
 
 template <typename T>
 inline constexpr unsigned EstimateSizeV = EstimateSize<T>::value;
@@ -129,17 +153,6 @@ bool IsEqualDigits10(T signed_value, StringSlice str) {
   }
 }
 
-// Special formatters
-
-struct Hex64 {
-  uint64_t value;
-};
-
-template <typename T, std::enable_if_t<std::is_unsigned_v<T>, int> = 0>
-Hex64 MakeHex(T value) {
-  return Hex64{value};
-}
-
 // Type erase classes
 
 union PackedValue {
@@ -153,6 +166,7 @@ union PackedValue {
   constexpr PackedValue(void *x) : _ptr(x) {}
 
   constexpr PackedValue(Hex64 x) : _hex64(x) {}
+  constexpr PackedValue(ByteSize x) : _byte_size(x) {}
 
   bool _bool;
   char _char;
@@ -163,6 +177,7 @@ union PackedValue {
   const void *_ptr;
   const char *_str;
   Hex64 _hex64;
+  ByteSize _byte_size;
 };
 
 enum PackedValueType {
@@ -175,6 +190,7 @@ enum PackedValueType {
   kUint64,
   kPtr,
   kStr,
+  kByteSize,
 };
 
 template <typename T>
@@ -203,6 +219,9 @@ struct PackOneType<StringSlice> : std::integral_constant<uint64_t, kStr> {};
 
 template <>
 struct PackOneType<Hex64> : std::integral_constant<uint64_t, kPtr> {};
+
+template <>
+struct PackOneType<ByteSize> : std::integral_constant<uint64_t, kByteSize> {};
 
 template <typename T>
 struct PackOneType<T *> : std::integral_constant<uint64_t, kPtr> {};
@@ -328,6 +347,9 @@ inline size_t RunEstimator(PackedValue *args, uint64_t type_bits) {
       case kStr:
         ++i;
         bytes += args[i]._uint64;
+        break;
+      case kByteSize:
+        bytes += EstimateSizeV<decltype(args[i]._byte_size)>;
         break;
       default:
         pdp_assert(false);
@@ -496,6 +518,21 @@ struct Formatter : public NonCopyableNonMovable {
 
   void AppendUnchecked(Hex64 hex) { AppendUnchecked(BitCast<void *>(hex.value)); }
 
+  void AppendUnchecked(ByteSize bytes) {
+    auto digits = CountDigits16(bytes.value);
+    byte table[17] = {1, 1, 1, 1, 2, 2, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4};
+    byte unit = table[digits];
+    uint64_t power = 1ull << ((unit << 3) | (unit << 1));
+
+    // Correction
+    unit -= (bytes.value < power);
+
+    auto div = bytes.value >> ((unit << 3) | (unit << 1));
+    AppendUnchecked(div);
+    const char *lookup = "BKMGT";
+    AppendUnchecked(lookup[unit]);
+  }
+
   void AppendPackUnchecked(StringSlice fmt, PackedValue *args, uint64_t type_bits) {
 #ifdef PDP_ENABLE_ASSERT
     StringSlice original_fmt = fmt;
@@ -555,6 +592,9 @@ struct Formatter : public NonCopyableNonMovable {
       case kStr:
         AppendUnchecked(StringSlice(arg[0]._str, arg[1]._uint64));
         return PackOneSlots<StringSlice>();
+      case kByteSize:
+        AppendUnchecked(arg->_byte_size);
+        return PackOneSlots<decltype(arg->_byte_size)>();
       default:
         pdp_assert(false);
         return 0;

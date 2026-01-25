@@ -20,7 +20,7 @@ void ApplicationMain() {
   pdp_info("Polling until idle state is reached");
 
   pdp::Stopwatch stopwatch;
-  while (!coordinator.IsIdle() && g_recorder.IsTimeLess(stopwatch.Elapsed(), 5000_ms)) {
+  while (g_recorder.IsTimeLess(stopwatch.Elapsed(), 5000_ms)) {
     // Poll file descriptors
     coordinator.RegisterForPoll(poller);
     poller.Poll(pdp::Milliseconds(100));

@@ -1,5 +1,6 @@
 add_library(pdp_coroutines STATIC
   gdb_async_driver.cc
+  vim_async_driver.cc
   debug_coordinator.cc
 )
 
