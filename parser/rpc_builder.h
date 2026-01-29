@@ -41,6 +41,16 @@ struct ByteBuilder : public SmallBufferStorage<byte, Alloc> {
   }
 
   const void *Data() const { return begin; }
+
+  byte operator[](size_t pos) const {
+    pdp_assert(begin + pos < end);
+    return begin[pos];
+  }
+
+  byte &operator[](size_t pos) {
+    pdp_assert(begin + pos < end);
+    return begin[pos];
+  }
 };
 
 struct RpcBytes {
@@ -55,6 +65,7 @@ struct RpcBuilder {
   friend struct RpcBuilderArrayRAII;
 
   RpcBuilder() = default;
+  RpcBuilder(const StringSlice &method);
   RpcBuilder(uint32_t token, const StringSlice &method);
 
   void Restart(uint32_t token, const StringSlice &method);
@@ -82,6 +93,8 @@ struct RpcBuilder {
     }
     CloseShortArray();
   }
+
+  bool SetRequestToken(uint32_t value);
 
   [[nodiscard]] RpcBytes Finish();
 

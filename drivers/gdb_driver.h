@@ -2,7 +2,7 @@
 
 #include "core/monotonic_check.h"
 #include "core/once_guard.h"
-#include "data/scoped_ptr.h"
+#include "data/unique_ptr.h"
 #include "strings/rolling_buffer.h"
 #include "system/child_reaper.h"
 #include "system/file_descriptor.h"
@@ -145,7 +145,7 @@ struct GdbDriver {
   OutputDescriptor gdb_stdin;
   InputDescriptor gdb_stderr;
 
-  pdp::ScopedArrayPtr<char> error_buffer;
+  StringBuffer error_buffer;
   static constexpr size_t max_error_length = 256;
 };
 

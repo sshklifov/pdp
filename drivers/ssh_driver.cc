@@ -11,15 +11,9 @@
 
 namespace pdp {
 
-static DynamicString ToDynamicString(Vector<char> &v) {
+static FixedString ToFixedString(StringVector &v) {
   v += '\0';
-  impl::_VectorPrivAcess<char, DefaultAllocator> _vector_priv(v);
-
-  DynamicString res;
-  impl::_DynamicStringPrivInit _string_init(res);
-  _string_init(_vector_priv.ReleaseData(), _vector_priv.Get().Size() - 1);
-  _vector_priv.Reset();
-  return res;
+  return FixedString(std::move(v));
 }
 
 SshDriver::SshDriver(const StringSlice &h, ChildReaper &r)
@@ -36,7 +30,7 @@ SshDriver::~SshDriver() {
   Deallocate<pollfd>(allocator, poll_args);
 }
 
-SshDriver::Capture *SshDriver::OnOutput(DynamicString request) {
+SshDriver::Capture *SshDriver::OnOutput(FixedString request) {
   for (size_t i = 0; i < max_children; ++i) {
     if (active_queue[i].pid < 0) {
       SpawnChildAt(request.ToSlice(), i);
@@ -54,7 +48,7 @@ SshDriver::Capture *SshDriver::OnOutput(StringSlice request) {
       return &active_queue[i].cb;
     }
   }
-  pending_queue.EmplaceBack(DynamicString(request));
+  pending_queue.EmplaceBack(FixedString(request));
   return &pending_queue.Back().callback;
 }
 
@@ -86,7 +80,7 @@ void SshDriver::OnChildExited(pid_t pid, int status) {
   for (size_t i = 0; i < max_children; ++i) {
     if (pid == active_queue[i].pid) {
       if (PDP_LIKELY(WIFEXITED(status) && WEXITSTATUS(status) == 0)) {
-        active_queue[i].cb(ToDynamicString(active_queue[i].buffer_output));
+        active_queue[i].cb(ToFixedString(active_queue[i].buffer_output));
       } else {
         pdp_error("SSH command failed!");
       }
@@ -139,7 +133,7 @@ void SshDriver::SpawnChildAt(const StringSlice &command, size_t pos) {
     close(err[0]);
     close(err[1]);
 
-    execlp("ssh", "ssh", "-o", "ConnectTimeout=1", host.Data(), command.Data(), (char *)NULL);
+    execlp("ssh", "ssh", "-o", "ConnectTimeout=1", host.Cstr(), command.Data(), (char *)NULL);
     _exit(127);
   }
 

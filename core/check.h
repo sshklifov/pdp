@@ -55,7 +55,7 @@ bool Check(int result, const char *operation);
 /// @param result The returned resource of the function.
 /// @param operation Name of the carried out operation for logging purposes.
 /// @return True if the operation executed successfully and false otherwise.
-bool Check(void *pointer, const char *operation);
+bool Check(const void *pointer, const char *operation);
 
 void CheckFatal(int result, const char *operation);
 

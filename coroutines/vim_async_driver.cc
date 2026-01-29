@@ -2,12 +2,12 @@
 
 namespace pdp {
 
-static size_t TotalStringBytes(std::initializer_list<StringSlice> ilist) {
-  size_t res = 0;
-  for (const auto &str : ilist) {
-    res += str.Size();
-  }
-  return res;
+IntegerRpcAwaiter IntegerRpcQueue::NextAwaiter() {
+  return IntegerRpcAwaiter(async_driver, token_begin++);
+}
+
+StringRpcAwaiter StringRpcQueue::NextAwaiter() {
+  return StringRpcAwaiter(async_driver, token_begin++);
 }
 
 VimAsyncDriver::VimAsyncDriver(int vim_input_fd, int vim_output_fd)
@@ -27,25 +27,107 @@ void VimAsyncDriver::OnPollResults(PollTable &table) {
 }
 
 void VimAsyncDriver::Drain() {
-  uint32_t token = vim_driver.PollResponseToken();
-  while (token != vim_driver.kInvalidToken) {
+  VimRpcEvent event = vim_driver.PollRpcEvent();
+  while (event) {
+    if (PDP_LIKELY(event.IsResponse())) {
 #if PDP_TRACE_RPC_TOKENS
-    pdp_trace("Response: token={}", token);
+      pdp_trace("Response: token={}", event.GetToken());
 #endif
-    const bool token_handled = suspended_handlers.Resume(token);
-    if (!token_handled) {
-      vim_driver.SkipResult();
+      const bool token_handled = suspended_handlers.Resume(event.GetToken());
+      if (!token_handled) {
+        vim_driver.SkipResult();
 #if PDP_TRACE_RPC_TOKENS
-      pdp_trace("Skipped: token={}", token);
+        pdp_trace("Skipped: token={}", event.GetToken());
 #endif
+      }
+    } else {
+      pdp_assert(event.IsNotify());
+      ReadNotifyEvent();
     }
-    token = vim_driver.PollResponseToken();
+
+    // Read the next event
+    event = vim_driver.PollRpcEvent();
   }
+}
+
+void VimAsyncDriver::ReadNotifyEvent() {
+  FixedString method = vim_driver.ReadString();
+  if (method == "pdp/buf_changed") {
+    auto bufnr = vim_driver.ReadInteger();
+    auto name = vim_driver.ReadString();
+    if (name.ToSlice().StartsWith('/') && FileReadable(name.Cstr())) {
+      auto [it, _] = opened_buffers.Emplace(std::move(name));
+      it->value = bufnr;
+      OnNotifyNewBuffer(it->key.ToSlice(), it->value);
+    }
+  } else if (method == "pdp/buf_removed") {
+    auto name = vim_driver.ReadString();
+    auto it = opened_buffers.Find(name.ToSlice());
+    if (it != opened_buffers.End()) {
+      opened_buffers.Erase(it);
+    }
+  } else {
+    pdp_error("Unexpected notification: {}", method.ToSlice());
+    PDP_UNREACHABLE("Unhandled notification");
+  }
+}
+
+void VimAsyncDriver::OnNotifyNewBuffer(const StringSlice &fullname, int bufnr) {
+  auto it = pending_extmarks.Find(fullname);
+  while (it != pending_extmarks.End()) {
+    // TODO here vim_driver.Send
+    // TODO change the whole vim async driver marks to use this path
+  }
+}
+
+IntegerRpcQueue VimAsyncDriver::PrepareIntegerQueue() {
+  return IntegerRpcQueue(this, vim_driver.NextRequestToken());
+}
+
+StringRpcQueue VimAsyncDriver::PrepareStringQueue() {
+  return StringRpcQueue(this, vim_driver.NextRequestToken());
+}
+
+IntegerRpcAwaiter VimAsyncDriver::PromiseCreateBuffer() {
+  auto token = vim_driver.SendRpcRequest("nvim_create_buf", true, false);
+  return IntegerRpcAwaiter(this, token);
+}
+
+IntegerRpcAwaiter VimAsyncDriver::PromiseNamespace(const StringSlice &ns) {
+  auto token = vim_driver.SendRpcRequest("nvim_create_namespace", ns);
+  return IntegerRpcAwaiter(this, token);
+}
+
+StringRpcAwaiter VimAsyncDriver::PromiseBufferName(int64_t buffer) {
+  auto token = vim_driver.SendRpcRequest("nvim_buf_get_name", buffer);
+  return StringRpcAwaiter(this, token);
 }
 
 IntegerArrayRpcAwaiter VimAsyncDriver::PromiseBufferList() {
   uint32_t list_token = vim_driver.SendRpcRequest("nvim_list_bufs");
   return IntegerArrayRpcAwaiter(this, list_token);
+}
+
+IntegerRpcAwaiter VimAsyncDriver::PromiseBufferLineCount(int bufnr) {
+  auto token = vim_driver.SendRpcRequest("nvim_buf_line_count", bufnr);
+  return IntegerRpcAwaiter(this, token);
+}
+
+void VimAsyncDriver::DeleteBreakpointMark(int bufnr, int extmark) {
+  vim_driver.SendRpcRequest("nvim_buf_del_extmark", bufnr, namespaces[kBreakpointNs], extmark);
+}
+
+IntegerRpcAwaiter VimAsyncDriver::PromiseBreakpointMark(StringSlice mark, int bufnr, int lnum,
+                                                        int enabled) {
+  RpcBuilder builder;
+  auto token = vim_driver.BeginRpcRequest(builder, "nvim_buf_set_extmark", bufnr,
+                                          namespaces[kBreakpointNs], lnum - 1, 0);
+  builder.OpenShortMap();
+  builder.AddMapItem("sign_text", mark.Length() <= 2 ? mark : mark.Substr(2));
+  builder.AddMapItem("sign_hl_group", enabled ? "debugBreakpoint" : "debugBreakpointDisabled");
+  builder.CloseShortMap();
+  vim_driver.EndRpcRequest(builder);
+  return IntegerRpcAwaiter(this, token);
 }
 
 void VimAsyncDriver::ShowNormal(const StringSlice &msg) {
@@ -62,18 +144,7 @@ void VimAsyncDriver::ShowPacked(const StringSlice &fmt, PackedValue *args, uint6
   ShowNormal(builder.ToSlice());
 }
 
-void VimAsyncDriver::ShowWarning(const StringSlice &msg) { ShowMessage(msg, "WarningMsg"); }
-
-void VimAsyncDriver::ShowError(const StringSlice &msg) { ShowMessage(msg, "ErrorMsg"); }
-
-void VimAsyncDriver::ShowMessage(const StringSlice &msg, const StringSlice &hl) {
-  ShowMessage(std::initializer_list<StringSlice>{msg}, std::initializer_list<StringSlice>{hl});
-}
-
-void VimAsyncDriver::ShowMessage(std::initializer_list<StringSlice> ilist_msg,
-                                 std::initializer_list<StringSlice> ilist_hl) {
-  pdp_assert(ilist_msg.size() == ilist_hl.size());
-
+void VimAsyncDriver::ShowMessage(const MessageBuilder &message) {
   // Message
 
   auto bufnr = buffers[kPromptBuf];
@@ -81,28 +152,25 @@ void VimAsyncDriver::ShowMessage(std::initializer_list<StringSlice> ilist_msg,
   vim_driver.BeginRpcRequest(builder, "nvim_buf_set_lines", bufnr, num_prompt_lines,
                              num_prompt_lines, true);
   builder.OpenShortArray();
-  char *msg_out = builder.AddUninitializedString(TotalStringBytes(ilist_msg));
+  builder.Add(message.GetJoinedMessage());
   builder.CloseShortArray();
-
-  for (const auto &msg : ilist_msg) {
-    memcpy(msg_out, msg.Data(), msg.Size());
-    msg_out += msg.Size();
-  }
   vim_driver.EndRpcRequest(builder);
 
   // Highlight
 
-  int start_col = 0;
-  for (size_t i = 0; i < ilist_hl.size(); ++i) {
-    int end_col = start_col + ilist_msg.begin()[i].Size();
+  size_t start_col = 0;
+  for (const auto &[msg_len, hl] : message) {
+    size_t end_col = start_col + msg_len;
 
-    vim_driver.BeginRpcRequest(builder, "nvim_buf_set_extmark", bufnr, namespaces[kHighlightNs],
-                               num_prompt_lines, start_col);
-    builder.OpenShortMap();
-    builder.AddMapItem("end_col", end_col);
-    builder.AddMapItem("hl_group", ilist_hl.begin()[i]);
-    builder.CloseShortMap();
-    vim_driver.EndRpcRequest(builder);
+    if (hl != "Normal") {
+      vim_driver.BeginRpcRequest(builder, "nvim_buf_set_extmark", bufnr,
+                                 namespaces[kPromptBufferNs], num_prompt_lines, start_col);
+      builder.OpenShortMap();
+      builder.AddMapItem("end_col", end_col);
+      builder.AddMapItem("hl_group", hl);
+      builder.CloseShortMap();
+      vim_driver.EndRpcRequest(builder);
+    }
 
     start_col = end_col;
   }
@@ -111,30 +179,51 @@ void VimAsyncDriver::ShowMessage(std::initializer_list<StringSlice> ilist_msg,
   num_prompt_lines++;
 }
 
-HandlerCoroutine VimAsyncDriver::InitializeNs() {
-  uint32_t start_token = vim_driver.CreateNamespace("PromptDebugHighlight");
-  vim_driver.CreateNamespace("PromptDebugPC");
-  vim_driver.CreateNamespace("PromptDebugRegister");
-  vim_driver.CreateNamespace("PromptDebugPrompt");
-  vim_driver.CreateNamespace("PromptDebugConcealVar");
-  vim_driver.CreateNamespace("PromptDebugConcealJump");
-  vim_driver.CreateNamespace("PromptDebugBreakpoint");
-  pdp_assert(vim_driver.NextToken() - start_token == kTotalNs);
-
-  namespaces[kHighlightNs] = co_await IntegerRpcAwaiter(this, start_token);
-  namespaces[kProgramCounterNs] = co_await IntegerRpcAwaiter(this, start_token + 1);
-  namespaces[kRegisterNs] = co_await IntegerRpcAwaiter(this, start_token + 2);
-  namespaces[kPromptBufferNs] = co_await IntegerRpcAwaiter(this, start_token + 3);
-  namespaces[kConcealVarNs] = co_await IntegerRpcAwaiter(this, start_token + 4);
-  namespaces[kConcealJumpNs] = co_await IntegerRpcAwaiter(this, start_token + 5);
-  namespaces[kBreakpointNs] = co_await IntegerRpcAwaiter(this, start_token + 6);
+void VimAsyncDriver::HighlightLastLine(const StringSlice &hl) {
+  RpcBuilder builder;
+  vim_driver.BeginRpcRequest(builder, "nvim_buf_set_extmark", buffers[kPromptBuf],
+                             namespaces[kPromptBufferNs], num_prompt_lines - 1, 0);
+  builder.OpenShortMap();
+  builder.AddMapItem("line_hl_group", hl);
+  builder.CloseShortMap();
+  vim_driver.EndRpcRequest(builder);
 }
 
-HandlerCoroutine VimAsyncDriver::InitializeBuffers() {
-  const Vector<int64_t> list = co_await PromiseBufferList();
-  uint32_t token = vim_driver.NextToken();
-  for (size_t i = 0; i < list.Size(); ++i) {
-    vim_driver.Bufname(list[i]);
+void VimAsyncDriver::HighlightLastLine(int start_col, int end_col, const StringSlice &hl) {
+  // TODO slight copy pasta
+  RpcBuilder builder;
+  vim_driver.BeginRpcRequest(builder, "nvim_buf_set_extmark", buffers[kPromptBuf],
+                             namespaces[kPromptBufferNs], num_prompt_lines - 1, start_col);
+  builder.OpenShortMap();
+  builder.AddMapItem("end_col", end_col);
+  builder.AddMapItem("hl_group", hl);
+  builder.CloseShortMap();
+  vim_driver.EndRpcRequest(builder);
+}
+
+Coroutine VimAsyncDriver::InitializeNs() {
+  IntegerRpcQueue queue = PrepareIntegerQueue();
+  PromiseNamespace("PromptDebugPC").Enqueue(queue);
+  PromiseNamespace("PromptDebugRegister").Enqueue(queue);
+  PromiseNamespace("PromptDebugPrompt").Enqueue(queue);
+  PromiseNamespace("PromptDebugConcealVar").Enqueue(queue);
+  PromiseNamespace("PromptDebugConcealJump").Enqueue(queue);
+  PromiseNamespace("PromptDebugBreakpoint").Enqueue(queue);
+  pdp_assert(queue.Size() == kTotalNs);
+
+  namespaces[kProgramCounterNs] = co_await queue.NextAwaiter();
+  namespaces[kRegisterNs] = co_await queue.NextAwaiter();
+  namespaces[kPromptBufferNs] = co_await queue.NextAwaiter();
+  namespaces[kConcealVarNs] = co_await queue.NextAwaiter();
+  namespaces[kConcealJumpNs] = co_await queue.NextAwaiter();
+  namespaces[kBreakpointNs] = co_await queue.NextAwaiter();
+}
+
+Coroutine VimAsyncDriver::InitializeBuffers() {
+  const Vector<int64_t> all_buffers = co_await PromiseBufferList();
+  StringRpcQueue names_queue = PrepareStringQueue();
+  for (size_t i = 0; i < all_buffers.Size(); ++i) {
+    PromiseBufferName(all_buffers[i]).Enqueue(names_queue);
   }
   memset(buffers, -1, sizeof(buffers));
 
@@ -144,46 +233,46 @@ HandlerCoroutine VimAsyncDriver::InitializeBuffers() {
   names[kPromptBuf] = "Gdb prompt";
   names[kIoBuf] = "Gdb i/o";
 
-  for (size_t i = 0; i < list.Size(); ++i) {
-    DynamicString dynamic_str = co_await StringRpcAwaiter(this, token + i);
+  for (size_t i = 0; i < all_buffers.Size(); ++i) {
+    FixedString dynamic_str = co_await names_queue.NextAwaiter();
     StringSlice name = dynamic_str.ToSlice();
     if (name.Size() >= 1) {
       switch (name[name.Size() - 1]) {
         case 'e':
           if (PDP_LIKELY(name.EndsWith(names[kCaptureBuf]))) {
-            buffers[kCaptureBuf] = list[i];
+            buffers[kCaptureBuf] = all_buffers[i];
           }
           break;
         case 's':
           if (PDP_LIKELY(name.EndsWith(names[kAsmBuf]))) {
-            buffers[kAsmBuf] = list[i];
+            buffers[kAsmBuf] = all_buffers[i];
           }
           break;
         case 't':
           if (PDP_LIKELY(name.EndsWith(names[kPromptBuf]))) {
-            buffers[kPromptBuf] = list[i];
+            buffers[kPromptBuf] = all_buffers[i];
           }
           break;
         case 'o':
           if (PDP_LIKELY(name.EndsWith(names[kIoBuf]))) {
-            buffers[kIoBuf] = list[i];
+            buffers[kIoBuf] = all_buffers[i];
           }
           break;
       }
     }
+    opened_buffers.EmplaceUnchecked(std::move(dynamic_str), all_buffers[i]);
   }
 
-  token = vim_driver.NextToken();
+  IntegerRpcQueue new_buffers_queue = PrepareIntegerQueue();
   for (size_t i = 0; i < kTotalBufs; ++i) {
     if (buffers[i] < 0) {
-      vim_driver.SendRpcRequest("nvim_create_buf", true, false);
+      PromiseCreateBuffer().Enqueue(new_buffers_queue);
     }
   }
   for (size_t i = 0; i < kTotalBufs; ++i) {
     if (buffers[i] < 0) {
-      buffers[i] = co_await IntegerRpcAwaiter(this, token);
+      buffers[i] = co_await new_buffers_queue.NextAwaiter();
       vim_driver.SendRpcRequest("nvim_buf_set_name", buffers[i], names[i]);
-      ++token;
     }
   }
 

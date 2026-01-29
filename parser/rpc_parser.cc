@@ -122,13 +122,12 @@ bool ReadRpcBoolean(ByteStream &s) {
   PDP_UNREACHABLE("Unexpected RPC byte, expecting a boolean");
 }
 
-DynamicString ReadRpcString(ByteStream &s) {
+FixedString ReadRpcString(ByteStream &s) {
   auto length = ReadRpcStringLength(s);
-  DynamicString res;
-  impl::_DynamicStringPrivInit string_init(res);
-  char *buf = string_init(length);
-  s.Memcpy(buf, length);
-  return res;
+  StringBuffer buffer(length + 1);
+  s.Memcpy(buffer.Get(), length);
+  buffer[length] = 0;
+  return FixedString(std::move(buffer), length);
 }
 
 uint32_t ReadRpcStringLength(ByteStream &s) {

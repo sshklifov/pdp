@@ -55,14 +55,15 @@ struct Hash;
 
 namespace emhash8 {
 
-template <typename K, typename V, typename Alloc = pdp::DefaultAllocator>
-class Map : public pdp::NonCopyable {
+template <typename _K, typename K, typename V>
+class Map3 : public pdp::NonCopyable {
  protected:
   struct Index {
     uint32_t next;
     uint32_t slot;
   };
 
+ public:
   struct Entry {
     template <typename Arg, typename... Args>
     explicit Entry(Arg &&key, Args &&...args)
@@ -72,24 +73,22 @@ class Map : public pdp::NonCopyable {
     V value;
   };
 
+  struct EmplaceResult {
+    Entry *it;
+    bool did_emplace;
+  };
+
   static_assert(std::is_nothrow_destructible_v<Entry>, "K and V must be noexcept destructible");
   static_assert(pdp::CanReallocate<K>::value && pdp::CanReallocate<V>::value,
                 "K and V must be movable with realloc");
   static_assert(std::is_invocable_v<const pdp::Hash<K>, K>, "Hash function missing for K");
 
- public:
   constexpr static float EMH_DEFAULT_LOAD_FACTOR = 0.80f;
   constexpr static float EMH_MIN_LOAD_FACTOR = 0.25f;
 
-  Map(Alloc alloc = Alloc(), uint32_t bucket = 2, float mlf = EMH_DEFAULT_LOAD_FACTOR) noexcept
-      : allocator(alloc) {
-#ifndef PDP_DEBUG_BUILD
-    PDP_UNREACHABLE("Dynamic usage of emhas8::Map detected!");
-#endif
-    Init(bucket, mlf);
-  }
+  Map3(uint32_t bucket = 2, float mlf = EMH_DEFAULT_LOAD_FACTOR) noexcept { Init(bucket, mlf); }
 
-  Map(Map &&rhs) noexcept
+  Map3(Map3 &&rhs) noexcept
       : _index(rhs._index),
         _pairs(rhs._pairs),
         _mlf(rhs._mlf),
@@ -104,31 +103,13 @@ class Map : public pdp::NonCopyable {
     rhs._num_filled = 0;
   }
 
-  ~Map() noexcept {
+  ~Map3() noexcept {
     Clearkv();
     pdp::Deallocate<Entry>(allocator, _pairs);
     pdp::Deallocate<Index>(allocator, _index);
   }
 
-  Map &operator=(Map &&rhs) noexcept {
-    if (this != &rhs) {
-      Swap(rhs);
-      rhs.Clear();
-    }
-    return *this;
-  }
-
-  void Swap(Map &rhs) {
-    std::swap(_pairs, rhs._pairs);
-    std::swap(_index, rhs._index);
-    std::swap(_num_buckets, rhs._num_buckets);
-    std::swap(_num_filled, rhs._num_filled);
-    std::swap(_mask, rhs._mask);
-    std::swap(_mlf, rhs._mlf);
-    std::swap(_last, rhs._last);
-    std::swap(_etail, rhs._etail);
-    std::swap(allocator, rhs.allocator);
-  }
+  void operator=(Map3 &&rhs) = delete;
 
   Entry *Begin() { return _pairs; }
   Entry *End() { return _pairs + _num_filled; }
@@ -139,45 +120,14 @@ class Map : public pdp::NonCopyable {
   uint32_t Size() const { return _num_filled; }
   bool Empty() const { return _num_filled == 0; }
 
-  Entry *Find(const K &key) {
+  Entry *Find(const _K &key) {
     uint32_t idx = FindFilledSlot(key);
     return _pairs + idx;
   }
 
-  template <typename Type, typename... Types>
-  void EmplaceUnique(Type &&key, Types &&...args) {
-    CheckExpandNeed();
-    const uint64_t key_hash = hasher(key);
-    uint32_t bucket = FindUniqueBucket(key_hash);
-    EMH_NEW(std::forward<Type>(key), std::forward<Types>(args), bucket, key_hash);
-  }
-
-  template <typename Type, typename... Types>
-  Entry *Emplace(Type &&key, Types &&...args) {
-    CheckExpandNeed();
-
-    const uint64_t key_hash = hasher(key);
-    const uint32_t bucket = FindOrAllocate(key, key_hash);
-    const bool bempty = EMH_EMPTY(bucket);
-    if (bempty) {
-      EMH_NEW(std::forward<Type>(key), std::forward<Types>(args), bucket, key_hash);
-    }
-
-    const uint32_t slot = _index[bucket].slot & _mask;
-    return _pairs + slot;
-  }
-
-  /// Erase an element from the hash table.
-  bool Erase(const K &key) {
-    const uint64_t key_hash = hasher(key);
-    const uint32_t sbucket = FindFilledBucket(key, key_hash);
-    if (sbucket == EMH_INDEX_INACTIVE) {
-      return 0;
-    }
-
-    const uint32_t main_bucket = key_hash & _mask;
-    EraseSlot(sbucket, main_bucket);
-    return 1;
+  const Entry *Find(const _K &key) const {
+    uint32_t idx = FindFilledSlot(key);
+    return _pairs + idx;
   }
 
   void Erase(const Entry *it) {
@@ -199,7 +149,34 @@ class Map : public pdp::NonCopyable {
     _etail = EMH_INDEX_INACTIVE;
   }
 
- private:
+  template <typename KeyType, typename... Types>
+  Entry *EmplaceUnchecked(KeyType &&key, Types &&...args) {
+    CheckExpandNeed();
+    const _K &key_view = static_cast<_K>(key);
+    const uint64_t key_hash = _hasher(key_view);
+    uint32_t bucket = FindUniqueBucket(key_hash);
+    uint32_t slot = _num_filled;
+    EMH_NEW(std::forward<KeyType>(key), std::forward<Types>(args), bucket, key_hash);
+    return _pairs + slot;
+  }
+
+  template <typename KeyType, typename... Types>
+  EmplaceResult Emplace(KeyType &&key, Types &&...args) {
+    CheckExpandNeed();
+
+    _K key_view = static_cast<_K>(key);
+    const uint64_t key_hash = _hasher(key_view);
+    const uint32_t bucket = FindOrAllocate(key_view, key_hash);
+    const bool bempty = EMH_EMPTY(bucket);
+    if (bempty) {
+      EMH_NEW(std::forward<KeyType>(key), std::forward<Types>(args), bucket, key_hash);
+    }
+
+    const uint32_t slot = _index[bucket].slot & _mask;
+    return {_pairs + slot, bempty};
+  }
+
+ protected:
   /// Returns average number of elements per bucket.
   inline float LoadFactor() const { return static_cast<float>(_num_filled) / (_mask + 1); }
 
@@ -304,11 +281,14 @@ class Map : public pdp::NonCopyable {
       const uint32_t last_bucket =
           (_etail == EMH_INDEX_INACTIVE || ebucket == _etail) ? SlotToBucket(last_slot) : _etail;
 
-      _pairs[slot] = std::move(_pairs[last_slot]);
+      if (!std::is_trivially_destructible_v<Entry>) {
+        _pairs[slot].~Entry();
+      }
+      new (_pairs + slot) Entry(std::move(_pairs[last_slot]));
       _index[last_bucket].slot = slot | (_index[last_bucket].slot & ~_mask);
     }
 
-    if (!std::is_trivially_destructible<V>::value) {
+    if (!std::is_trivially_destructible_v<Entry>) {
       _pairs[last_slot].~Entry();
     }
 
@@ -352,7 +332,7 @@ class Map : public pdp::NonCopyable {
   }
 
   // Find the slot with this key, or return bucket size
-  uint32_t FindFilledBucket(const K &key, uint64_t key_hash) const {
+  uint32_t FindFilledBucket(const _K &key, uint64_t key_hash) const {
     const uint32_t bucket = key_hash & _mask;
     uint32_t next_bucket = _index[bucket].next;
     if (PDP_UNLIKELY((int)next_bucket < 0)) {
@@ -388,8 +368,8 @@ class Map : public pdp::NonCopyable {
   }
 
   // Find the slot with this key, or return bucket size
-  uint32_t FindFilledSlot(const K &key) const {
-    const uint64_t key_hash = hasher(key);
+  uint32_t FindFilledSlot(const _K &key) const {
+    const uint64_t key_hash = _hasher(key);
     const uint32_t bucket = uint32_t(key_hash & _mask);
     uint32_t next_bucket = _index[bucket].next;
     if ((int)next_bucket < 0) {
@@ -449,7 +429,7 @@ class Map : public pdp::NonCopyable {
    ** put new key in its main position; otherwise (colliding bucket is in its main
    ** position), new key goes to an empty position.
    */
-  uint32_t FindOrAllocate(const K &key, uint64_t key_hash) {
+  uint32_t FindOrAllocate(const _K &key, uint64_t key_hash) {
     const uint32_t bucket = uint32_t(key_hash & _mask);
     uint32_t next_bucket = _index[bucket].next;
     if ((int)next_bucket < 0) {
@@ -594,7 +574,6 @@ class Map : public pdp::NonCopyable {
     return (uint32_t)hasher(_pairs[slot].key) & _mask;
   }
 
- protected:
   Index *_index;
   Entry *_pairs;
 
@@ -606,7 +585,14 @@ class Map : public pdp::NonCopyable {
   uint32_t _etail;
 
   pdp::Hash<K> hasher;
-  Alloc allocator;
+  pdp::Hash<_K> _hasher;
+  pdp::DefaultAllocator allocator;
 };
+
+template <typename V>
+using StringMap = Map3<pdp::StringSlice, pdp::FixedString, V>;
+
+template <typename K, typename V>
+using Map = Map3<K, K, V>;
 
 }  // namespace emhash8

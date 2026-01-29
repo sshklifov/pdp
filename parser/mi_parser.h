@@ -1,6 +1,6 @@
 #pragma once
 
-#include "data/scoped_ptr.h"
+#include "data/unique_ptr.h"
 #include "expr.h"
 
 #include "data/arena.h"
@@ -48,7 +48,7 @@ struct MiFirstPass {
 struct MiSecondPass {
   MiSecondPass(const StringSlice &s, MiFirstPass &first_pass);
 
-  ScopedPtr<ExprBase> Parse();
+  UniquePtr<ExprBase> Parse();
 
  private:
   ExprBase *ReportError(const StringSlice &msg);

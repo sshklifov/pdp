@@ -10,6 +10,14 @@ struct NonCopyable {
   NonCopyable &operator=(const NonCopyable &) = delete;
 };
 
+struct NonMoveable {
+  NonMoveable() = default;
+  ~NonMoveable() = default;
+
+  NonMoveable(NonMoveable &&) = delete;
+  NonMoveable &operator=(NonMoveable &&) = delete;
+};
+
 struct NonCopyableNonMovable {
   NonCopyableNonMovable() = default;
   ~NonCopyableNonMovable() = default;

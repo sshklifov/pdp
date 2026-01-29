@@ -40,8 +40,8 @@ void MiFirstPass::PushSizeOnStack(uint32_t num_elements) {
 }
 
 bool MiFirstPass::ParseResult() {
-  auto it = input.Find('=');
-  if (PDP_UNLIKELY(it == input.End())) {
+  auto it = input.MemChar('=');
+  if (PDP_UNLIKELY(it == nullptr)) {
     return ReportError("Expecting variable=...");
   }
 
@@ -355,7 +355,7 @@ ExprBase *MiSecondPass::ParseResultOrValue() {
   return expr;
 }
 
-ScopedPtr<ExprBase> MiSecondPass::Parse() {
+UniquePtr<ExprBase> MiSecondPass::Parse() {
   if (PDP_UNLIKELY(input.Empty())) {
     ExprTuple *tuple = static_cast<ExprTuple *>(arena.AllocateUnchecked(sizeof(ExprTuple)));
     tuple->kind = ExprBase::kTuple;

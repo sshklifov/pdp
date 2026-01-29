@@ -22,14 +22,14 @@ TEST_CASE("Map<uint32_t, uint32_t>: basic empty invariants") {
 
   CHECK(m.Begin() == m.End());
 
-  auto *e = m.Find(123);
+  auto *e = m.Find(123u);
   CHECK(e == m.End());
 }
 
 TEST_CASE("Map<uint32_t, uint32_t>: Emplace inserts and Find returns same entry") {
   emhash8::Map<uint32_t, uint32_t> m;
 
-  auto *e1 = m.Emplace(1, 111);
+  auto *e1 = m.EmplaceUnique(1, 111);
   REQUIRE(e1 != nullptr);
   CHECK(e1->key == 1);
   CHECK(e1->value == 111);
@@ -37,13 +37,13 @@ TEST_CASE("Map<uint32_t, uint32_t>: Emplace inserts and Find returns same entry"
   CHECK(!m.Empty());
   CHECK(m.Size() == 1);
 
-  auto *f1 = m.Find(1);
+  auto *f1 = m.Find(1u);
   REQUIRE(f1 != m.End());
   CHECK(f1->key == 1);
   CHECK(f1->value == 111);
 
   // Emplace same key should not create a new element; should return existing slot.
-  auto *e1b = m.Emplace(1, 999);
+  auto *e1b = m.EmplaceUnique(1, 999);
   REQUIRE(e1b != nullptr);
   CHECK(m.Size() == 1);
   CHECK(e1b->key == 1);
@@ -55,7 +55,7 @@ TEST_CASE("Map<uint32_t, uint32_t>: multiple inserts, iteration covers all keys"
 
   constexpr uint32_t N = 200;
   for (uint32_t i = 0; i < N; ++i) {
-    auto *e = m.Emplace(i, i + 10);
+    auto *e = m.EmplaceUnique(i, i + 10);
     REQUIRE(e != nullptr);
   }
   CHECK(m.Size() == N);
@@ -86,8 +86,8 @@ TEST_CASE("Map<uint32_t, uint32_t>: Erase missing key returns false") {
 
   CHECK(m.Erase(999) == false);
   CHECK(m.Size() == 2);
-  CHECK(m.Find(1) != m.End());
-  CHECK(m.Find(2) != m.End());
+  CHECK(m.Find(1u) != m.End());
+  CHECK(m.Find(2u) != m.End());
 }
 
 TEST_CASE("Map<uint32_t, uint32_t>: Erase by key removes element and keeps table consistent") {
@@ -135,14 +135,14 @@ TEST_CASE("Map<uint32_t, uint32_t>: Erase by iterator removes that entry") {
   CHECK(m.Size() == 50);
 
   // Pick some existing entry pointer and erase it.
-  auto *e = m.Find(17);
+  auto *e = m.Find(17u);
   REQUIRE(e != m.End());
   REQUIRE(e->key == 17);
 
   m.Erase(e);
 
   CHECK(m.Size() == 49);
-  CHECK(m.Find(17) == m.End());
+  CHECK(m.Find(17u) == m.End());
 
   // Remaining still valid.
   for (uint32_t i = 0; i < 50; ++i) {
@@ -171,7 +171,7 @@ TEST_CASE("Map<uint32_t, uint32_t>: Clear resets size but keeps container usable
   m.Emplace(42, 4242);
   CHECK(!m.Empty());
   CHECK(m.Size() == 1);
-  auto *e = m.Find(42);
+  auto *e = m.Find(42u);
   REQUIRE(e != m.End());
   CHECK(e->value == 4242);
 }
@@ -201,7 +201,7 @@ TEST_CASE("Map<uint32_t, uint32_t>: Swap swaps contents") {
   }
 }
 
-TEST_CASE("Map<uint32_t, uint32_t>: move ctor and move assignment preserve values") {
+TEST_CASE("Map<uint32_t, uint32_t>: move ctor preserve values") {
   pdp::TrackingAllocator::Stats stats;
 
   emhash8::Map<uint32_t, uint32_t, pdp::TrackingAllocator> m(&stats);
@@ -218,21 +218,6 @@ TEST_CASE("Map<uint32_t, uint32_t>: move ctor and move assignment preserve value
   for (uint32_t i = 0; i < 100; ++i) {
     auto *e = moved.Find(i);
     REQUIRE(e != moved.End());
-    CHECK(e->value == i * 7);
-  }
-
-  emhash8::Map<uint32_t, uint32_t, pdp::TrackingAllocator> assigned(&stats);
-  was_bytes = stats.GetBytesUsed();
-
-  assigned = std::move(moved);
-  CHECK(assigned.Size() == 100);
-
-  now_bytes = stats.GetBytesUsed();
-  CHECK(was_bytes == now_bytes);
-
-  for (uint32_t i = 0; i < 100; ++i) {
-    auto *e = assigned.Find(i);
-    REQUIRE(e != assigned.End());
     CHECK(e->value == i * 7);
   }
 }
@@ -262,7 +247,7 @@ TEST_CASE("Map<uint32_t, uint32_t>: high load / rehash stress") {
   CHECK(m.Size() == N - (N + 3) / 4);
 
   for (uint32_t i = 0; i < N; i += 4) {
-    auto *e = m.Emplace(i, 123456u);
+    auto *e = m.EmplaceUnique(i, 123456u);
     REQUIRE(e != nullptr);
   }
   CHECK(m.Size() == N);

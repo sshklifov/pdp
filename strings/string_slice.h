@@ -20,6 +20,21 @@ inline constexpr size_t ConstexprLength(const char *s) {
   }
 }
 
+inline constexpr int ConstexprMemCmp(const char *a, const char *b, size_t n) {
+  if (PDP_CONSTEXPR_EVALUATED()) {
+    for (size_t i = 0; i < n; ++i) {
+      if (a[i] < b[i]) {
+        return -1;
+      } else if (a[i] > b[1]) {
+        return 1;
+      }
+    }
+    return 0;
+  } else {
+    return memcmp(a, b, n);
+  }
+}
+
 struct StringSlice {
   constexpr StringSlice() : ptr(""), size(0) {}
   constexpr StringSlice(const char *p, size_t sz) : ptr(p), size(sz) {}
@@ -34,18 +49,18 @@ struct StringSlice {
   constexpr const char *Begin() const { return ptr; }
   constexpr const char *End() const { return ptr + size; }
 
-  constexpr const char *Find(char c) const { return Find(Begin(), c); }
-
-  constexpr const char *Find(const char *it, char c) const {
-    pdp_assert_non_constexpr(it >= Begin() && it <= End());
+  constexpr const char *MemMem(const StringSlice &other) const {
     if (PDP_CONSTEXPR_EVALUATED()) {
-      while (it < End() && *it != c) {
-        ++it;
+      const char *last_it = End() - other.Length();
+      for (const char *it = Begin(); it <= last_it; ++it) {
+        auto subs = Substr(it, other.Size());
+        if (subs == other) {
+          return it;
+        }
       }
-      return it;
+      return nullptr;
     } else {
-      const char *ret = (const char *)memchr(it, c, End() - it);
-      return ret != nullptr ? ret : End();
+      return (const char *)memmem(Begin(), Size(), other.Begin(), other.Size());
     }
   }
 
@@ -61,9 +76,9 @@ struct StringSlice {
     }
   }
 
-  int MemCmp(const StringSlice &other) const {
+  constexpr int MemCmp(const StringSlice &other) const {
     pdp_assert(other.Size() <= Size());
-    return memcmp(Begin(), other.Begin(), other.Size());
+    return ConstexprMemCmp(Begin(), other.Begin(), other.Size());
   }
 
   constexpr const char *MemReverseChar(char c) const {
@@ -81,6 +96,16 @@ struct StringSlice {
   constexpr StringSlice Substr(const char *it) const {
     pdp_assert_non_constexpr(it >= Begin() && it < End());
     return StringSlice(it, End());
+  }
+
+  constexpr StringSlice Substr(size_t sub_length) const {
+    pdp_assert_non_constexpr(sub_length <= size);
+    return StringSlice(Begin(), sub_length);
+  }
+
+  constexpr StringSlice Substr(const char *it, size_t sub_length) const {
+    pdp_assert_non_constexpr(it >= Begin() && it + sub_length < End());
+    return StringSlice(it, sub_length);
   }
 
   constexpr StringSlice GetLeft(size_t n) {
@@ -112,9 +137,18 @@ struct StringSlice {
 
   constexpr bool StartsWith(char c) const { return !Empty() && *ptr == c; }
 
+  constexpr bool StartsWith(const StringSlice &suffix) {
+    if (PDP_UNLIKELY(Size() < suffix.Size())) {
+      return false;
+    }
+    return ConstexprMemCmp(Data(), suffix.Data(), suffix.Size()) == 0;
+  }
+
   constexpr bool EndsWith(const StringSlice &suffix) {
-    pdp_assert(!suffix.Empty());
-    return Size() >= suffix.Size() && Substr(End() - suffix.Size()) == suffix;
+    if (PDP_UNLIKELY(Size() < suffix.Size())) {
+      return false;
+    }
+    return ConstexprMemCmp(End() - suffix.Size(), suffix.Data(), suffix.Size()) == 0;
   }
 
   constexpr bool Empty() const { return size == 0; }
@@ -125,16 +159,7 @@ struct StringSlice {
     if (Size() != other.Size()) {
       return false;
     }
-    if (PDP_CONSTEXPR_EVALUATED()) {
-      for (size_t i = 0; i < Size(); ++i) {
-        if (ptr[i] != other[i]) {
-          return false;
-        }
-      }
-      return true;
-    } else {
-      return memcmp(Begin(), other.Begin(), Size()) == 0;
-    }
+    return ConstexprMemCmp(Begin(), other.Begin(), Size()) == 0;
   }
 
   constexpr bool operator!=(const StringSlice &other) const { return !(*this == other); }

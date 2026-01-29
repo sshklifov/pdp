@@ -4,12 +4,12 @@
 
 namespace pdp {
 
-DynamicString Join(pdp::PackedValue *args, uint64_t num_slots, uint64_t type_bits) {
+FixedString Join(pdp::PackedValue *args, uint64_t num_slots, uint64_t type_bits) {
   StringSlice sep = ", ";
   const size_t bytes = RunEstimator(args, type_bits) + num_slots * sep.Size() + 1;
-  ScopedArrayPtr<char> ptr(bytes);
+  StringBuffer buffer(bytes);
 
-  Formatter fmt(ptr.Get(), ptr.Get() + bytes);
+  Formatter fmt(buffer.Get(), buffer.Get() + bytes);
   while (type_bits) {
     size_t num_slots_used = fmt.AppendPackedValueUnchecked(args, type_bits);
     args += num_slots_used;
@@ -19,13 +19,9 @@ DynamicString Join(pdp::PackedValue *args, uint64_t num_slots, uint64_t type_bit
     }
   }
 
-  auto length = fmt.End() - ptr.Get();
-  ptr.Get()[length] = '\0';
-
-  DynamicString res;
-  impl::_DynamicStringPrivInit string_init(res);
-  string_init(ptr.Release(), length);
-  return res;
+  auto length = fmt.End() - buffer.Get();
+  buffer.Get()[length] = '\0';
+  return FixedString(std::move(buffer), length);
 }
 
 VimDriver::VimDriver(int input_fd, int output_fd)
@@ -33,13 +29,7 @@ VimDriver::VimDriver(int input_fd, int output_fd)
 
 int VimDriver::GetDescriptor() const { return vim_output.GetDescriptor(); }
 
-uint32_t VimDriver::NextToken() const { return token; }
-
-uint32_t VimDriver::CreateNamespace(const StringSlice &ns) {
-  return SendRpcRequest("nvim_create_namespace", ns);
-}
-
-uint32_t VimDriver::Bufname(int64_t buffer) { return SendRpcRequest("nvim_buf_get_name", buffer); }
+uint32_t VimDriver::NextRequestToken() const { return token; }
 
 void VimDriver::SendBytes(const void *bytes, size_t num_bytes) {
   bool success = vim_input.WriteExactly(bytes, num_bytes, Milliseconds(1000));
@@ -48,27 +38,34 @@ void VimDriver::SendBytes(const void *bytes, size_t num_bytes) {
   }
 }
 
-bool VimDriver::ReadBoolResult() { return ReadRpcBoolean(vim_output); }
+bool VimDriver::ReadBool() { return ReadRpcBoolean(vim_output); }
 
-int64_t VimDriver::ReadIntegerResult() { return ReadRpcInteger(vim_output); }
+int64_t VimDriver::ReadInteger() { return ReadRpcInteger(vim_output); }
 
-DynamicString VimDriver::ReadStringResult() { return ReadRpcString(vim_output); }
+FixedString VimDriver::ReadString() { return ReadRpcString(vim_output); }
 
-uint32_t VimDriver::OpenArrayResult() { return ReadRpcArrayLength(vim_output); }
+uint32_t VimDriver::OpenArray() { return ReadRpcArrayLength(vim_output); }
 
 void VimDriver::SkipResult() { return SkipRpcValue(vim_output); }
 
-uint32_t VimDriver::PollResponseToken() {
+VimRpcEvent VimDriver::PollRpcEvent() {
   const bool has_bytes = vim_output.PollBytes();
   if (has_bytes) {
     ExpectRpcArrayWithLength(vim_output, 4);
-    ExpectRpcInteger(vim_output, 1);
-    int64_t token = ReadRpcInteger(vim_output);
-    // TODO: SUS: why the fuck can I get a result and an error? TEST this.
-    PrintRpcError(token, vim_output);
-    return static_cast<uint32_t>(token);
+    auto type = ReadRpcInteger(vim_output);
+    if (PDP_LIKELY(type == 1)) {
+      int64_t token = ReadRpcInteger(vim_output);
+      // TODO: SUS: why the fuck can I get a result and an error? TEST this.
+      PrintRpcError(token, vim_output);
+      return VimRpcEvent(token);
+    } else if (PDP_LIKELY(type == 2)) {
+      return VimRpcEvent(VimRpcEvent::kNotify);
+    } else {
+      pdp_critical("MsgPack byte={}", type);
+      PDP_UNREACHABLE("Unknown Vim RPC event type");
+    }
   } else {
-    return kInvalidToken;
+    return VimRpcEvent(VimRpcEvent::kNone);
   }
 }
 

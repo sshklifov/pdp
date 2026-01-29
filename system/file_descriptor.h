@@ -1,7 +1,8 @@
 #pragma once
 
 #include "data/non_copyable.h"
-#include "data/vector.h"
+#include "strings/fixed_string.h"
+#include "strings/string_vector.h"
 #include "time_units.h"
 
 #include <cstddef>
@@ -10,6 +11,9 @@ namespace pdp {
 
 int DuplicateForThisProcess(int fd);
 void SetNonBlocking(int fd);
+
+FixedString RealPath(const char *path);
+bool FileReadable(const char *file);
 
 struct FileDescriptor : public NonCopyableNonMovable {
   FileDescriptor();
@@ -36,7 +40,7 @@ struct InputDescriptor : public FileDescriptor {
   bool ReadExactly(void *buf, size_t size, Milliseconds timeout);
 
   size_t ReadAvailable(void *buf, size_t max_bytes);
-  size_t ReadAvailable(pdp::Vector<char> &out);
+  size_t ReadAvailable(StringVector &out);
 
   size_t ReadOnce(void *buf, size_t size);
 };

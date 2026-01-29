@@ -46,28 +46,6 @@ TEST_CASE("Data / Begin / End") {
   CHECK(s.End() == s.Begin() + 5);
 }
 
-TEST_CASE("Find(char)") {
-  StringSlice s("abcabc");
-
-  CHECK(*s.Find('a') == 'a');
-  CHECK(*s.Find('b') == 'b');
-  CHECK(*s.Find('c') == 'c');
-
-  const char *not_found = s.Find('x');
-  CHECK(not_found == s.End());
-}
-
-TEST_CASE("Find(it, char)") {
-  StringSlice s("abcabc");
-
-  const char *start = s.Begin() + 3;
-  const char *p = s.Find(start, 'a');
-  CHECK(p == s.Begin() + 3);
-
-  const char *none = s.Find(start, 'z');
-  CHECK(none == s.End());
-}
-
 TEST_CASE("MemReverseChar") {
   StringSlice s("abca");
 

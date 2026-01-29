@@ -118,11 +118,12 @@ static void RecursiveToJson(const ExprBase *expr, StringBuilder<DefaultAllocator
 
 void ExprBaseView::ToJson(StringBuilder<> &out) const { RecursiveToJson(expr, out); }
 
-LooseTypedView::LooseTypedView(const ExprBase *expr) : ExprBaseView(expr) {}
+GdbExprView::GdbExprView(const ExprBase *expr) : ExprBaseView(expr) {}
 
-LooseTypedView::LooseTypedView(const ScopedPtr<ExprBase> &expr) : ExprBaseView(expr.Get()) {}
+GdbExprView::GdbExprView(const UniquePtr<ExprBase> &expr) : ExprBaseView(expr.Get()) {}
 
-LooseTypedView LooseTypedView::operator[](const StringSlice &key) const {
+GdbExprView GdbExprView::operator[](const StringSlice &key) const {
+  RequireNotNull();
   if (PDP_LIKELY(expr->kind == ExprBase::kTuple)) {
     const ExprTuple *tuple = AsTupleUnchecked();
     uint32_t hash = ankerl::unordered_dense::hash(key.Begin(), key.Size());
@@ -138,11 +139,12 @@ LooseTypedView LooseTypedView::operator[](const StringSlice &key) const {
   return nullptr;
 }
 
-LooseTypedView LooseTypedView::operator[](const char *key) const {
+GdbExprView GdbExprView::operator[](const char *key) const {
   return (*this)[StringSlice(key)];
 }
 
-LooseTypedView LooseTypedView::operator[](uint32_t index) const {
+GdbExprView GdbExprView::operator[](uint32_t index) const {
+  RequireNotNull();
   if (PDP_LIKELY(expr->kind == ExprBase::kList)) {
     if (PDP_LIKELY(index < expr->size)) {
       auto elements = AsListUnchecked();
@@ -152,7 +154,8 @@ LooseTypedView LooseTypedView::operator[](uint32_t index) const {
   return nullptr;
 }
 
-int64_t LooseTypedView::AsInteger() const {
+int64_t GdbExprView::RequireInt() const {
+  RequireNotNull();
   pdp_assert(expr->kind != ExprBase::kInt);
   if (PDP_LIKELY(expr->kind == ExprBase::kString)) {
     const char *str = AsStringUnchecked().Begin();
@@ -176,16 +179,31 @@ int64_t LooseTypedView::AsInteger() const {
   PDP_UNREACHABLE("Contract violation: integer access failed!");
 }
 
-StringSlice LooseTypedView::AsString() const {
+StringSlice GdbExprView::RequireStr() const {
+  RequireNotNull();
   if (PDP_LIKELY(expr->kind == ExprBase::kString)) {
     return AsStringUnchecked();
   }
   PDP_UNREACHABLE("Contract violation: string access failed!");
 }
 
-bool LooseTypedView::operator==(const StringSlice &str) const { return AsString() == str; }
+StringSlice GdbExprView::StrOr(const StringSlice &alternative) const {
+  if (PDP_LIKELY(expr && expr->kind == ExprBase::kString)) {
+    return AsStringUnchecked();
+  } else {
+    return alternative;
+  }
+}
 
-bool LooseTypedView::operator!=(const StringSlice &str) const { return !(*this == str); }
+bool GdbExprView::operator==(const StringSlice &str) const { return RequireStr() == str; }
+
+bool GdbExprView::operator!=(const StringSlice &str) const { return !(*this == str); }
+
+void GdbExprView::RequireNotNull() const {
+  if (PDP_UNLIKELY(expr == nullptr)) {
+    PDP_UNREACHABLE("Contract violation: null expression");
+  }
+}
 
 StrongTypedView::StrongTypedView(const ExprBase *expr) : ExprBaseView(expr) {}
 

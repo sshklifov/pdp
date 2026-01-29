@@ -38,12 +38,7 @@ struct Vector : public NonCopyable {
 
   Vector &operator=(Vector &&other) = delete;
 
-  ~Vector() {
-    // TODO check disassembly here
-    Destroy();
-    // static_assert(std::is_trivially_destructible_v<T>);
-    // Deallocate<T>(allocator, ptr);
-  }
+  ~Vector() { Destroy(); }
 
   const T *Data() const { return ptr; }
   T *Data() { return ptr; }
@@ -80,8 +75,18 @@ struct Vector : public NonCopyable {
 
   void Clear() { size = 0; }
 
+  void Downsize(size_t num_elems) {
+    pdp_assert(num_elems <= size);
+    size_t new_size = size - num_elems;
+    if constexpr (!std::is_trivially_destructible_v<T>) {
+      for (size_t i = new_size; i < size; ++i) {
+        ptr[i].~T();
+      }
+    }
+    size = new_size;
+  }
+
   void Destroy() {
-    // TODO is this only because of the tests?
     if constexpr (!std::is_trivially_destructible_v<T>) {
       for (size_t i = 0; i < size; ++i) {
         ptr[i].~T();
@@ -170,18 +175,10 @@ struct Vector : public NonCopyable {
 
 namespace impl {
 
+// TODO might want to remove this in the future
 template <typename T, typename Alloc>
 struct _VectorPrivAcess {
   _VectorPrivAcess(Vector<T, Alloc> &v) : v(v) {}
-
-  Vector<T, Alloc> &Get() { return v; }
-
-  size_t Free() const { return v.capacity - v.size; }
-
-  void Commit(size_t n) {
-    pdp_assert(v.Size() + n <= v.Capacity());
-    v.size += n;
-  }
 
   [[nodiscard]] T *ReleaseData() {
     T *res = v.ptr;
@@ -190,12 +187,6 @@ struct _VectorPrivAcess {
   }
 
   bool IsHoldingData() { return v.ptr != nullptr; }
-
-  void Reset() {
-    v.ptr = nullptr;
-    v.size = 0;
-    v.capacity = 0;
-  }
 
  private:
   Vector<T, Alloc> &v;

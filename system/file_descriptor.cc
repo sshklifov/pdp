@@ -1,10 +1,10 @@
 #include "file_descriptor.h"
 
 #include "core/check.h"
-#include "strings/string_builder.h"
 #include "tracing/execution_tracer.h"
 
 #include <fcntl.h>
+#include <linux/limits.h>
 #include <sys/poll.h>
 #include <unistd.h>
 #include <cerrno>
@@ -25,6 +25,16 @@ void SetNonBlocking(int fd) {
     PDP_UNREACHABLE("Cannot setup non-blocking IO");
   }
 }
+
+FixedString RealPath(const char *relative) {
+  StringBuffer absolute(PATH_MAX + 1);
+  Check(realpath(relative, absolute.Get()), "realpath");
+  size_t length = strlen(absolute.Get());
+  absolute.ShrinkToFit(length + 1);
+  return FixedString(std::move(absolute), length);
+}
+
+bool FileReadable(const char *file) { return access(file, R_OK) == 0; }
 
 FileDescriptor::FileDescriptor() : fd(-1) {}
 
@@ -111,16 +121,15 @@ size_t InputDescriptor::ReadAvailable(void *buf, size_t max_bytes) {
   return num_read;
 }
 
-size_t InputDescriptor::ReadAvailable(pdp::Vector<char> &out) {
-  impl::_VectorPrivAcess<char, DefaultAllocator> _vector_priv(out);
+size_t InputDescriptor::ReadAvailable(StringVector &out) {
   size_t num_read = 0;
   for (;;) {
-    _vector_priv.Get().ReserveFor(1024);
-    size_t ret = ReadOnce(_vector_priv.Get().End(), _vector_priv.Free());
+    out.ReserveFor(1024);
+    size_t ret = ReadOnce(out.End(), out.Free());
     if (ret <= 0) {
       return num_read;
     }
-    _vector_priv.Commit(ret);
+    out.MoveEnd(ret);
     num_read += ret;
   }
 }

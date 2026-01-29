@@ -14,6 +14,8 @@
 
 #define PDP_IGNORE(x) ((void)x)
 
+#define PDP_BLOCK()
+
 namespace pdp {
 
 using byte = unsigned char;

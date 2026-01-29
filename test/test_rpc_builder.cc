@@ -1,6 +1,6 @@
 #include <sys/wait.h>
 #include <thread>
-#include "data/scoped_ptr.h"
+#include "data/unique_ptr.h"
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 
@@ -39,8 +39,8 @@ static ParseResult ParseFromBuilder(const RpcBytes &msg) {
   return {res, std::move(chunks)};
 }
 
-static ScopedPtr<char> MakeString(size_t len, char c = 'x') {
-  ScopedPtr<char> res((char *)malloc(len));
+static UniquePtr<char> MakeString(size_t len, char c = 'x') {
+  UniquePtr<char> res((char *)malloc(len));
   memset(res.Get(), c, len);
   return res;
 }

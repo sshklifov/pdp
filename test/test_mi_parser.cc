@@ -15,11 +15,11 @@ TEST_CASE("simple param tuples") {
 
     MiSecondPass second(input, first);
     auto ptr = second.Parse();
-    LooseTypedView e(ptr.Get());
+    GdbExprView e(ptr.Get());
 
     CHECK(e.Count() == 2);
-    CHECK(e["param"].AsString() == "pagination");
-    CHECK(e["value"].AsString() == "off");
+    CHECK(e["param"].RequireStr() == "pagination");
+    CHECK(e["value"].RequireStr() == "off");
   }
 
   {
@@ -29,10 +29,10 @@ TEST_CASE("simple param tuples") {
 
     MiSecondPass second(input, first);
     auto ptr = second.Parse();
-    LooseTypedView e(ptr.Get());
+    GdbExprView e(ptr.Get());
 
-    CHECK(e["param"].AsString() == "inferior-tty");
-    CHECK(e["value"].AsString() == "/dev/pts/0");
+    CHECK(e["param"].RequireStr() == "inferior-tty");
+    CHECK(e["value"].RequireStr() == "/dev/pts/0");
   }
 
   {
@@ -42,10 +42,10 @@ TEST_CASE("simple param tuples") {
 
     MiSecondPass second(input, first);
     auto ptr = second.Parse();
-    LooseTypedView e(ptr.Get());
+    GdbExprView e(ptr.Get());
 
-    CHECK(e["param"].AsString() == "prompt");
-    CHECK(e["value"].AsString() == "");
+    CHECK(e["param"].RequireStr() == "prompt");
+    CHECK(e["value"].RequireStr() == "");
   }
 
   {
@@ -55,10 +55,10 @@ TEST_CASE("simple param tuples") {
 
     MiSecondPass second(input, first);
     auto ptr = second.Parse();
-    LooseTypedView e(ptr.Get());
+    GdbExprView e(ptr.Get());
 
-    CHECK(e["param"].AsString() == "max-completions");
-    CHECK(e["value"].AsInteger() == 20);
+    CHECK(e["param"].RequireStr() == "max-completions");
+    CHECK(e["value"].RequireInt() == 20);
   }
 
   {
@@ -68,10 +68,10 @@ TEST_CASE("simple param tuples") {
 
     MiSecondPass second(input, first);
     auto ptr = second.Parse();
-    LooseTypedView e(ptr.Get());
+    GdbExprView e(ptr.Get());
 
-    CHECK(e["param"].AsString() == "startup-with-shell");
-    CHECK(e["value"].AsString() == "off");
+    CHECK(e["param"].RequireStr() == "startup-with-shell");
+    CHECK(e["value"].RequireStr() == "off");
   }
 }
 
@@ -89,21 +89,21 @@ TEST_CASE("bkpt tuple with mixed fields") {
 
   MiSecondPass second(input, first);
   auto ptr = second.Parse();
-  LooseTypedView e(ptr.Get());
+  GdbExprView e(ptr.Get());
 
   auto bkpt = e["bkpt"];
   CHECK(bkpt.Count() > 5);
 
-  CHECK(bkpt["number"].AsInteger() == 1);
-  CHECK(bkpt["type"].AsString() == "breakpoint");
-  CHECK(bkpt["disp"].AsString() == "del");
-  CHECK(bkpt["enabled"].AsString() == "y");
-  CHECK(bkpt["addr"].AsString() == "0x00000000000039fc");
-  CHECK(bkpt["line"].AsInteger() == 182);
+  CHECK(bkpt["number"].RequireInt() == 1);
+  CHECK(bkpt["type"].RequireStr() == "breakpoint");
+  CHECK(bkpt["disp"].RequireStr() == "del");
+  CHECK(bkpt["enabled"].RequireStr() == "y");
+  CHECK(bkpt["addr"].RequireStr() == "0x00000000000039fc");
+  CHECK(bkpt["line"].RequireInt() == 182);
 
   auto tg = bkpt["thread-groups"];
   CHECK(tg.Count() == 1);
-  CHECK(tg[0u].AsString() == "i1");
+  CHECK(tg[0u].RequireStr() == "i1");
 }
 
 TEST_CASE("shared object with ranges list") {
@@ -117,18 +117,18 @@ TEST_CASE("shared object with ranges list") {
 
   MiSecondPass second(input, first);
   auto ptr = second.Parse();
-  LooseTypedView e(ptr.Get());
+  GdbExprView e(ptr.Get());
 
-  CHECK(e["id"].AsString() == "/lib/ld-linux-aarch64.so.1");
-  CHECK(e["symbols-loaded"].AsInteger() == 0);
+  CHECK(e["id"].RequireStr() == "/lib/ld-linux-aarch64.so.1");
+  CHECK(e["symbols-loaded"].RequireInt() == 0);
 
   auto ranges = e["ranges"];
   CHECK(ranges.Count() == 1);
 
   auto r0 = ranges[0u];
   CHECK(r0.Count() == 2);
-  CHECK(r0["from"].AsString() == "0x0000007ff7fc3d80");
-  CHECK(r0["to"].AsString() == "0x0000007ff7fe1328");
+  CHECK(r0["from"].RequireStr() == "0x0000007ff7fc3d80");
+  CHECK(r0["to"].RequireStr() == "0x0000007ff7fe1328");
 }
 
 TEST_CASE("stop reason with nested frame and args") {
@@ -143,19 +143,19 @@ TEST_CASE("stop reason with nested frame and args") {
 
   MiSecondPass second(input, first);
   auto ptr = second.Parse();
-  LooseTypedView e(ptr.Get());
+  GdbExprView e(ptr.Get());
 
-  CHECK(e["reason"].AsString() == "breakpoint-hit");
-  CHECK(e["bkptno"].AsInteger() == 1);
-  CHECK(e["core"].AsInteger() == 2);
+  CHECK(e["reason"].RequireStr() == "breakpoint-hit");
+  CHECK(e["bkptno"].RequireInt() == 1);
+  CHECK(e["core"].RequireInt() == 2);
 
   auto frame = e["frame"];
-  CHECK(frame["func"].AsString() == "main");
-  CHECK(frame["line"].AsInteger() == 182);
-  CHECK(frame["arch"].AsString() == "aarch64");
+  CHECK(frame["func"].RequireStr() == "main");
+  CHECK(frame["line"].RequireInt() == 182);
+  CHECK(frame["arch"].RequireStr() == "aarch64");
 
   auto args = frame["args"];
   CHECK(args.Count() == 2);
-  CHECK(args[0u]["name"].AsString() == "argc");
-  CHECK(args[1u]["name"].AsString() == "argv");
+  CHECK(args[0u]["name"].RequireStr() == "argc");
+  CHECK(args[1u]["name"].RequireStr() == "argv");
 }

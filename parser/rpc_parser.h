@@ -5,7 +5,7 @@
 #include "data/chunk_array.h"
 #include "data/stack.h"
 #include "strings/byte_stream.h"
-#include "strings/dynamic_string.h"
+#include "strings/fixed_string.h"
 
 namespace pdp {
 
@@ -14,7 +14,7 @@ enum class RpcKind { kNull, kInteger, kBool, kString, kArray, kMap };
 RpcKind ClassifyRpcByte(byte b);
 int64_t ReadRpcInteger(ByteStream &s);
 bool ReadRpcBoolean(ByteStream &s);
-DynamicString ReadRpcString(ByteStream &s);
+FixedString ReadRpcString(ByteStream &s);
 
 uint32_t ReadRpcStringLength(ByteStream &s);
 uint32_t ReadRpcArrayLength(ByteStream &s);

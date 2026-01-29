@@ -4,9 +4,8 @@
 #include "data/loop_queue.h"
 #include "data/non_copyable.h"
 #include "data/small_capture.h"
-#include "data/vector.h"
 
-#include "strings/dynamic_string.h"
+#include "strings/fixed_string.h"
 #include "system/child_reaper.h"
 #include "system/file_descriptor.h"
 #include "system/poll_table.h"
@@ -16,12 +15,12 @@
 namespace pdp {
 
 struct SshDriver : public NonCopyableNonMovable {
-  using Capture = SmallCapture<DynamicString>;
+  using Capture = SmallCapture<FixedString>;
 
   SshDriver(const StringSlice &host, ChildReaper &reaper);
   ~SshDriver();
 
-  Capture *OnOutput(DynamicString request);
+  Capture *OnOutput(FixedString request);
   Capture *OnOutput(StringSlice request);
 
   void RegisterForPoll(PollTable &table);
@@ -39,9 +38,9 @@ struct SshDriver : public NonCopyableNonMovable {
   DefaultAllocator allocator;
 
   struct PendingOperation {
-    PendingOperation(DynamicString request) : request(std::move(request)) {}
+    PendingOperation(FixedString request) : request(std::move(request)) {}
 
-    DynamicString request;
+    FixedString request;
     Capture callback;
   };
 
@@ -53,15 +52,15 @@ struct SshDriver : public NonCopyableNonMovable {
     pid_t pid;
     InputDescriptor ssh_output;
     InputDescriptor ssh_error;
-    Vector<char> buffer_output;
-    Vector<char> buffer_error;
+    StringVector buffer_output;
+    StringVector buffer_error;
     Capture cb;
   };
 
   static constexpr const int max_children = 4;
   ActiveOperation *active_queue;
 
-  DynamicString host;
+  FixedString host;
   ChildReaper &reaper;
   struct pollfd *poll_args;
 };

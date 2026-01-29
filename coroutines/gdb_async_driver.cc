@@ -31,7 +31,7 @@ void GdbAsyncDriver::DrainRecords() {
         return;
       }
       MiSecondPass second_pass(record.result_or_async.results, first_pass);
-      ScopedPtr<ExprBase> expr(second_pass.Parse());
+      UniquePtr<ExprBase> expr(second_pass.Parse());
       if (PDP_UNLIKELY(!expr)) {
         pdp_error("Pass #2 failed on: {}", record.result_or_async.results);
         return;
@@ -62,13 +62,13 @@ void GdbAsyncDriver::HandleStream(const StringSlice &msg) {
   PDP_IGNORE(msg);
 }
 
-void GdbAsyncDriver::HandleAsync(GdbAsyncKind kind, ScopedPtr<ExprBase> expr) {
+void GdbAsyncDriver::HandleAsync(GdbAsyncKind kind, UniquePtr<ExprBase> expr) {
   // TODO
   PDP_IGNORE(kind);
   PDP_IGNORE(expr);
 }
 
-void GdbAsyncDriver::HandleResult(GdbResultKind kind, ScopedPtr<ExprBase> expr) {
+void GdbAsyncDriver::HandleResult(GdbResultKind kind, UniquePtr<ExprBase> expr) {
   // TODO
   PDP_IGNORE(kind);
   PDP_IGNORE(expr);

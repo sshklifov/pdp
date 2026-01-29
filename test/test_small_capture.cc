@@ -1,4 +1,4 @@
-#include "data/scoped_ptr.h"
+#include "data/unique_ptr.h"
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 
@@ -83,19 +83,19 @@ TEST_CASE("SmallCapture: multiple arguments") {
 }
 
 TEST_CASE("SmallCapture: move-only argument is forwarded") {
-  SmallCapture<ScopedPtr<int>> cap;
+  SmallCapture<UniquePtr<int>> cap;
 
   int result = 0;
 
   struct Consume {
     int *out;
     explicit Consume(int *o) : out(o) {}
-    void operator()(ScopedPtr<int> &&p) { *out = *p; }
+    void operator()(UniquePtr<int> &&p) { *out = *p; }
   };
 
   cap.Bind<Consume>(&result);
 
-  ScopedPtr<int> ptr((int *)malloc(sizeof(int)));
+  UniquePtr<int> ptr((int *)malloc(sizeof(int)));
   *ptr = 42;
   cap(std::move(ptr));
 

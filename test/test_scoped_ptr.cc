@@ -2,7 +2,7 @@
 #include <doctest/doctest.h>
 
 #include "data/allocator.h"
-#include "data/scoped_ptr.h"
+#include "data/unique_ptr.h"
 
 using namespace pdp;
 
@@ -11,7 +11,7 @@ TEST_CASE("ScopedPtr default constructed is null and does not leak") {
   TrackingAllocator alloc(&stats);
 
   {
-    ScopedPtr<int, TrackingAllocator> p(nullptr, alloc);
+    UniquePtr<int, TrackingAllocator> p(nullptr, alloc);
     CHECK(!p);
     CHECK(p.Get() == nullptr);
   }
@@ -28,7 +28,7 @@ TEST_CASE("ScopedPtr deallocates owned pointer exactly once") {
   int *ptr = static_cast<int *>(alloc.AllocateRaw(sizeof(int)));
 
   {
-    ScopedPtr<int, TrackingAllocator> p(ptr, alloc);
+    UniquePtr<int, TrackingAllocator> p(ptr, alloc);
     CHECK(p);
   }
 
@@ -44,8 +44,8 @@ TEST_CASE("ScopedPtr move constructor transfers ownership") {
   int *ptr = static_cast<int *>(alloc.AllocateRaw(sizeof(int)));
 
   {
-    ScopedPtr<int, TrackingAllocator> a(ptr, alloc);
-    ScopedPtr<int, TrackingAllocator> b(std::move(a));
+    UniquePtr<int, TrackingAllocator> a(ptr, alloc);
+    UniquePtr<int, TrackingAllocator> b(std::move(a));
 
     CHECK(!a);
     CHECK(a.Get() == nullptr);
@@ -66,9 +66,9 @@ TEST_CASE("ScopedPtr moved-from object does not deallocate") {
   int *ptr = static_cast<int *>(alloc.AllocateRaw(sizeof(int)));
 
   {
-    ScopedPtr<int, TrackingAllocator> a(ptr, alloc);
+    UniquePtr<int, TrackingAllocator> a(ptr, alloc);
     {
-      ScopedPtr<int, TrackingAllocator> b(std::move(a));
+      UniquePtr<int, TrackingAllocator> b(std::move(a));
     }
     CHECK(stats.GetDeallocationsMade() == 1);
   }
@@ -85,7 +85,7 @@ TEST_CASE("ScopedPtr<void> works correctly") {
   void *ptr = alloc.AllocateRaw(16);
 
   {
-    ScopedPtr<void, TrackingAllocator> p(ptr, alloc);
+    UniquePtr<void, TrackingAllocator> p(ptr, alloc);
     CHECK(p);
     CHECK(p.Get() == ptr);
   }
@@ -107,7 +107,7 @@ TEST_CASE("ScopedPtr operator-> forwards access") {
   ptr->x = 42;
 
   {
-    ScopedPtr<Pod, TrackingAllocator> p(ptr, alloc);
+    UniquePtr<Pod, TrackingAllocator> p(ptr, alloc);
     CHECK(p->x == 42);
   }
 

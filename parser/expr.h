@@ -1,6 +1,6 @@
 #pragma once
 
-#include "data/scoped_ptr.h"
+#include "data/unique_ptr.h"
 #include "strings/string_builder.h"
 #include "strings/string_slice.h"
 
@@ -102,20 +102,25 @@ struct ExprBaseView {
   const ExprBase *expr;
 };
 
-struct LooseTypedView : public ExprBaseView {
-  LooseTypedView(const ExprBase *expr);
-  LooseTypedView(const ScopedPtr<ExprBase> &expr);
+struct GdbExprView : public ExprBaseView {
+  GdbExprView(const ExprBase *expr = nullptr);
+  GdbExprView(const UniquePtr<ExprBase> &expr);
 
-  LooseTypedView operator[](const StringSlice &key) const;
-  LooseTypedView operator[](const char *key) const;
+  GdbExprView operator[](const StringSlice &key) const;
+  GdbExprView operator[](const char *key) const;
 
-  LooseTypedView operator[](uint32_t index) const;
+  GdbExprView operator[](uint32_t index) const;
 
-  int64_t AsInteger() const;
-  StringSlice AsString() const;
+  int64_t RequireInt() const;
+  StringSlice RequireStr() const;
+
+  StringSlice StrOr(const StringSlice &alternative) const;
 
   bool operator==(const StringSlice &str) const;
   bool operator!=(const StringSlice &str) const;
+
+ private:
+  void RequireNotNull() const;
 };
 
 struct StrongTypedView : public ExprBaseView {

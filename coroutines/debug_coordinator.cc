@@ -5,6 +5,10 @@ namespace pdp {
 DebugCoordinator::DebugCoordinator(const StringSlice &host, int vim_input_fd, int vim_output_fd,
                                    ChildReaper &reaper)
     : ssh_driver(nullptr), gdb_async(reaper), vim_async(vim_input_fd, vim_output_fd) {
+  inferior_pid = -1;
+  thread_selected = 1;
+  frame_selected = 0;
+
   if (!host.Empty()) {
     ssh_driver = Allocate<SshDriver>(allocator, 1);
     new (ssh_driver) SshDriver(host, reaper);

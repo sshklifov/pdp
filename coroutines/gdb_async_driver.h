@@ -18,8 +18,8 @@ struct GdbAsyncDriver {
   void DrainErrors();
 
   void HandleStream(const StringSlice &msg);
-  void HandleAsync(GdbAsyncKind kind, ScopedPtr<ExprBase> expr);
-  void HandleResult(GdbResultKind kind, ScopedPtr<ExprBase> expr);
+  void HandleAsync(GdbAsyncKind kind, UniquePtr<ExprBase> expr);
+  void HandleResult(GdbResultKind kind, UniquePtr<ExprBase> expr);
 
   GdbDriver gdb_driver;
 };

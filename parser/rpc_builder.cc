@@ -5,6 +5,11 @@ namespace pdp {
 
 RpcBuilder::RpcBuilder(uint32_t token, const StringSlice &method) { Restart(token, method); }
 
+RpcBuilder::RpcBuilder(const StringSlice &method) {
+  uint32_t placeholder_token = std::numeric_limits<uint32_t>::max();
+  Restart(placeholder_token, method);
+}
+
 void RpcBuilder::Restart(uint32_t token, const StringSlice &method) {
   backfill[0].pos = 0;
   backfill[0].num_elems = 1;
@@ -211,6 +216,20 @@ void RpcBuilder::CloseShortMap() {
   builder.SetByte(pos, b);
 
   --depth;
+}
+
+bool RpcBuilder::SetRequestToken(uint32_t t) {
+  const size_t token_pos = 2;
+  const bool can_replace = builder[token_pos] == 0xce;
+  pdp_assert(can_replace);
+  if (PDP_UNLIKELY(!can_replace)) {
+    return false;
+  }
+  builder[token_pos + 1] = static_cast<byte>((t >> 24) & 0xFF);
+  builder[token_pos + 2] = static_cast<byte>((t >> 16) & 0xFF);
+  builder[token_pos + 3] = static_cast<byte>((t >> 8) & 0xFF);
+  builder[token_pos + 4] = static_cast<byte>(t & 0xFF);
+  return true;
 }
 
 RpcBytes RpcBuilder::Finish() {

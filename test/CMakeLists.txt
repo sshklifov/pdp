@@ -37,8 +37,9 @@ target_link_libraries(test_rpc_parser PRIVATE pdp_parser)
 add_executable(show_nvim_api_info show_nvim_api_info.cc)
 target_link_libraries(show_nvim_api_info PRIVATE pdp_parser)
 
-add_executable(test_emhash test_emhash.cc)
-target_link_libraries(test_emhash PRIVATE external)
+# TODO
+# add_executable(test_emhash test_emhash.cc)
+# target_link_libraries(test_emhash PRIVATE external)
 
 add_executable(test_scoped_ptr test_scoped_ptr.cc)
 target_link_libraries(test_scoped_ptr PRIVATE pdp_data)

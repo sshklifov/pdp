@@ -3,7 +3,7 @@
 
 #include "data/allocator.h"
 #include "data/vector.h"
-#include "strings/dynamic_string.h"
+#include "strings/fixed_string.h"
 
 using pdp::TrackingAllocator;
 using pdp::Vector;
@@ -218,9 +218,9 @@ TEST_CASE("Emplace constructs element and increases size") {
 }
 
 struct TestPair {
-  TestPair(pdp::DynamicString &&first, int second) : first(std::move(first)), second(second) {}
+  TestPair(pdp::FixedString &&first, int second) : first(std::move(first)), second(second) {}
 
-  pdp::DynamicString first;
+  pdp::FixedString first;
   int second;
 };
 
@@ -230,7 +230,7 @@ struct pdp::CanReallocate<TestPair> : std::true_type {};
 TEST_CASE("Emplace constructs simple struct and appends it") {
   Vector<TestPair> v(2);
 
-  pdp::DynamicString s("Test string", 11);
+  pdp::FixedString s("Test string", 11);
   const void *old_ptr = s.Begin();
   v.Emplace(std::move(s), 2);
 
@@ -238,6 +238,6 @@ TEST_CASE("Emplace constructs simple struct and appends it") {
   CHECK(v[0].first == "Test string");
   CHECK(v[0].second == 2);
 
-  CHECK(old_ptr == v[0].first.Data());
+  CHECK(old_ptr == v[0].first.Cstr());
   CHECK(s.Begin() == nullptr);
 }

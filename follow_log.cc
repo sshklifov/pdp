@@ -9,7 +9,7 @@
 
 #include "data/vector.h"
 #include "external/emhash8.h"
-#include "strings/dynamic_string.h"
+#include "strings/fixed_string.h"
 #include "strings/rolling_buffer.h"
 #include "strings/string_builder.h"
 
@@ -17,9 +17,9 @@ void WriteSlice(const pdp::StringSlice &str) {
   pdp::WriteFully(STDOUT_FILENO, str.Data(), str.Size());
 }
 
-void WriteFileError(const char *fmt, const char *filename) {
+void WriteFileError(const char *fmt, const pdp::StringSlice &filename) {
   pdp::StringBuilder builder;
-  builder.AppendFormat(fmt, pdp::StringSlice(filename));
+  builder.AppendFormat(fmt, filename);
   WriteSlice(builder.ToSlice());
 }
 
@@ -134,7 +134,7 @@ class FileSymbolResolver : public pdp::NonCopyableNonMovable {
 
   bool HasErrors() const { return err; }
 
-  void ShowErrors(const char *filename) const {
+  void ShowErrors(const pdp::StringSlice &filename) const {
     if (err) {
       WriteFileError(err, filename);
     }
@@ -172,7 +172,7 @@ class FileSymbolResolver : public pdp::NonCopyableNonMovable {
         }
       }
     }
-    it = cache.Emplace(addr, std::move(result));
+    it = cache.EmplaceUnchecked(addr, std::move(result));
     return it->value;
   }
 
@@ -183,15 +183,15 @@ class FileSymbolResolver : public pdp::NonCopyableNonMovable {
   asymbol **syms;
   pdp::Vector<bfd_section *> sects;
   const char *err;
-  emhash8::Map<long, pdp::Vector<SourceLine>> cache;
+  emhash8::Map<bfd_vma, pdp::Vector<SourceLine>> cache;
 };
 
 template <>
 struct pdp::CanReallocate<FileSymbolResolver> : std::true_type {};
 
 struct ExecutableAndAddress {
-  pdp::DynamicString executable;
-  pdp::DynamicString addr;
+  pdp::StringSlice executable;
+  pdp::StringSlice addr;
 };
 
 ExecutableAndAddress SplitExecutableAndAddress(char *begin, char *end) {
@@ -230,19 +230,19 @@ ExecutableAndAddress SplitExecutableAndAddress(char *begin, char *end) {
   }
   *it = '(';
 
-  pdp::DynamicString exe(begin, it);
-  pdp::DynamicString sym(it + 2, close_bracket);
-  return ExecutableAndAddress{std::move(exe), std::move(sym)};
+  pdp::StringSlice exe(begin, it);
+  pdp::StringSlice sym(it + 2, close_bracket);
+  return ExecutableAndAddress{exe, sym};
 }
 
-void ShowResolverInfo(const emhash8::Map<pdp::DynamicString, FileSymbolResolver> &resolver_map) {
+void ShowResolverInfo(const emhash8::StringMap<FileSymbolResolver> &resolver_map) {
   if (!resolver_map.Empty()) {
     WriteSlice("\n");
     WriteSlice("\e[32m\e[1m================ LOADED ================\e[0m\n");
     bool has_errors = 0;
     for (auto it = resolver_map.Begin(); it < resolver_map.End(); ++it) {
       if (it->value.HasErrors()) {
-        const bool is_libc = strstr(it->key.Data(), "libc.so");
+        const bool is_libc = it->key.ToSlice().MemMem("libc.so");
         has_errors = !is_libc;
       } else {
         WriteSlice(it->key.ToSlice());
@@ -253,9 +253,9 @@ void ShowResolverInfo(const emhash8::Map<pdp::DynamicString, FileSymbolResolver>
       WriteSlice("\n");
       WriteSlice("\e[31m\e[1m================ ERRORS ================\e[0m\n");
       for (auto it = resolver_map.Begin(); it < resolver_map.End(); ++it) {
-        const bool is_libc = strstr(it->key.Data(), "libc.so");
+        const bool is_libc = it->key.ToSlice().MemMem("libc.so");
         if (!is_libc) {
-          it->value.ShowErrors(it->key.Data());
+          it->value.ShowErrors(it->key.ToSlice());
         }
       }
     }
@@ -286,7 +286,7 @@ int main() {
 
   const int max_function_length = 120;
   const bool enable_inlining = true;
-  emhash8::Map<pdp::DynamicString, FileSymbolResolver> resolver_map;
+  emhash8::StringMap<FileSymbolResolver> resolver_map;
 
   int fd = open(PDP_LOG_PATH, O_RDONLY, 0644);
   if (PDP_UNLIKELY(fd < 0)) {
@@ -313,9 +313,9 @@ int main() {
       auto it = resolver_map.Find(exe);
       if (it == resolver_map.End()) {
         const char *hm = exe.Data();
-        it = resolver_map.Emplace(std::move(exe), hm, max_function_length, enable_inlining);
+        it = resolver_map.EmplaceUnchecked(exe, hm, max_function_length, enable_inlining);
       }
-      const auto &source_lines = it->value.Resolve(addr.ToSlice());
+      const auto &source_lines = it->value.Resolve(addr);
       pdp::StringBuilder builder;
       for (size_t i = 0; i < source_lines.Size(); ++i) {
         it->value.Format(source_lines[i], builder);

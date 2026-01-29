@@ -8,16 +8,16 @@
 namespace pdp {
 
 template <typename T, typename Alloc = DefaultAllocator>
-struct ScopedPtr : public NonCopyable {
-  ScopedPtr(T *ptr = nullptr, Alloc a = Alloc()) noexcept : ptr(ptr), allocator(a) {}
+struct UniquePtr : public NonCopyable {
+  UniquePtr(T *ptr = nullptr, Alloc a = Alloc()) noexcept : ptr(ptr), allocator(a) {}
 
-  ScopedPtr(ScopedPtr &&rhs) noexcept : ptr(rhs.ptr), allocator(rhs.allocator) {
+  UniquePtr(UniquePtr &&rhs) noexcept : ptr(rhs.ptr), allocator(rhs.allocator) {
     rhs.ptr = nullptr;
   }
 
-  void operator=(ScopedPtr &&rhs) = delete;
+  void operator=(UniquePtr &&rhs) = delete;
 
-  ~ScopedPtr() {
+  ~UniquePtr() {
     static_assert(std::is_void_v<T> || std::is_trivially_destructible_v<T>);
     allocator.DeallocateRaw(ptr);
   }
@@ -53,20 +53,20 @@ struct ScopedPtr : public NonCopyable {
 };
 
 template <typename T, typename Alloc = DefaultAllocator>
-struct ScopedArrayPtr : public NonCopyable {
+struct UniqueArray : public NonCopyable {
   template <typename U = T, std::enable_if_t<std::is_default_constructible_v<U>, int> = 0>
-  ScopedArrayPtr(size_t elements, Alloc a = Alloc()) noexcept : allocator(a) {
-    pdp_assert(elements > 0);
-    ptr = Allocate<T>(allocator, elements);
+  UniqueArray(size_t max_elements, Alloc a = Alloc()) noexcept : allocator(a) {
+    pdp_assert(max_elements > 0);
+    ptr = Allocate<T>(allocator, max_elements);
   }
 
-  ScopedArrayPtr(ScopedArrayPtr &&rhs) noexcept : ptr(rhs.ptr), allocator(rhs.allocator) {
+  UniqueArray(UniqueArray &&rhs) noexcept : ptr(rhs.ptr), allocator(rhs.allocator) {
     rhs.ptr = nullptr;
   }
 
-  void operator=(ScopedArrayPtr &&rhs) = delete;
+  void operator=(UniqueArray &&rhs) = delete;
 
-  ~ScopedArrayPtr() {
+  ~UniqueArray() {
     static_assert(std::is_trivially_destructible_v<T>);
     allocator.DeallocateRaw(ptr);
   }
@@ -86,9 +86,16 @@ struct ScopedArrayPtr : public NonCopyable {
     return res;
   }
 
+  void ShrinkToFit(size_t exact_elements) {
+    pdp_assert(exact_elements <= allocator.GetAllocationSize(ptr));
+    ptr = Reallocate<char>(allocator, ptr, exact_elements);
+  }
+
  private:
   T *ptr;
   Alloc allocator;
 };
+
+using StringBuffer = UniqueArray<char>;
 
 }  // namespace pdp

@@ -5,16 +5,17 @@
 #include "data/loop_queue.h"
 #include "data/non_copyable.h"
 #include "strings/string_builder.h"
+#include "system/no_suspend_lock.h"
 
 #include <coroutine>
 #include <cstdint>
 
 namespace pdp {
 
-struct HandlerCoroutine : public NonCopyableNonMovable {
+struct Coroutine : public NonCopyableNonMovable {
   struct promise_type {
-    HandlerCoroutine get_return_object() noexcept {
-      return HandlerCoroutine(std::coroutine_handle<promise_type>::from_promise(*this));
+    Coroutine get_return_object() noexcept {
+      return Coroutine(std::coroutine_handle<promise_type>::from_promise(*this));
     }
 
     std::suspend_never initial_suspend() noexcept { return {}; }
@@ -23,24 +24,30 @@ struct HandlerCoroutine : public NonCopyableNonMovable {
     void return_void() noexcept {}
 
     void unhandled_exception() noexcept { PDP_UNREACHABLE("Exception in coroutine"); }
+
+    template <typename Awaitable>
+    decltype(auto) await_transform(Awaitable &&a) {
+      NoSuspendLock::CheckUnlocked();
+      return std::forward<Awaitable>(a);
+    }
   };
 
-  explicit HandlerCoroutine(std::coroutine_handle<promise_type> c) : coro(c) {}
+  explicit Coroutine(std::coroutine_handle<promise_type> c) : coro(c) {}
 
-  ~HandlerCoroutine() = default;
+  ~Coroutine() = default;
 
  private:
   std::coroutine_handle<promise_type> coro;
 };
 
-struct HandlerTable {
+struct CoroutineTokenTable {
   static constexpr const size_t max_elements = 16'384;
 
-  using Coroutine = std::coroutine_handle<HandlerCoroutine::promise_type>;
+  using Handle = std::coroutine_handle<Coroutine::promise_type>;
 
-  HandlerTable() : table(8) {}
+  CoroutineTokenTable() : table(8) {}
 
-  ~HandlerTable() {
+  ~CoroutineTokenTable() {
     if (!table.Empty()) {
       pdp_error("Suspended handler coroutines are going to be force destroyed!");
     }
@@ -48,7 +55,7 @@ struct HandlerTable {
 
   bool Empty() const { return table.Empty(); }
 
-  void Suspend(uint32_t token, Coroutine coro) {
+  void Suspend(uint32_t token, Handle coro) {
     if (PDP_UNLIKELY(!table.Empty() && token < table.Front().token)) {
       table.EmplaceFront(coro, token);
     } else {
@@ -81,7 +88,7 @@ struct HandlerTable {
 
  private:
   struct TableEntry {
-    Coroutine coro;
+    Handle coro;
     uint32_t token;
   };
 
