@@ -1,5 +1,5 @@
 add_executable(test_vector test_vector.cc)
-target_link_libraries(test_vector PRIVATE pdp_data)
+target_link_libraries(test_vector PRIVATE pdp_data pdp_strings)
 
 add_executable(test_stack test_stack.cc)
 target_link_libraries(test_stack PRIVATE pdp_data)

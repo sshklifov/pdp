@@ -2,52 +2,34 @@
 
 namespace pdp {
 
-Coroutine ClearBreakpointSign(DebugCoordinator &d, FixedString in_id, bool should_delete) {
-  StringVector queued_ids;
-  IntegerRpcQueue queue = d.VimDriver().PrepareIntegerQueue();
-  for (auto &[id, br] : d.Breakpoints().GetAliases(in_id.ToSlice())) {
+void ClearBreakpointSign(DebugCoordinator &d, const StringSlice &in_id, bool should_delete) {
+  for (auto &[id, br] : d.Breakpoints().GetAliases(in_id)) {
     if (!br.fullname.Empty() && br.extmark > 0) {
-      // TODO
-      // d.VimDriver().PromiseBufferNumber(br.fullname.ToSlice()).Enqueue(queue);
-      queued_ids.MemCopy(id.Begin(), id.Size());
-      queued_ids.Append('\0');
+      d.VimDriver().DeleteBreakpointMark(br.fullname.ToSlice(), br.extmark);
+      br.extmark = 0;
     }
   }
-
-  for (const auto &id : queued_ids.SplitByNull()) {
-    // Clear visually if extmark is set
-    int bufnr = co_await queue.NextAwaiter();
-    if (bufnr > 0) {
-      auto it = d.Breakpoints().Find(id);
-      if (PDP_LIKELY(it != d.Breakpoints().End() && it->value.extmark > 0)) {
-        d.VimDriver().DeleteBreakpointMark(bufnr, it->value.extmark);
-        it->value.extmark = 0;
-      }
-    }
-    // Clear logically if breakpoint was deleted
-    if (should_delete) {
-      d.Breakpoints().Delete(id);
-    }
+  // Clear logically if breakpoint was deleted
+  if (should_delete) {
+    d.Breakpoints().Delete(in_id);
   }
 }
 
-Coroutine PlaceBreakpointSign(DebugCoordinator &d, FixedString id) {
-  IntegerRpcAwaiter awaiter;
-  PDP_BLOCK() {
-    auto it = d.Breakpoints().Find(id.ToSlice());
-    pdp_assert(it != d.Breakpoints().End());
+#if 0
+void PlaceBreakpointSign(DebugCoordinator &d, const StringSlice &id) {
+  auto it = d.Breakpoints().Find(id);
+  pdp_assert(it != d.Breakpoints().End());
 
-    const bool check_file = !it->value.fullname.Empty() && FileReadable(it->value.fullname.Cstr());
-    if (PDP_UNLIKELY(!check_file)) {
-      co_return;
-    }
-    const bool placed = (it->value.extmark > 0);
-    if (PDP_UNLIKELY(placed)) {
-      co_return;
-    }
-    // TODO
-    // awaiter = d.VimDriver().PromiseBufferNumber(it->value.fullname.ToSlice());
+  const bool check_file = !it->value.fullname.Empty() && FileReadable(it->value.fullname.Cstr());
+  if (PDP_UNLIKELY(!check_file)) {
+    return;
   }
+  const bool placed = (it->value.extmark > 0);
+  if (PDP_UNLIKELY(placed)) {
+    return;
+  }
+  // TODO
+  // awaiter = d.VimDriver().PromiseBufferNumber(it->value.fullname.ToSlice());
 
   auto bufnr = co_await awaiter;
   if (PDP_LIKELY(bufnr < 0)) {
@@ -70,6 +52,7 @@ Coroutine PlaceBreakpointSign(DebugCoordinator &d, FixedString id) {
     it->value.extmark = extmark;
   }
 }
+#endif
 
 void FormatBreakpointMessage(DebugCoordinator &d, GdbExprView bkpt,
                              BreakpointTable::NoSuspendIterator it) {
@@ -146,7 +129,7 @@ Coroutine HandleNewBreakpoint(DebugCoordinator &d, UniquePtr<ExprBase> expr) {
     co_return;
   }
 
-  ClearBreakpointSign(d, FixedString(bkpt["number"].RequireStr()), false);
+  ClearBreakpointSign(d, bkpt["number"].RequireStr(), false);
 
   const bool check_race_condition = d.GetInferiorPid() > 0;
 

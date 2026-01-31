@@ -95,9 +95,9 @@ struct VimAsyncDriver {
 
   IntegerRpcAwaiter PromiseBufferLineCount(int bufnr);
 
-  // TODO need to be added to highlight autocmd queue
-  void DeleteBreakpointMark(int bufnr, int extmark);
-  IntegerRpcAwaiter PromiseBreakpointMark(StringSlice mark, int bufnr, int lnum, int enabled);
+  void DeleteBreakpointMark(const StringSlice &fullname, int extmark);
+  void SetBreakpointMark(const StringSlice &mark, const StringSlice &fullname, int lnum,
+                         int enabled);
 
   void ShowNormal(const StringSlice &msg);
 
@@ -127,25 +127,17 @@ struct VimAsyncDriver {
   void ReadNotifyEvent();
   void OnNotifyNewBuffer(const StringSlice &fullname, int bufnr);
 
+  void SetBreakpointMark(const StringSlice &mark, int bufnr, int lnum, int enabled);
   void ShowPacked(const StringSlice &fmt, PackedValue *args, uint64_t type_bits);
 
   VimDriver vim_driver;
   CoroutineTokenTable suspended_handlers;
   emhash8::StringMap<int64_t> opened_buffers;
-  emhash8::StringMap<FixedString> pending_extmarks;
+  emhash8::StringMap<FixedString> pending_extmarks;  // TODO change template arg
 
   unsigned num_prompt_lines;
 
-  enum VimNamespaces {
-    kHighlightNs,
-    kProgramCounterNs,
-    kRegisterNs,
-    kPromptBufferNs,
-    kConcealVarNs,
-    kConcealJumpNs,
-    kBreakpointNs,
-    kTotalNs
-  };
+  enum VimNamespaces { kProgramCounterNs, kPromptBufferNs, kBreakpointNs, kTotalNs };
 
   int namespaces[kTotalNs];
 

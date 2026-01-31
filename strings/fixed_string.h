@@ -9,92 +9,43 @@
 namespace pdp {
 
 struct FixedString : public NonCopyable {
-  FixedString() : ptr(nullptr), size(0) {}
+  FixedString();
 
-  FixedString(const char *str, size_t len) {
-    ptr = Allocate<char>(allocator, len + 1);
-    memcpy(ptr, str, len);
-    ptr[len] = 0;
-    size = len;
-  }
+  FixedString(const char *str, size_t len);
+  FixedString(const char *begin, const char *end);
 
-  FixedString(const char *begin, const char *end) : FixedString(begin, end - begin) {}
+  explicit FixedString(const StringSlice &rhs);
 
-  explicit FixedString(const StringSlice &rhs) : FixedString(rhs.Begin(), rhs.Size()) {}
-
-  FixedString(FixedString &&rhs) : ptr(rhs.ptr), size(rhs.size) { rhs.ptr = nullptr; }
-
-  FixedString(StringVector &&rhs) {
-    pdp_assert(rhs.Size() >= 1);
-    pdp_assert(rhs.Last() == '\0');
-    size = rhs.Size() - 1;
-    impl::_VectorPrivAcess<char, DefaultAllocator> _vector_priv(rhs);
-    ptr = _vector_priv.ReleaseData();
-    pdp_assert(ptr[size] == 0);
-  }
-
-  FixedString(StringBuffer &&rhs, size_t length) {
-    pdp_assert(rhs.Get() != nullptr && length > 0);
-    pdp_assert(rhs[length] == '\0');
-    ptr = rhs.Release();
-    size = length;
-    pdp_assert(ptr[size] == 0);
-  }
+  FixedString(FixedString &&rhs);
+  explicit FixedString(StringVector &&rhs);
+  FixedString(StringBuffer &&rhs, size_t length);
 
   void operator=(FixedString &&rhs) = delete;
 
-  ~FixedString() {
-    if (ptr) {
-      Deallocate<char>(allocator, ptr);
-    }
-  }
+  ~FixedString();
 
-  FixedString Copy() const { return FixedString(Begin(), Size()); }
+  FixedString Copy() const;
+  void Reset(FixedString &&rhs);
+  void Reset(const StringSlice &rhs);
 
-  void Reset(FixedString &&rhs) {
-    pdp_assert(this != &rhs);
-    if (PDP_LIKELY(ptr)) {
-      Deallocate<char>(allocator, ptr);
-    }
-    ptr = rhs.ptr;
-    size = rhs.size;
-    rhs.ptr = nullptr;
-  }
+  const char *Cstr() const;
+  const char *Begin() const;
+  const char *End() const;
 
-  void Reset(const StringSlice &rhs) {
-    if (PDP_LIKELY(ptr)) {
-      const bool insufficient_memory = (allocator.GetAllocationSize(ptr) < rhs.Size() + 1);
-      if (insufficient_memory) {
-        ptr = Reallocate<char>(allocator, ptr, rhs.Size() + 1);
-      }
-    }
+  bool Empty() const;
+  size_t Size() const;
+  size_t Length() const;
 
-    memcpy(ptr, rhs.Begin(), rhs.Size());
-    size = rhs.Size();
-    ptr[size] = 0;
-  }
+  const StringSlice ToSlice() const;
 
-  const char *Cstr() const { return ptr; }
-  const char *Begin() const { return ptr; }
-  const char *End() const { return ptr + size; }
+  explicit operator StringSlice() const;
 
-  constexpr bool Empty() const { return size == 0; }
-  constexpr size_t Size() const { return size; }
-  constexpr size_t Length() const { return size; }
+  bool operator==(const FixedString &other) const;
+  bool operator==(const StringSlice &other) const;
+  bool operator!=(const FixedString &other) const;
+  bool operator!=(const StringSlice &other) const;
 
-  const StringSlice ToSlice() const { return StringSlice(ptr, size); }
-
-  explicit operator StringSlice() const { return ToSlice(); }
-
-  bool operator==(const FixedString &other) const { return ToSlice() == other.ToSlice(); }
-
-  bool operator==(const StringSlice &other) const { return ToSlice() == other; }
-
-  bool operator!=(const FixedString &other) const { return !(*this == other); }
-
-  bool operator!=(const StringSlice &other) const { return !(*this == other); }
-
-  const char &operator[](size_t index) const { return ptr[index]; }
+  const char &operator[](size_t index) const;
 
  private:
   char *ptr;

@@ -1,6 +1,7 @@
 add_library(pdp_strings STATIC
   rolling_buffer.cc
   byte_stream.cc
+  fixed_string.cc
 )
 
 target_include_directories(pdp_strings PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

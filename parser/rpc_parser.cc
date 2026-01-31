@@ -190,22 +190,6 @@ uint32_t ReadRpcMapLength(ByteStream &s) {
   PDP_UNREACHABLE("Unexpected RPC byte, expecting map");
 }
 
-void ExpectRpcArrayWithLength(ByteStream &s, uint32_t length) {
-  uint32_t read_length = ReadRpcArrayLength(s);
-  if (PDP_UNLIKELY(read_length != length)) {
-    pdp_critical("Got length of {}", read_length);
-    PDP_UNREACHABLE("Unexpected RPC array length");
-  }
-}
-
-void ExpectRpcInteger(ByteStream &s, int64_t what) {
-  int64_t integer = ReadRpcInteger(s);
-  if (PDP_UNLIKELY(integer != what)) {
-    pdp_critical("Got integer {} but got {}", integer, what);
-    PDP_UNREACHABLE("Read the wrong RPC integer");
-  }
-}
-
 void SkipRpcValue(ByteStream &s) {
   uint32_t skip_items = 1;
   do {

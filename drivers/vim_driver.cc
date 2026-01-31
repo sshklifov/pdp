@@ -51,17 +51,17 @@ void VimDriver::SkipResult() { return SkipRpcValue(vim_output); }
 VimRpcEvent VimDriver::PollRpcEvent() {
   const bool has_bytes = vim_output.PollBytes();
   if (has_bytes) {
-    ExpectRpcArrayWithLength(vim_output, 4);
+    auto length = ReadRpcArrayLength(vim_output);
     auto type = ReadRpcInteger(vim_output);
-    if (PDP_LIKELY(type == 1)) {
+    if (PDP_LIKELY(length == 4 && type == 1)) {
       int64_t token = ReadRpcInteger(vim_output);
       // TODO: SUS: why the fuck can I get a result and an error? TEST this.
       PrintRpcError(token, vim_output);
       return VimRpcEvent(token);
-    } else if (PDP_LIKELY(type == 2)) {
+    } else if (PDP_LIKELY(length == 3 && type == 2)) {
       return VimRpcEvent(VimRpcEvent::kNotify);
     } else {
-      pdp_critical("MsgPack byte={}", type);
+      pdp_critical("MsgPack length={} type={}", length, type);
       PDP_UNREACHABLE("Unknown Vim RPC event type");
     }
   } else {

@@ -20,9 +20,6 @@ uint32_t ReadRpcStringLength(ByteStream &s);
 uint32_t ReadRpcArrayLength(ByteStream &s);
 uint32_t ReadRpcMapLength(ByteStream &s);
 
-void ExpectRpcArrayWithLength(ByteStream &s, uint32_t length);
-void ExpectRpcInteger(ByteStream &s, int64_t what);
-
 void SkipRpcValue(ByteStream &s);
 bool FormatRpcError(ByteStream &s, StringBuilder<DefaultAllocator> &out);
 bool PrintRpcError(uint32_t, ByteStream &s);

@@ -4,7 +4,7 @@
 
 namespace pdp {
 
-Coroutine ClearBreakpointSign(DebugCoordinator &d, FixedString in_id, bool should_delete);
+void ClearBreakpointSign(DebugCoordinator &d, const StringSlice &in_id, bool should_delete);
 
 Coroutine PlaceBreakpointSign(DebugCoordinator &d, FixedString id);
 

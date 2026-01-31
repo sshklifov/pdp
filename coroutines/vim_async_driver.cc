@@ -52,7 +52,12 @@ void VimAsyncDriver::Drain() {
 
 void VimAsyncDriver::ReadNotifyEvent() {
   FixedString method = vim_driver.ReadString();
+  auto elems = vim_driver.OpenArray();
   if (method == "pdp/buf_changed") {
+    if (PDP_UNLIKELY(elems != 2)) {
+      // TODO unreachable + critical error... NOT THAT HARD! EVERYWHERE....
+      PDP_UNREACHABLE("Unexpected number of elements!");
+    }
     auto bufnr = vim_driver.ReadInteger();
     auto name = vim_driver.ReadString();
     if (name.ToSlice().StartsWith('/') && FileReadable(name.Cstr())) {
@@ -61,6 +66,10 @@ void VimAsyncDriver::ReadNotifyEvent() {
       OnNotifyNewBuffer(it->key.ToSlice(), it->value);
     }
   } else if (method == "pdp/buf_removed") {
+    if (PDP_UNLIKELY(elems != 1)) {
+      // TODO unreachable + critical error... NOT THAT HARD! EVERYWHERE....
+      PDP_UNREACHABLE("Unexpected number of elements!");
+    }
     auto name = vim_driver.ReadString();
     auto it = opened_buffers.Find(name.ToSlice());
     if (it != opened_buffers.End()) {
@@ -73,11 +82,14 @@ void VimAsyncDriver::ReadNotifyEvent() {
 }
 
 void VimAsyncDriver::OnNotifyNewBuffer(const StringSlice &fullname, int bufnr) {
+  pdp_info("Triggered notify event fullname={} bufnr={}", fullname, bufnr);
+#if 0
   auto it = pending_extmarks.Find(fullname);
   while (it != pending_extmarks.End()) {
     // TODO here vim_driver.Send
     // TODO change the whole vim async driver marks to use this path
   }
+#endif
 }
 
 IntegerRpcQueue VimAsyncDriver::PrepareIntegerQueue() {
@@ -113,12 +125,21 @@ IntegerRpcAwaiter VimAsyncDriver::PromiseBufferLineCount(int bufnr) {
   return IntegerRpcAwaiter(this, token);
 }
 
-void VimAsyncDriver::DeleteBreakpointMark(int bufnr, int extmark) {
-  vim_driver.SendRpcRequest("nvim_buf_del_extmark", bufnr, namespaces[kBreakpointNs], extmark);
+void VimAsyncDriver::DeleteBreakpointMark(const StringSlice &fullname, int extmark) {
+  auto it = opened_buffers.Find(fullname);
+  if (it != opened_buffers.End()) {
+    auto bufnr = it->value;
+    vim_driver.SendRpcRequest("nvim_buf_del_extmark", bufnr, namespaces[kBreakpointNs], extmark);
+  }
 }
 
-IntegerRpcAwaiter VimAsyncDriver::PromiseBreakpointMark(StringSlice mark, int bufnr, int lnum,
-                                                        int enabled) {
+#if 0
+IntegerRpcAwaiter VimAsyncDriver::SetBreakpointMark(StringSlice mark, const StringSlice &fullname,
+                                                    int lnum, int enabled) {
+  if 
+}
+
+void VimAsyncDriver::SetBreakpointMark(StringSlice mark, int bufnr, int lnum, int enabled) {
   RpcBuilder builder;
   auto token = vim_driver.BeginRpcRequest(builder, "nvim_buf_set_extmark", bufnr,
                                           namespaces[kBreakpointNs], lnum - 1, 0);
@@ -129,6 +150,7 @@ IntegerRpcAwaiter VimAsyncDriver::PromiseBreakpointMark(StringSlice mark, int bu
   vim_driver.EndRpcRequest(builder);
   return IntegerRpcAwaiter(this, token);
 }
+#endif
 
 void VimAsyncDriver::ShowNormal(const StringSlice &msg) {
   pdp_assert(!msg.Empty());
@@ -204,18 +226,12 @@ void VimAsyncDriver::HighlightLastLine(int start_col, int end_col, const StringS
 Coroutine VimAsyncDriver::InitializeNs() {
   IntegerRpcQueue queue = PrepareIntegerQueue();
   PromiseNamespace("PromptDebugPC").Enqueue(queue);
-  PromiseNamespace("PromptDebugRegister").Enqueue(queue);
   PromiseNamespace("PromptDebugPrompt").Enqueue(queue);
-  PromiseNamespace("PromptDebugConcealVar").Enqueue(queue);
-  PromiseNamespace("PromptDebugConcealJump").Enqueue(queue);
   PromiseNamespace("PromptDebugBreakpoint").Enqueue(queue);
   pdp_assert(queue.Size() == kTotalNs);
 
   namespaces[kProgramCounterNs] = co_await queue.NextAwaiter();
-  namespaces[kRegisterNs] = co_await queue.NextAwaiter();
   namespaces[kPromptBufferNs] = co_await queue.NextAwaiter();
-  namespaces[kConcealVarNs] = co_await queue.NextAwaiter();
-  namespaces[kConcealJumpNs] = co_await queue.NextAwaiter();
   namespaces[kBreakpointNs] = co_await queue.NextAwaiter();
 }
 
