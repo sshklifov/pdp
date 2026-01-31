@@ -185,8 +185,7 @@ ssize_t _Replayer::ReplaySyscallRead(int fd, void *buf, size_t size) {
   CheckForEnd();
 
   if (PDP_UNLIKELY(!IsRecordType(RecordType::kRead, ptr))) {
-    pdp_critical("Record byte: {}", MakeHex(*ptr));
-    PDP_UNREACHABLE("Corrupted recording detected, read failed");
+    PDP_FMT_UNREACHABLE("Corrupted recording detected (byte {}), read failed", MakeHex(*ptr));
   }
 
   pdp_assert(limit - ptr >= 9);
@@ -194,7 +193,6 @@ ssize_t _Replayer::ReplaySyscallRead(int fd, void *buf, size_t size) {
   int check_fd = ReplayInteger(ptr + 5);
 
   if (PDP_UNLIKELY(fd != check_fd)) {
-    pdp_critical("Record fd: {}", check_fd);
     PDP_UNREACHABLE("Corrupted recording detected, read failed");
   }
 
@@ -217,8 +215,7 @@ int _Replayer::ReplaySyscallPoll(struct pollfd *poll_args, nfds_t n) {
 
   const bool match = IsRecordType(RecordType::kPoll, ptr);
   if (PDP_UNLIKELY(!match)) {
-    pdp_critical("Unexpected byte: {}", MakeHex(*ptr));
-    PDP_UNREACHABLE("Corrupted recording detected, poll failed");
+    PDP_FMT_UNREACHABLE("Corrupted recording detected (byte {}), poll failed", MakeHex(*ptr));
   }
 
   pdp_assert(limit - ptr >= 5);
@@ -242,8 +239,7 @@ pid_t _Replayer::ReplaySyscallFork() {
 
   const bool match = IsRecordType(RecordType::kFork, ptr);
   if (PDP_UNLIKELY(!match)) {
-    pdp_critical("Unexpected byte: {}", MakeHex(*ptr));
-    PDP_UNREACHABLE("Corrupted recording detected, fork failed");
+    PDP_FMT_UNREACHABLE("Corrupted recording detected (byte {}), fork failed", MakeHex(*ptr));
   }
 
   pdp_assert(limit - ptr >= 5);
@@ -257,8 +253,7 @@ pid_t _Replayer::ReplaySyscallWaitPid(int *status) {
 
   const bool match = IsRecordType(RecordType::kWaitPid, ptr);
   if (PDP_UNLIKELY(!match)) {
-    pdp_critical("Unexpected byte: {}", MakeHex(*ptr));
-    PDP_UNREACHABLE("Corrupted recording detected, waitpid failed");
+    PDP_FMT_UNREACHABLE("Corrupted recording detected (byte {}), waitpid failed", MakeHex(*ptr));
   }
 
   pdp_assert(limit - ptr >= 5);

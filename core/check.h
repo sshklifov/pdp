@@ -30,6 +30,12 @@
 
 #define PDP_UNREACHABLE(msg) ::pdp::OnFatalError(__FILE__, __LINE__, msg)
 
+#define PDP_FMT_UNREACHABLE(fmt, a0, ...)                         \
+  do {                                                            \
+    constexpr const char *_bn = ::pdp::GetBasename(__FILE__);     \
+    ::pdp::LogUnreachable(_bn, __LINE__, fmt, a0, ##__VA_ARGS__); \
+  } while (0)
+
 namespace pdp {
 /// @brief Handles assertion failures without using the logging system.
 ///

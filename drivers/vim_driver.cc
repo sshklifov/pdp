@@ -61,8 +61,7 @@ VimRpcEvent VimDriver::PollRpcEvent() {
     } else if (PDP_LIKELY(length == 3 && type == 2)) {
       return VimRpcEvent(VimRpcEvent::kNotify);
     } else {
-      pdp_critical("MsgPack length={} type={}", length, type);
-      PDP_UNREACHABLE("Unknown Vim RPC event type");
+      PDP_FMT_UNREACHABLE("Unknown Vim RPC event type, length={} type={}", length, type);
     }
   } else {
     return VimRpcEvent(VimRpcEvent::kNone);

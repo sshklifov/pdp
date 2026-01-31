@@ -191,6 +191,21 @@ void Log(const char *f, unsigned line, Level level, const StringSlice &fmt, Pack
   LogUnformatted(builder.ToSlice());
 }
 
+void LogUnreachable(const char *f, unsigned line, const StringSlice &fmt, PackedValue *args,
+                    uint64_t type_bits) {
+  StringSlice filename(f);
+  StringBuilder<OneShotAllocator> builder;
+
+  const size_t capacity =
+      EstimateHeaderSize() + filename.Size() + fmt.Size() + RunEstimator(args, type_bits);
+  builder.ReserveFor(capacity);
+
+  WriteLogHeader(filename, line, Level::kCrit, builder);
+  builder.AppendPackUnchecked(fmt, args, type_bits);
+  builder.AppendUnchecked('\n');
+  OnFatalError(f, line, builder.Data());
+}
+
 void LogMultiLine(const char *f, unsigned line, Level level, StringSlice msg) {
   if (PDP_UNLIKELY(!ShouldLogAt(level))) {
     return;

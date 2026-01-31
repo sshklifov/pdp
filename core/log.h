@@ -20,6 +20,10 @@ enum class Level { kInfo, kWarn, kError, kCrit, kTrace = 100 };
 void Log(const char *filename, unsigned line, Level level, const StringSlice &fmt,
          PackedValue *args, uint64_t type_bits);
 
+[[noreturn]]
+void LogUnreachable(const char *f, unsigned line, const StringSlice &fmt, PackedValue *args,
+                    uint64_t type_bits);
+
 void RedirectLogging(const char *filename);
 void RedirectLogging(int fd);
 
@@ -39,6 +43,13 @@ template <typename... Args>
 void Log(const char *filename, unsigned line, Level level, const StringSlice &fmt, Args &&...args) {
   auto packed_args = MakePackedArgs(std::forward<Args>(args)...);
   Log(filename, line, level, fmt, packed_args.slots, packed_args.type_bits);
+}
+
+template <typename... Args>
+[[noreturn]]
+void LogUnreachable(const char *filename, unsigned line, const StringSlice &fmt, Args &&...args) {
+  auto packed_args = MakePackedArgs(std::forward<Args>(args)...);
+  LogUnreachable(filename, line, fmt, packed_args.slots, packed_args.type_bits);
 }
 
 void LogUnformatted(const StringSlice &str);

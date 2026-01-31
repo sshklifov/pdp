@@ -55,8 +55,7 @@ void VimAsyncDriver::ReadNotifyEvent() {
   auto elems = vim_driver.OpenArray();
   if (method == "pdp/buf_changed") {
     if (PDP_UNLIKELY(elems != 2)) {
-      // TODO unreachable + critical error... NOT THAT HARD! EVERYWHERE....
-      PDP_UNREACHABLE("Unexpected number of elements!");
+      PDP_FMT_UNREACHABLE("Unexpected number of elements: {}", elems);
     }
     auto bufnr = vim_driver.ReadInteger();
     auto name = vim_driver.ReadString();
@@ -67,8 +66,7 @@ void VimAsyncDriver::ReadNotifyEvent() {
     }
   } else if (method == "pdp/buf_removed") {
     if (PDP_UNLIKELY(elems != 1)) {
-      // TODO unreachable + critical error... NOT THAT HARD! EVERYWHERE....
-      PDP_UNREACHABLE("Unexpected number of elements!");
+      PDP_FMT_UNREACHABLE("Unexpected number of elements: {}", elems);
     }
     auto name = vim_driver.ReadString();
     auto it = opened_buffers.Find(name.ToSlice());
@@ -76,8 +74,7 @@ void VimAsyncDriver::ReadNotifyEvent() {
       opened_buffers.Erase(it);
     }
   } else {
-    pdp_error("Unexpected notification: {}", method.ToSlice());
-    PDP_UNREACHABLE("Unhandled notification");
+    PDP_FMT_UNREACHABLE("Unhandled notification {}", method.ToSlice());
   }
 }
 

@@ -32,11 +32,14 @@ struct DebugCoordinator {
   void SetFrameSelected(int frame) { frame_selected = frame; }
 
   // TODO Do something useful
-  void AddThreadId(int64_t id) {}
-  void RemoveThreadId(int64_t id) {}
+  void AddThreadId(int64_t id) { PDP_IGNORE(id); }
+  void RemoveThreadId(int64_t id) { PDP_IGNORE(id); }
 
   // TODO Do something useful
-  void InsertJump(const StringSlice &fullname, int lnum) {}
+  void InsertJump(const StringSlice &fullname, int lnum) {
+    PDP_IGNORE(fullname);
+    PDP_IGNORE(lnum);
+  }
 
   // bool IsIdle() const;
   // void PrintActivity() const;

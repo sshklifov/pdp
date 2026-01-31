@@ -90,8 +90,8 @@ void ByteStream::Memcpy(void *dst, size_t n) {
   if (PDP_LIKELY(n < in_place_threshold)) {
     size_t num_read = stream.ReadAtLeast(ptr, n, buffer_size, max_wait);
     if (PDP_UNLIKELY(num_read < n)) {
-      pdp_critical("Failed to read {} bytes within {}ms", n, max_wait.Get());
-      PDP_UNREACHABLE("RPC stream timeout");
+      PDP_FMT_UNREACHABLE("RPC stream timeout, failed to read {} within {}ms", MakeByteSize(n),
+                          max_wait.Get());
     }
     memcpy(dst, begin, n);
     begin += n;
@@ -99,8 +99,8 @@ void ByteStream::Memcpy(void *dst, size_t n) {
   } else {
     bool success = stream.ReadExactly(dst, n, max_wait);
     if (PDP_UNLIKELY(!success)) {
-      pdp_critical("Failed to read {} bytes within {}ms", n, max_wait.Get());
-      PDP_UNREACHABLE("RPC stream timeout");
+      PDP_FMT_UNREACHABLE("RPC stream timeout, failed to read {} within {}ms", MakeByteSize(n),
+                          max_wait.Get());
     }
   }
 }
@@ -132,8 +132,7 @@ void ByteStream::Skip(size_t num_skipped) {
     }
     next_wait = max_wait - stopwatch.Elapsed();
   }
-  pdp_critical("Bytes remaining to skip: {}", num_skipped);
-  PDP_UNREACHABLE("RPC stream timeout");
+  PDP_FMT_UNREACHABLE("RPC stream timeout, couldn't skip: {}", MakeByteSize(num_skipped));
 }
 
 void ByteStream::RequireAtLeast(size_t n) {
@@ -148,8 +147,8 @@ void ByteStream::RequireAtLeast(size_t n) {
     end = ptr + size;
     size_t num_read = stream.ReadAtLeast(end, n, buffer_size - n, max_wait);
     if (PDP_UNLIKELY(num_read < n)) {
-      pdp_critical("Failed to read {} bytes within {}ms", n, max_wait.Get());
-      PDP_UNREACHABLE("RPC stream timeout");
+      pdp_critical("RPC stream timeout, failed to read {} within {}ms", MakeByteSize(n),
+                   max_wait.Get());
     }
 
     end += num_read;

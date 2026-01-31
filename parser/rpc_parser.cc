@@ -52,8 +52,7 @@ RpcKind ClassifyRpcByte(byte b) {
       return RpcKind::kMap;
   }
 
-  pdp_critical("Unsupported RPC byte: {}", MakeHex(b));
-  PDP_UNREACHABLE("Cannot parse rpc");
+  PDP_FMT_UNREACHABLE("Cannot parse rpc, unexpected byte: {}", MakeHex(b));
 }
 
 int64_t ReadRpcInteger(ByteStream &s) {
@@ -108,8 +107,7 @@ int64_t ReadRpcInteger(ByteStream &s) {
   } else if (PDP_LIKELY(b >= 0xe0)) {
     return BitCast<int8_t>(b);
   } else {
-    pdp_critical("RPC byte: {}", MakeHex(b));
-    PDP_UNREACHABLE("Unexpected RPC byte, expecting an integer");
+    PDP_FMT_UNREACHABLE("Unexpected RPC byte {}, expecting an integer", MakeHex(b));
   }
 }
 
@@ -118,8 +116,7 @@ bool ReadRpcBoolean(ByteStream &s) {
   if (PDP_LIKELY((b | 1) == 0xc3)) {
     return b & 0x1;
   }
-  pdp_critical("RPC byte: {}", MakeHex(b));
-  PDP_UNREACHABLE("Unexpected RPC byte, expecting a boolean");
+  PDP_FMT_UNREACHABLE("Unexpected RPC byte {}, expecting a boolean", MakeHex(b));
 }
 
 FixedString ReadRpcString(ByteStream &s) {
@@ -148,8 +145,7 @@ uint32_t ReadRpcStringLength(ByteStream &s) {
     return b & 0x1f;
   }
 
-  pdp_critical("RPC byte: {}", MakeHex(b));
-  PDP_UNREACHABLE("Unexpected RPC byte, expecting string");
+  PDP_FMT_UNREACHABLE("Unexpected RPC byte {}, expecting string", MakeHex(b));
 }
 
 uint32_t ReadRpcArrayLength(ByteStream &s) {
@@ -167,8 +163,7 @@ uint32_t ReadRpcArrayLength(ByteStream &s) {
     return length_from_byte;
   }
 
-  pdp_critical("RPC byte: {}", MakeHex(b));
-  PDP_UNREACHABLE("Unexpected RPC byte, expecting array");
+  PDP_FMT_UNREACHABLE("Unexpected RPC byte {}, expecting array", MakeHex(b));
 }
 
 uint32_t ReadRpcMapLength(ByteStream &s) {
@@ -186,8 +181,7 @@ uint32_t ReadRpcMapLength(ByteStream &s) {
     return length_from_byte;
   }
 
-  pdp_critical("RPC byte: {}", MakeHex(b));
-  PDP_UNREACHABLE("Unexpected RPC byte, expecting map");
+  PDP_FMT_UNREACHABLE("Unexpected RPC byte {}, expecting map", MakeHex(b));
 }
 
 void SkipRpcValue(ByteStream &s) {
@@ -396,9 +390,8 @@ void _RpcPassHelper<A>::AttachExpr(ExprBase *expr) {
       *top.hashes = ankerl::unordered_dense::hash(integer->value);
       ++top.hashes;
     } else {
-      pdp_critical("RPC map has unsupported key type: {}!",
-                   StringSlice(ExprKindToString(expr->kind)));
-      PDP_UNREACHABLE("Cannot parse rpc");
+      PDP_FMT_UNREACHABLE("RPC map has unsupported key type: {}!",
+                          StringSlice(ExprKindToString(expr->kind)));
     }
   }
 
@@ -562,8 +555,7 @@ ExprBase *_RpcPassHelper<A>::BigAssSwitch() {
   } else if (b >= 0x80 && b <= 0x8f) {
     return CreateMap(b & 0xf);
   }
-  // pdp_critical("Unsupported RPC byte: {}", b);
-  PDP_UNREACHABLE("Cannot parse rpc");
+  PDP_FMT_UNREACHABLE("Unsupported RPC byte: {}", MakeHex(b));
 }
 
 template <typename A>
