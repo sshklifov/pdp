@@ -131,12 +131,18 @@ void VimAsyncDriver::DeleteBreakpointMark(const StringSlice &fullname, int extma
 }
 
 #if 0
-IntegerRpcAwaiter VimAsyncDriver::SetBreakpointMark(StringSlice mark, const StringSlice &fullname,
-                                                    int lnum, int enabled) {
-  if 
+void VimAsyncDriver::SetBreakpointMark(const StringSlice &mark, const StringSlice &fullname,
+                                       int lnum, bool enabled) {
+  auto it = opened_buffers.Find(fullname);
+  if (it != opened_buffers.End()) {
+    return SetBreakpointMark(mark, it->value, lnum, enabled);
+  }
+
+  pending_extmarks.Emplace(fullname, mark, lnum, enabled);
+  // if (opened_buffers.
 }
 
-void VimAsyncDriver::SetBreakpointMark(StringSlice mark, int bufnr, int lnum, int enabled) {
+void VimAsyncDriver::SetBreakpointMark(const StringSlice &mark, int bufnr, int lnum, bool enabled) {
   RpcBuilder builder;
   auto token = vim_driver.BeginRpcRequest(builder, "nvim_buf_set_extmark", bufnr,
                                           namespaces[kBreakpointNs], lnum - 1, 0);
@@ -145,7 +151,8 @@ void VimAsyncDriver::SetBreakpointMark(StringSlice mark, int bufnr, int lnum, in
   builder.AddMapItem("sign_hl_group", enabled ? "debugBreakpoint" : "debugBreakpointDisabled");
   builder.CloseShortMap();
   vim_driver.EndRpcRequest(builder);
-  return IntegerRpcAwaiter(this, token);
+  // TODO fuck use deferredcall here
+  // return IntegerRpcAwaiter(this, token);
 }
 #endif
 

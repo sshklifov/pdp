@@ -202,7 +202,6 @@ void LogUnreachable(const char *f, unsigned line, const StringSlice &fmt, Packed
 
   WriteLogHeader(filename, line, Level::kCrit, builder);
   builder.AppendPackUnchecked(fmt, args, type_bits);
-  builder.AppendUnchecked('\n');
   OnFatalError(f, line, builder.Data());
 }
 

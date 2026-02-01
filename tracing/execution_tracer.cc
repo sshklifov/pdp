@@ -327,12 +327,12 @@ void ExecutionTracer::CheckForEndOfStream() {
 
 impl::_Recorder *ExecutionTracer::AsRecorder() {
   pdp_assert(mode == ExecMode::kRecord);
-  return reinterpret_cast<impl::_Recorder *>(storage);
+  return reinterpret_cast<impl::_Recorder *>(&storage);
 }
 
 impl::_Replayer *ExecutionTracer::AsReplay() {
   pdp_assert(mode == ExecMode::kReplay);
-  return reinterpret_cast<impl::_Replayer *>(storage);
+  return reinterpret_cast<impl::_Replayer *>(&storage);
 }
 
 void ExecutionTracer::StartRecording(const char *path) {
@@ -384,7 +384,7 @@ bool ExecutionTracer::IsTimeLess(Milliseconds lhs, Milliseconds rhs) {
     case ExecMode::kReplay:
       return AsReplay()->ReplayIsTimeLess();
   }
-  pdp_assert(false);
+  PDP_UNREACHABLE("Invalid Execution mode");
 }
 
 ssize_t ExecutionTracer::SyscallRead(int fd, void *buf, size_t size) {
@@ -400,7 +400,7 @@ ssize_t ExecutionTracer::SyscallRead(int fd, void *buf, size_t size) {
     case ExecMode::kReplay:
       return AsReplay()->ReplaySyscallRead(fd, buf, size);
   }
-  pdp_assert(false);
+  PDP_UNREACHABLE("Invalid Execution mode");
 }
 
 ssize_t ExecutionTracer::SyscallWrite(int fd, const void *buf, size_t size) {
@@ -411,7 +411,7 @@ ssize_t ExecutionTracer::SyscallWrite(int fd, const void *buf, size_t size) {
     case ExecMode::kReplay:
       return static_cast<ssize_t>(size);
   }
-  pdp_assert(false);
+  PDP_UNREACHABLE("Invalid Execution mode");
 }
 
 pid_t ExecutionTracer::SyscallFork() {
@@ -431,7 +431,7 @@ pid_t ExecutionTracer::SyscallFork() {
     case ExecMode::kReplay:
       return AsReplay()->ReplaySyscallFork();
   }
-  pdp_assert(false);
+  PDP_UNREACHABLE("Invalid Execution mode");
 }
 
 pid_t ExecutionTracer::SyscallWaitPid(int *status, int options) {
@@ -447,7 +447,7 @@ pid_t ExecutionTracer::SyscallWaitPid(int *status, int options) {
     case ExecMode::kReplay:
       return AsReplay()->ReplaySyscallWaitPid(status);
   }
-  pdp_assert(false);
+  PDP_UNREACHABLE("Invalid Execution mode");
 }
 
 int ExecutionTracer::SyscallPoll(struct pollfd *poll_args, nfds_t n, int timeout) {
@@ -464,7 +464,7 @@ int ExecutionTracer::SyscallPoll(struct pollfd *poll_args, nfds_t n, int timeout
     case ExecMode::kReplay:
       return AsReplay()->ReplaySyscallPoll(poll_args, n);
   }
-  pdp_assert(false);
+  PDP_UNREACHABLE("Invalid Execution mode");
 }
 
 };  // namespace pdp

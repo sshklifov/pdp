@@ -26,7 +26,7 @@ struct OnceGuard {
 struct OnceGuard {
   void Set() {}
   void Reset() {}
-  void Check() {}
+  void Check(bool) {}
 };
 #endif
 

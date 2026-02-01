@@ -23,6 +23,7 @@ set(CMAKE_CXX_STANDARD 17)
 
 # TODO: Future: Remove debugging information
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -ggdb -fno-pie -no-pie -fno-omit-frame-pointer")
+set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -O3 -g1 -fno-omit-frame-pointer -Wdeprecated-declarations")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
 
 set(_FEATURES

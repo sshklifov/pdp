@@ -126,7 +126,6 @@ static inline uint32_t hash(const void *key, size_t len) {
     a = r8(p + i - 16);
     b = r8(p + i - 8);
   }
-
   return mix(len ^ secret[1], mix(a ^ secret[1], b ^ seed));
 }
 #endif

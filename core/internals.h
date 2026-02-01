@@ -16,6 +16,8 @@
 
 #define PDP_BLOCK()
 
+#define PDP_NO_INLINE [[gnu::noinline, gnu::used, deprecated("PDP_NO_INLINE in effect")]]
+
 namespace pdp {
 
 using byte = unsigned char;

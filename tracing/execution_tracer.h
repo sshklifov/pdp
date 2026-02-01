@@ -6,10 +6,9 @@
 #include <sys/poll.h>
 #include <unistd.h>
 #include <cstddef>
+#include <type_traits>
 
 namespace pdp {
-
-// TODO #ifdef PDP_DEBUG_BUILD
 
 enum class RecordType { kRead, kFork, kWaitPid, kPoll, kTimeLess, kTimeNotLess, kTotal };
 
@@ -113,7 +112,7 @@ struct ExecutionTracer {
   ExecMode mode;
 
   static constexpr size_t storage_size = 32;
-  alignas(std::max_align_t) byte storage[storage_size];
+  std::aligned_storage_t<storage_size, alignof(std::max_align_t)> storage;
 
   static_assert(sizeof(impl::_Recorder) <= storage_size);
   static_assert(sizeof(impl::_Replayer) <= storage_size);

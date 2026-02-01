@@ -3,7 +3,7 @@
 #include "data/allocator.h"
 #include "data/loop_queue.h"
 #include "data/non_copyable.h"
-#include "data/small_capture.h"
+#include "data/deferred_call.h"
 
 #include "strings/fixed_string.h"
 #include "system/child_reaper.h"
@@ -15,7 +15,7 @@
 namespace pdp {
 
 struct SshDriver : public NonCopyableNonMovable {
-  using Capture = SmallCapture<FixedString>;
+  using Capture = DeferredCall<FixedString>;
 
   SshDriver(const StringSlice &host, ChildReaper &reaper);
   ~SshDriver();

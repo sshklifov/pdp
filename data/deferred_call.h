@@ -7,11 +7,12 @@
 namespace pdp {
 
 template <typename... FunArgs>
-struct SmallCapture {
+struct DeferredCall {
   static constexpr unsigned StorageSize = 24;
   using InvokeFun = void (*)(void *, FunArgs...);
+  using Storage = std::aligned_storage_t<StorageSize, alignof(std::max_align_t)>;
 
-  SmallCapture() {
+  DeferredCall() {
 #ifdef PDP_ENABLE_ASSERT
     invoke = nullptr;
 #endif
@@ -21,6 +22,7 @@ struct SmallCapture {
   void Bind(Ca &&...args) {
     static_assert(std::is_trivially_destructible_v<C>);
     static_assert(sizeof(C) <= StorageSize);
+    static_assert(alignof(C) <= alignof(Storage));
     new (storage) C(std::forward<Ca>(args)...);
     pdp_assert(!invoke);
     invoke = &InvokeImpl<C>;
@@ -39,10 +41,9 @@ struct SmallCapture {
   template <typename Callable>
   static void InvokeImpl(void *obj, FunArgs... args) {
     (*static_cast<Callable *>(obj))(static_cast<FunArgs &&>(args)...);
-    (*static_cast<Callable *>(obj)).~Callable();
   }
 
-  alignas(std::max_align_t) byte storage[StorageSize];
+  Storage storage[StorageSize];
   InvokeFun invoke;
 };
 

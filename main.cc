@@ -37,9 +37,6 @@ int main(int argc, char **argv) {
   prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY);
 #endif
 
-  // TODO for Release logging not working
-
-#ifdef PDP_DEBUG_BUILD
   if (argc > 2 && pdp::StringSlice(argv[2]) == "--output") {
     pdp::RedirectLogging(pdp::DuplicateForThisProcess(STDOUT_FILENO));
   } else {
@@ -48,10 +45,9 @@ int main(int argc, char **argv) {
 
   if (argc > 1 && pdp::StringSlice(argv[1]) == "--replay") {
     g_recorder.StartReplaying();
-  } else {
+  } else if (argc > 1 && pdp::StringSlice(argv[1]) == "--record") {
     g_recorder.StartRecording();
   }
-#endif
 
   ApplicationMain();
 
