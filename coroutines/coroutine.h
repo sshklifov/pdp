@@ -3,9 +3,9 @@
 #include "core/check.h"
 #include "core/log.h"
 #include "data/loop_queue.h"
+#include "data/no_suspend_lock.h"
 #include "data/non_copyable.h"
 #include "strings/string_builder.h"
-#include "system/no_suspend_lock.h"
 
 #include <coroutine>
 #include <cstdint>

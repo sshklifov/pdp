@@ -1,5 +1,6 @@
 add_library(pdp_data STATIC
   chunk_array.cc
+  no_suspend_lock.cc
 )
 
 target_include_directories(pdp_data PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

@@ -17,7 +17,7 @@ FixedString BreakpointTable::RealPathFromSlice(const StringSlice &str) {
   return RealPath(buffer.Get());
 }
 
-BreakpointTable::InsertionResult BreakpointTable::Insert(GdbExprView bkpt, GdbExprView parent) {
+BreakpointTable::InsertResult BreakpointTable::Insert(GdbExprView bkpt, GdbExprView parent) {
   StringSlice id = bkpt["number"].RequireStr();
   auto [it, inserted] = table.Emplace(id);
   Breakpoint *new_br = &it->value;
@@ -93,10 +93,10 @@ BreakpointAliases BreakpointTable::GetAliases(const StringSlice &id) {
   }
 }
 
-BreakpointTable::NoSuspendIterator BreakpointTable::Find(const StringSlice &id) {
+BreakpointTable::Iterator BreakpointTable::Find(const StringSlice &id) {
   return NoSuspendIterator(table.Find(id));
 }
 
-BreakpointTable::NoSuspendIterator BreakpointTable::End() { return NoSuspendIterator(table.End()); }
+BreakpointTable::Iterator BreakpointTable::End() { return NoSuspendIterator(table.End()); }
 
 }  // namespace pdp

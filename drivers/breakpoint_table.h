@@ -1,9 +1,9 @@
 #pragma once
 
+#include "data/no_suspend_lock.h"
 #include "external/emhash8.h"
 #include "parser/expr.h"
 #include "strings/fixed_string.h"
-#include "system/no_suspend_lock.h"
 
 namespace pdp {
 
@@ -36,12 +36,10 @@ struct CanReallocate<Breakpoint> : std::true_type {};
 struct BreakpointAliases {
   using _Map = emhash8::StringMap<Breakpoint>;
 
-  struct NoSuspendIterator {
-    NoSuspendIterator(_Map *t) : table(t), alias_it(NullTerminateSplit::Iterator::End()) {}
+  struct Iterator {
+    Iterator(_Map *t, NullTerminateSplit::Iterator it) : table(t), alias_it(it) {}
 
-    NoSuspendIterator(_Map *t, NullTerminateSplit::Iterator it) : table(t), alias_it(it) {}
-
-    static NoSuspendIterator End(_Map *t) { return NoSuspendIterator(t); }
+    static Iterator End(_Map *t) { return Iterator(t); }
 
     _Map::Entry &operator*() {
       auto it = table->Find(*alias_it);
@@ -49,25 +47,27 @@ struct BreakpointAliases {
       return *it;
     }
 
-    NoSuspendIterator &operator++() {
+    Iterator &operator++() {
       ++alias_it;
       return (*this);
     }
 
-    bool operator==(const NoSuspendIterator &rhs) const {
+    bool operator==(const Iterator &rhs) const {
       pdp_assert(table == rhs.table);
       return alias_it == rhs.alias_it;
     }
 
-    bool operator!=(const NoSuspendIterator &rhs) const {
+    bool operator!=(const Iterator &rhs) const {
       pdp_assert(table == rhs.table);
       return alias_it != rhs.alias_it;
     }
 
    private:
+    Iterator(_Map *t) : table(t), alias_it(NullTerminateSplit::Iterator::End()) {}
+
     _Map *table;
     NullTerminateSplit::Iterator alias_it;
-    NoSuspendGuard suspend_guard;
+    // NoSuspendGuard suspend_guard;
   };
 
   BreakpointAliases(_Map *t, StringVector &v) : fwd_table(t), fwd_it(v.Begin(), v.End()) {}
@@ -76,9 +76,9 @@ struct BreakpointAliases {
 
   BreakpointAliases(_Map *t) : fwd_table(t), fwd_it(NullTerminateSplit::Iterator::End()) {}
 
-  NoSuspendIterator begin() { return NoSuspendIterator(fwd_table, fwd_it); }
+  Iterator begin() { return Iterator(fwd_table, fwd_it); }
 
-  NoSuspendIterator end() { return NoSuspendIterator::End(fwd_table); }
+  Iterator end() { return Iterator::End(fwd_table); }
 
  private:
   _Map *fwd_table;
@@ -86,49 +86,20 @@ struct BreakpointAliases {
 };
 
 struct BreakpointTable : public NonCopyableNonMovable {
-  using _Entry = emhash8::StringMap<Breakpoint>::Entry;
-
-  struct NoSuspendIterator : public NonMoveable {
-    NoSuspendIterator(_Entry *it) : it(it) {}
-
-    NoSuspendIterator(const NoSuspendIterator &rhs) : it(rhs.it) {}
-
-    NoSuspendIterator &operator=(const NoSuspendIterator &rhs) = delete;
-
-    _Entry &operator*() { return *it; }
-
-    _Entry *operator->() { return &(**this); }
-
-    NoSuspendIterator &operator++() {
-      ++it;
-      return (*this);
-    }
-
-    bool operator==(const NoSuspendIterator &rhs) const { return it == rhs.it; }
-
-    bool operator!=(const NoSuspendIterator &rhs) const { return it != rhs.it; }
-
-   private:
-    _Entry *it;
-    NoSuspendGuard suspend_guard;
-  };
-
-  struct InsertionResult {
-    NoSuspendIterator it;
-    bool is_new;
-  };
+  using Iterator = emhash8::StringMap<Breakpoint>::Iterator;
+  using InsertResult = emhash8::StringMap<Breakpoint>::EmplaceResult;
 
   BreakpointTable();
 
-  InsertionResult Insert(GdbExprView bkpt, GdbExprView parent);
+  InsertResult Insert(GdbExprView bkpt, GdbExprView parent);
 
   void Delete(const StringSlice &id);
 
   BreakpointAliases GetAliases(const StringSlice &id);
 
-  NoSuspendIterator Find(const StringSlice &id);
+  Iterator Find(const StringSlice &id);
 
-  NoSuspendIterator End();
+  Iterator End();
 
  private:
   FixedString RealPathFromSlice(const StringSlice &str);

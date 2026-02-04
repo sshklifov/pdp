@@ -4,6 +4,7 @@
 #include "string_slice.h"
 
 #include "data/allocator.h"
+#include "data/no_suspend_lock.h"
 #include "data/vector.h"
 
 namespace pdp {
@@ -13,8 +14,6 @@ namespace impl {
 template <char Delim>
 struct _SplitView {
   struct Iterator {
-    Iterator() : begin(nullptr), delim(nullptr), end(nullptr) {}
-
     explicit Iterator(const char *b, const char *e) : begin(b), end(e) {
       pdp_assert(end - begin > 0);
       delim = (const char *)memchr(begin, Delim, end - begin);
@@ -50,9 +49,13 @@ struct _SplitView {
     bool operator!=(const Iterator &rhs) const { return delim != rhs.delim; }
 
    private:
+    Iterator() : begin(nullptr), delim(nullptr), end(nullptr) {}
+
     const char *begin;
     const char *delim;
     const char *end;
+
+    NoSuspendGuard guard;
   };
 
   _SplitView(const char *b, const char *e) : fwd_b(b), fwd_e(e) {}
@@ -64,6 +67,8 @@ struct _SplitView {
  private:
   const char *fwd_b;
   const char *fwd_e;
+
+  NoSuspendGuard guard;
 };
 
 }  // namespace impl

@@ -8,16 +8,23 @@
 
 namespace pdp {
 
-template <typename T, typename Alloc>
+template <typename T, size_t N, typename Alloc>
 struct SmallBufferStorage {
-  SmallBufferStorage() : begin(buffer), end(buffer), limit(buffer + sizeof(buffer)) {
+  SmallBufferStorage(Alloc a = Alloc())
+      : begin(reinterpret_cast<T *>(storage)),
+        end(reinterpret_cast<T *>(storage)),
+        limit(reinterpret_cast<T *>(storage) + N),
+        allocator(a) {
 #ifdef PDP_ENABLE_ZERO_INITIALIZE
-    memset(buffer, 0, sizeof(buffer));
+    if (std::is_trivially_constructible_v<T>) {
+      memset(storage, 0, sizeof(storage));
+    }
 #endif
   }
 
   ~SmallBufferStorage() {
-    if (PDP_UNLIKELY(begin != buffer)) {
+    Clear();
+    if (PDP_UNLIKELY(reinterpret_cast<byte *>(begin) != storage)) {
       Deallocate<T>(allocator, begin);
     }
   }
@@ -35,44 +42,57 @@ struct SmallBufferStorage {
   T *End() { return this->end; }
   const T *End() const { return this->end; }
 
+  T operator[](size_t pos) const {
+    pdp_assert(begin + pos < end);
+    return begin[pos];
+  }
+
+  T &operator[](size_t pos) {
+    pdp_assert(begin + pos < end);
+    return begin[pos];
+  }
+
   void ReserveFor(size_t new_elems) {
-    pdp_assert(max_capacity - new_elems >= Size());
-    const T *__restrict__ new_limit = end + new_elems;
-    if (PDP_UNLIKELY(new_limit > limit)) {
-      GrowExtra(new_limit - limit);
+    auto *required_limit = begin + new_elems;
+    if (PDP_UNLIKELY(required_limit > limit)) {
+      GrowExtra(required_limit - limit);
     }
   }
 
-  void Clear() { end = begin; }
+  void Clear() {
+    if constexpr (!std::is_trivially_destructible_v<T>) {
+      for (auto it = begin; it < end; ++it) {
+        it->~T();
+      }
+    }
+    end = begin;
+  }
 
  private:
-  void GrowExtra(const size_t extra_limit) {
+  void GrowExtra(const size_t extra_capacity) {
     size_t size = Size();
     size_t capacity = Capacity();
-
     const size_t half_capacity = capacity / 2;
-    const size_t grow_capacity = half_capacity > extra_limit ? half_capacity : extra_limit;
+    const size_t grow_capacity = half_capacity > extra_capacity ? half_capacity : extra_capacity;
 
-    [[maybe_unused]]
-    const bool ok_limit = max_capacity - grow_capacity >= capacity;
-    pdp_assert(ok_limit);
     capacity += grow_capacity;
 
-    if (PDP_LIKELY(begin != buffer)) {
+    if (PDP_LIKELY(reinterpret_cast<byte *>(begin) != storage)) {
       begin = Reallocate<T>(allocator, begin, capacity);
     } else {
       begin = Allocate<T>(allocator, capacity);
-      memcpy(begin, buffer, sizeof(buffer));
+      memcpy(begin, storage, sizeof(storage));
     }
+    pdp_assert(begin);
     end = begin + size;
     limit = begin + capacity;
-    pdp_assert(begin);
   }
 
  protected:
-  static constexpr size_t max_capacity = 256_MB;
+  // TODO max capacity is so stupid, use DefaultAllocator for that shi.
 
-  T buffer[256];
+  alignas(T) byte storage[sizeof(T) * N];
+
   T *__restrict__ begin;
   T *__restrict__ end;
   const T *__restrict__ limit;
@@ -80,11 +100,17 @@ struct SmallBufferStorage {
   Alloc allocator;
 };
 
+template <typename T, size_t N>
+struct CanReallocate<SmallBufferStorage<T, N, DefaultAllocator>> : CanReallocate<T> {};
+
+template <typename Alloc>
+using SmallCharBuffer = SmallBufferStorage<char, 256, Alloc>;
+
 template <typename Alloc = DefaultAllocator>
-struct StringBuilder : public SmallBufferStorage<char, Alloc> {
-  using SmallBufferStorage<char, Alloc>::begin;
-  using SmallBufferStorage<char, Alloc>::end;
-  using SmallBufferStorage<char, Alloc>::limit;
+struct StringBuilder : public SmallCharBuffer<Alloc> {
+  using SmallCharBuffer<Alloc>::begin;
+  using SmallCharBuffer<Alloc>::end;
+  using SmallCharBuffer<Alloc>::limit;
 
   StringSlice ToSlice() const { return StringSlice(begin, end); }
 

@@ -1,6 +1,7 @@
 #pragma once
 
-#include "core/check.h"
+#include "check.h"
+
 namespace pdp {
 
 #ifdef PDP_ENABLE_ASSERT

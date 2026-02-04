@@ -5,11 +5,14 @@
 
 namespace pdp {
 
+template <typename Alloc>
+using SmallByteBuffer = SmallBufferStorage<byte, 256, Alloc>;
+
 template <typename Alloc = DefaultAllocator>
-struct ByteBuilder : public SmallBufferStorage<byte, Alloc> {
-  using SmallBufferStorage<byte, Alloc>::begin;
-  using SmallBufferStorage<byte, Alloc>::end;
-  using SmallBufferStorage<byte, Alloc>::limit;
+struct ByteBuilder : public SmallByteBuffer<Alloc> {
+  using SmallByteBuffer<Alloc>::begin;
+  using SmallByteBuffer<Alloc>::end;
+  using SmallByteBuffer<Alloc>::limit;
 
   void Append(const void *data, size_t bytes) {
     this->ReserveFor(bytes);
@@ -41,16 +44,6 @@ struct ByteBuilder : public SmallBufferStorage<byte, Alloc> {
   }
 
   const void *Data() const { return begin; }
-
-  byte operator[](size_t pos) const {
-    pdp_assert(begin + pos < end);
-    return begin[pos];
-  }
-
-  byte &operator[](size_t pos) {
-    pdp_assert(begin + pos < end);
-    return begin[pos];
-  }
 };
 
 struct RpcBytes {

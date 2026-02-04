@@ -11,7 +11,7 @@ StringRpcAwaiter StringRpcQueue::NextAwaiter() {
 }
 
 VimAsyncDriver::VimAsyncDriver(int vim_input_fd, int vim_output_fd)
-    : vim_driver(vim_input_fd, vim_output_fd) {
+    : vim_driver(vim_input_fd, vim_output_fd), last_pc_bufnr(-1) {
   InitializeNs();
   InitializeBuffers();
 }
@@ -62,7 +62,7 @@ void VimAsyncDriver::ReadNotifyEvent() {
     if (name.ToSlice().StartsWith('/') && FileReadable(name.Cstr())) {
       auto [it, _] = opened_buffers.Emplace(std::move(name));
       it->value = bufnr;
-      OnNotifyNewBuffer(it->key.ToSlice(), it->value);
+      HandleNewBuffer(it->key.ToSlice(), it->value);
     }
   } else if (method == "pdp/buf_removed") {
     if (PDP_UNLIKELY(elems != 1)) {
@@ -78,15 +78,31 @@ void VimAsyncDriver::ReadNotifyEvent() {
   }
 }
 
-void VimAsyncDriver::OnNotifyNewBuffer(const StringSlice &fullname, int bufnr) {
-  pdp_info("Triggered notify event fullname={} bufnr={}", fullname, bufnr);
-#if 0
-  auto it = pending_extmarks.Find(fullname);
-  while (it != pending_extmarks.End()) {
-    // TODO here vim_driver.Send
-    // TODO change the whole vim async driver marks to use this path
+Coroutine VimAsyncDriver::HandleNewBuffer(const StringSlice &bufname, int bufnr) {
+  pdp_info("Triggered notify event fullname={} bufnr={}", bufname, bufnr);
+  auto it = deferred_br.Find(bufname);
+  if (it != deferred_br.End()) {
+    auto ext = std::move(it->value);
+    // Materialize bufname into a permanent string. This is required since we are going to suspend.
+    FixedString bufname = deferred_br.EraseAndExtractKey(it);
+
+    IntegerRpcQueue queue = PrepareIntegerQueue();
+    for (size_t i = 0; i < ext.Size(); ++i) {
+      PromiseBreakpointMark(ext[i].sign_text, bufnr, ext[i].lnum, ext[i].enabled).Enqueue(queue);
+      placed_br.EmplaceUnchecked(FileLineView(bufname.ToSlice(), ext[i].lnum), 0);
+    }
+    for (size_t i = 0; i < ext.Size(); ++i) {
+      auto extmark = co_await queue.NextAwaiter();
+      auto it = placed_br.Find(FileLineView(bufname.ToSlice(), ext[i].lnum));
+      if (PDP_LIKELY(it != placed_br.End())) {
+        it->value = extmark;
+      } else {
+        // Very unlikely - mark was deleted during creation.
+        DeleteBreakpointMark(bufnr, extmark);
+      }
+    }
+    pdp_assert(queue.Empty());
   }
-#endif
 }
 
 IntegerRpcQueue VimAsyncDriver::PrepareIntegerQueue() {
@@ -122,39 +138,109 @@ IntegerRpcAwaiter VimAsyncDriver::PromiseBufferLineCount(int bufnr) {
   return IntegerRpcAwaiter(this, token);
 }
 
-void VimAsyncDriver::DeleteBreakpointMark(const StringSlice &fullname, int extmark) {
-  auto it = opened_buffers.Find(fullname);
-  if (it != opened_buffers.End()) {
-    auto bufnr = it->value;
-    vim_driver.SendRpcRequest("nvim_buf_del_extmark", bufnr, namespaces[kBreakpointNs], extmark);
+void VimAsyncDriver::DeleteBreakpointMark(const StringSlice &fullname, int lnum) {
+  auto extmark_it = placed_br.Find(FileLineView(fullname, lnum));
+  if (extmark_it != placed_br.End()) {
+    pdp_assert(deferred_br.Find(fullname) == deferred_br.End());
+    auto buffer_it = opened_buffers.Find(fullname);
+    if (PDP_LIKELY(buffer_it != opened_buffers.End())) {
+      DeleteBreakpointMark(buffer_it->value, extmark_it->value);
+    }
+    placed_br.Erase(extmark_it);
+  } else {
+    auto defer_it = deferred_br.Find(fullname);
+    if (PDP_LIKELY(defer_it != deferred_br.End())) {
+      for (size_t i = 0; i < defer_it->value.Size(); ++i) {
+        if (defer_it->value[i].lnum == lnum) {
+          defer_it->value[i] = defer_it->value.Top();
+          defer_it->value.Pop();
+          break;
+        }
+      }
+      if (defer_it->value.Empty()) {
+        deferred_br.Erase(defer_it);
+      }
+    }
   }
 }
 
-#if 0
 void VimAsyncDriver::SetBreakpointMark(const StringSlice &mark, const StringSlice &fullname,
                                        int lnum, bool enabled) {
+  char sign_text[3];
+  memset(sign_text, 0, sizeof(sign_text));
+  auto sign_length = mark.Size() <= 2 ? mark.Size() : 2;
+  memcpy(sign_text, mark.Data(), sign_length);
+
   auto it = opened_buffers.Find(fullname);
   if (it != opened_buffers.End()) {
-    return SetBreakpointMark(mark, it->value, lnum, enabled);
+    placed_br.EmplaceUnchecked(FileLineView(fullname, lnum), 0);
+    HandleBreakpointMark(fullname, it->value, lnum, sign_text, enabled);
+  } else {
+    auto [stack_it, _] = deferred_br.Emplace(fullname);
+    stack_it->value.Emplace(sign_text, lnum, enabled);
   }
-
-  pending_extmarks.Emplace(fullname, mark, lnum, enabled);
-  // if (opened_buffers.
 }
 
-void VimAsyncDriver::SetBreakpointMark(const StringSlice &mark, int bufnr, int lnum, bool enabled) {
+void VimAsyncDriver::ResetProgramCursor(int bufnr, int lnum) {
+  if (PDP_LIKELY(last_pc_bufnr >= 0)) {
+    vim_driver.SendRpcRequest("nvim_buf_clear_namespace", last_pc_bufnr,
+                              namespaces[kProgramCounterNs], 0, -1);
+  }
+  last_pc_bufnr = bufnr;
+
+  RpcBuilder builder;
+  vim_driver.BeginRpcRequest(builder, "nvim_buf_set_extmark", bufnr, namespaces[kProgramCounterNs],
+                             lnum - 1, 0);
+  builder.OpenShortMap();
+  builder.AddMapItem("line_hl_group", "debugPC");
+  builder.CloseShortMap();
+  vim_driver.EndRpcRequest(builder);
+}
+
+IntegerRpcAwaiter VimAsyncDriver::PromiseBreakpointMark(char mark[3], int bufnr, int lnum,
+                                                        bool enabled) {
   RpcBuilder builder;
   auto token = vim_driver.BeginRpcRequest(builder, "nvim_buf_set_extmark", bufnr,
                                           namespaces[kBreakpointNs], lnum - 1, 0);
   builder.OpenShortMap();
-  builder.AddMapItem("sign_text", mark.Length() <= 2 ? mark : mark.Substr(2));
+  builder.AddMapItem("sign_text", StringSlice(mark));
   builder.AddMapItem("sign_hl_group", enabled ? "debugBreakpoint" : "debugBreakpointDisabled");
   builder.CloseShortMap();
   vim_driver.EndRpcRequest(builder);
-  // TODO fuck use deferredcall here
-  // return IntegerRpcAwaiter(this, token);
+  return IntegerRpcAwaiter(this, token);
 }
-#endif
+
+void VimAsyncDriver::DeleteBreakpointMark(int bufnr, int extmark) {
+  vim_driver.SendRpcRequest("nvim_buf_del_extmark", bufnr, namespaces[kBreakpointNs], extmark);
+}
+
+Coroutine VimAsyncDriver::HandleBreakpointMark(const StringSlice &fullname, int bufnr, int lnum,
+                                               char mark[3], bool enabled) {
+  Hash<FileLineView> hasher;
+  auto hash = hasher(FileLineView(fullname, lnum));
+
+  auto extmark = co_await PromiseBreakpointMark(mark, bufnr, lnum, enabled);
+
+  struct Equals {
+    Equals(int b, int l) : bufnr(b), lnum(l) {}
+
+    bool operator()(const emhash8::FileLineMap<int>::Entry &e) const {
+      return e.key.lnum == lnum && e.value == bufnr;
+    }
+
+   private:
+    int bufnr;
+    int lnum;
+  } eq(bufnr, lnum);
+
+  auto it = placed_br.FindByHash(hash, eq);
+  if (PDP_LIKELY(it != placed_br.End())) {
+    it->value = extmark;
+  } else {
+    // Very unlikely - mark was deleted during creation.
+    DeleteBreakpointMark(bufnr, extmark);
+  }
+}
 
 void VimAsyncDriver::ShowNormal(const StringSlice &msg) {
   pdp_assert(!msg.Empty());

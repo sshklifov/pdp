@@ -73,7 +73,14 @@ struct Vector : public NonCopyable {
   size_t Size() const { return size; }
   size_t Capacity() const { return capacity; }
 
-  void Clear() { size = 0; }
+  void Clear() {
+    if constexpr (!std::is_trivially_destructible_v<T>) {
+      for (size_t i = 0; i < size; ++i) {
+        ptr[i].~T();
+      }
+    }
+    size = 0;
+  }
 
   void Downsize(size_t num_elems) {
     pdp_assert(num_elems <= size);
@@ -87,15 +94,10 @@ struct Vector : public NonCopyable {
   }
 
   void Destroy() {
-    if constexpr (!std::is_trivially_destructible_v<T>) {
-      for (size_t i = 0; i < size; ++i) {
-        ptr[i].~T();
-      }
-    }
+    Clear();
     Deallocate<T>(allocator, ptr);
 
     ptr = nullptr;
-    size = 0;
     capacity = 0;
   }
 

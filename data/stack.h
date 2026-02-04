@@ -13,10 +13,11 @@ struct Stack : public Vector<T, Alloc> {
   void Push(const T &value) { (*this) += value; }
 
   void Pop() {
-    static_assert(std::is_trivially_destructible_v<T>);
-
     pdp_assert(!this->Empty());
     --this->size;
+    if constexpr (!std::is_trivially_destructible_v<T>) {
+      this->ptr[this->size]->~T();
+    }
   }
 
   T &Top() { return this->Last(); }

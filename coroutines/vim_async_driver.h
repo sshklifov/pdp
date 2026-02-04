@@ -1,6 +1,7 @@
 #pragma once
 
 #include "coroutine.h"
+#include "data/file_line_map.h"
 #include "drivers/vim_driver.h"
 #include "external/emhash8.h"
 #include "system/poll_table.h"
@@ -95,9 +96,11 @@ struct VimAsyncDriver {
 
   IntegerRpcAwaiter PromiseBufferLineCount(int bufnr);
 
-  void DeleteBreakpointMark(const StringSlice &fullname, int extmark);
+  void DeleteBreakpointMark(const StringSlice &fullname, int lnum);
   void SetBreakpointMark(const StringSlice &mark, const StringSlice &fullname, int lnum,
-                         int enabled);
+                         bool enabled);
+
+  void ResetProgramCursor(int bufnr, int lnum);
 
   void ShowNormal(const StringSlice &msg);
 
@@ -125,15 +128,35 @@ struct VimAsyncDriver {
 
   void Drain();
   void ReadNotifyEvent();
-  void OnNotifyNewBuffer(const StringSlice &fullname, int bufnr);
+  Coroutine HandleNewBuffer(const StringSlice &fullname, int bufnr);
 
-  void SetBreakpointMark(const StringSlice &mark, int bufnr, int lnum, int enabled);
+  Coroutine HandleBreakpointMark(const StringSlice &fullname, int bufnr, int lnum, char mark[3],
+                                 bool enabled);
+  IntegerRpcAwaiter PromiseBreakpointMark(char mark[3], int bufnr, int lnum, bool enabled);
+  void DeleteBreakpointMark(int bufnr, int extmark);
+
   void ShowPacked(const StringSlice &fmt, PackedValue *args, uint64_t type_bits);
 
   VimDriver vim_driver;
   CoroutineTokenTable suspended_handlers;
   emhash8::StringMap<int64_t> opened_buffers;
-  emhash8::StringMap<FixedString> pending_extmarks;  // TODO change template arg
+
+  struct DeferredSignText {
+    DeferredSignText(const char (&t)[3], int l, bool e) : lnum(l), enabled(e) {
+      sign_text[0] = t[0];
+      sign_text[1] = t[1];
+      sign_text[2] = t[2];
+    }
+
+    int32_t lnum;
+    char sign_text[3];
+    uint8_t enabled;
+  };
+
+  emhash8::StringMap<SmallStack<DeferredSignText, 4>> deferred_br;
+  emhash8::FileLineMap<int> placed_br;
+
+  int last_pc_bufnr;
 
   unsigned num_prompt_lines;
 

@@ -20,7 +20,7 @@ struct LoopQueue {
   }
 
   ~LoopQueue() {
-    if (!std::is_trivially_destructible_v<T>) {
+    if constexpr (!std::is_trivially_destructible_v<T>) {
       for (size_t i = 0; i < size; ++i) {
         // TODO will the compiler figure out to do add + mask?
         auto masked_index = (i + begin) & mask;
@@ -79,7 +79,7 @@ struct LoopQueue {
 
   void PopFront() {
     pdp_assert(!Empty());
-    if (std::is_trivially_destructible_v<T>) {
+    if constexpr (std::is_trivially_destructible_v<T>) {
       ptr[begin].~T();
     }
     begin = (begin + 1) & mask;

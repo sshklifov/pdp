@@ -31,7 +31,7 @@
 #include "core/internals.h"
 #include "core/log.h"
 #include "data/allocator.h"
-#include "data/non_copyable.h"
+#include "data/no_suspend_lock.h"
 
 #include <cstdint>
 #include <utility>
@@ -73,14 +73,16 @@ class Map3 : public pdp::NonCopyable {
     V value;
   };
 
+  using Iterator = pdp::NoSuspendIterator<Entry *>;
+
   struct EmplaceResult {
-    Entry *it;
+    Iterator it;
     bool did_emplace;
   };
 
   static_assert(std::is_nothrow_destructible_v<Entry>, "K and V must be noexcept destructible");
-  static_assert(pdp::CanReallocate<K>::value && pdp::CanReallocate<V>::value,
-                "K and V must be movable with realloc");
+  static_assert(pdp::CanReallocate<K>::value, "K must be movable with realloc");
+  static_assert(pdp::CanReallocate<V>::value, "V must be movable with realloc");
   static_assert(std::is_invocable_v<const pdp::Hash<K>, K>, "Hash function missing for K");
 
   constexpr static float EMH_DEFAULT_LOAD_FACTOR = 0.80f;
@@ -125,8 +127,23 @@ class Map3 : public pdp::NonCopyable {
     return _pairs + idx;
   }
 
+  template <typename Equals>
+  Entry *FindByHash(uint64_t hash, Equals &&eq) {
+    uint32_t idx = FindFilledSlot(hash, eq);
+    return _pairs + idx;
+  }
+
   const Entry *Find(const _K &key) const {
-    uint32_t idx = FindFilledSlot(key);
+    struct EqualsKey {
+      EqualsKey(const _K &k) : key(k) {}
+
+      bool operator()(const Entry &e) const { return e.key == key; }
+
+     private:
+      const _K &key;
+    };
+
+    uint32_t idx = FindFilledSlot(_hasher(key), EqualsKey(key));
     return _pairs + idx;
   }
 
@@ -135,6 +152,17 @@ class Map3 : public pdp::NonCopyable {
     uint32_t main_bucket;
     const uint32_t sbucket = FindSlotBucket(slot, main_bucket);
     EraseSlot(sbucket, main_bucket);
+  }
+
+  [[nodiscard("Ignoring extracted key. Call Erase instead?")]]
+  K EraseAndExtractKey(const Entry *it) {
+    const uint32_t slot = it - _pairs;
+    uint32_t main_bucket;
+    const uint32_t sbucket = FindSlotBucket(slot, main_bucket);
+
+    K res(std::move(_pairs[slot].key));
+    EraseSlot(sbucket, main_bucket);
+    return res;
   }
 
   /// Remove all elements, keeping full capacity.
@@ -151,8 +179,10 @@ class Map3 : public pdp::NonCopyable {
 
   template <typename KeyType, typename... Types>
   Entry *EmplaceUnchecked(KeyType &&key, Types &&...args) {
-    CheckExpandNeed();
     const _K &key_view = static_cast<_K>(key);
+    pdp_assert(Find(key_view) == End());
+
+    CheckExpandNeed();
     const uint64_t key_hash = _hasher(key_view);
     uint32_t bucket = FindUniqueBucket(key_hash);
     uint32_t slot = _num_filled;
@@ -173,7 +203,7 @@ class Map3 : public pdp::NonCopyable {
     }
 
     const uint32_t slot = _index[bucket].slot & _mask;
-    return {_pairs + slot, bempty};
+    return {Iterator(_pairs + slot), bempty};
   }
 
  protected:
@@ -203,7 +233,7 @@ class Map3 : public pdp::NonCopyable {
   }
 
   void Clearkv() {
-    if (!std::is_trivially_destructible_v<Entry>) {
+    if constexpr (!std::is_trivially_destructible_v<Entry>) {
       pdp_trace_once("Found non trivially destructible object in {}",
                      pdp::StringSlice(__PRETTY_FUNCTION__));
       while (_num_filled--) _pairs[_num_filled].~Entry();
@@ -281,7 +311,7 @@ class Map3 : public pdp::NonCopyable {
       const uint32_t last_bucket =
           (_etail == EMH_INDEX_INACTIVE || ebucket == _etail) ? SlotToBucket(last_slot) : _etail;
 
-      if (!std::is_trivially_destructible_v<Entry>) {
+      if constexpr (!std::is_trivially_destructible_v<Entry>) {
         _pairs[slot].~Entry();
       }
       new (_pairs + slot) Entry(std::move(_pairs[last_slot]));
@@ -369,7 +399,23 @@ class Map3 : public pdp::NonCopyable {
 
   // Find the slot with this key, or return bucket size
   uint32_t FindFilledSlot(const _K &key) const {
-    const uint64_t key_hash = _hasher(key);
+    struct EqualsKey {
+      EqualsKey(const _K &k) : key(k) {}
+
+      bool operator()(const Entry &e) const { return e.key == key; }
+
+     private:
+      const _K &key;
+    } eq(key);
+
+    return FindFilledSlot(_hasher(key), eq);
+  }
+
+  // Find the slot with this key, or return bucket size
+  template <typename Equals>
+  uint32_t FindFilledSlot(uint64_t key_hash, Equals &&eq) const {
+    static_assert(std::is_invocable_r_v<bool, Equals &, const Entry &>,
+                  "Expecting equals to have a bool operator()(const Entry&)");
     const uint32_t bucket = uint32_t(key_hash & _mask);
     uint32_t next_bucket = _index[bucket].next;
     if ((int)next_bucket < 0) {
@@ -378,7 +424,7 @@ class Map3 : public pdp::NonCopyable {
 
     if (EMH_EQHASH(bucket, key_hash)) {
       const uint32_t slot = _index[bucket].slot & _mask;
-      if (PDP_LIKELY(_pairs[slot].key == key)) {
+      if (PDP_LIKELY(eq(_pairs[slot]))) {
         return slot;
       }
     }
@@ -389,7 +435,7 @@ class Map3 : public pdp::NonCopyable {
     while (true) {
       if (EMH_EQHASH(next_bucket, key_hash)) {
         const uint32_t slot = _index[next_bucket].slot & _mask;
-        if (PDP_LIKELY(_pairs[slot].key == key)) {
+        if (PDP_LIKELY(eq(_pairs[slot]))) {
           return slot;
         }
       }

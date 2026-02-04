@@ -2,7 +2,7 @@
 
 // TODO use more once guard and monotonic checker
 
-#include "core/check.h"
+#include "check.h"
 
 #include <cstdint>
 
