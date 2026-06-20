@@ -6,12 +6,12 @@ namespace pdp {
 
 void ClearBreakpointSign(DebugCoordinator &d, const StringSlice &in_id, bool should_delete);
 
-Coroutine PlaceBreakpointSign(DebugCoordinator &d, FixedString id);
+void FormatBreakpointMessage(DebugCoordinator &d, GdbExprView bkpt, const Breakpoint &br,
+                             const StringSlice &id);
 
-void FormatBreakpointMessage(DebugCoordinator &d, GdbExprView bkpt,
-                             BreakpointTable::NoSuspendIterator it);
+void HandleNewBreakpoint(DebugCoordinator &d, UniquePtr<ExprBase> expr);
 
-Coroutine HandleNewBreakpoint(DebugCoordinator &d, UniquePtr<ExprBase> expr);
+void HandleBreakpointDelete(DebugCoordinator &d, UniquePtr<ExprBase> expr);
 
 void HandleThreadSelect(DebugCoordinator *d, UniquePtr<ExprBase> expr);
 

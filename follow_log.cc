@@ -1,4 +1,5 @@
 #include <fcntl.h>
+#include <cassert>
 #define PACKAGE_VERSION
 #include <bfd.h>
 
@@ -87,7 +88,9 @@ class FileSymbolResolver : public pdp::NonCopyableNonMovable {
 
   ~FileSymbolResolver() {
     free(syms);
-    bfd_close(handle);
+    if (handle) {
+      bfd_close(handle);
+    }
   }
 
   const pdp::Vector<SourceLine> &Resolve(const pdp::StringSlice &addr) {
@@ -235,28 +238,36 @@ ExecutableAndAddress SplitExecutableAndAddress(char *begin, char *end) {
   return ExecutableAndAddress{exe, sym};
 }
 
-void ShowResolverInfo(const emhash8::StringMap<FileSymbolResolver> &resolver_map) {
-  if (!resolver_map.Empty()) {
+void ShowResolverSummary(const emhash8::StringMap<FileSymbolResolver> &resolver_map,
+                         bool show_loaded = false) {
+  if (PDP_UNLIKELY(resolver_map.Empty())) {
+    return;
+  }
+
+  if (show_loaded) {
     WriteSlice("\n");
     WriteSlice("\e[32m\e[1m================ LOADED ================\e[0m\n");
-    bool has_errors = 0;
-    for (auto it = resolver_map.Begin(); it < resolver_map.End(); ++it) {
-      if (it->value.HasErrors()) {
-        const bool is_libc = it->key.ToSlice().MemMem("libc.so");
-        has_errors = !is_libc;
-      } else {
-        WriteSlice(it->key.ToSlice());
-        WriteSlice("\n");
+  }
+
+  bool has_errors = 0;
+  for (auto it = resolver_map.Begin(); it < resolver_map.End(); ++it) {
+    if (it->value.HasErrors()) {
+      const bool is_libc = it->key.ToSlice().MemMem("libc.so");
+      if (!is_libc) {
+        has_errors = true;
       }
-    }
-    if (has_errors) {
+    } else if (show_loaded) {
+      WriteSlice(it->key.ToSlice());
       WriteSlice("\n");
-      WriteSlice("\e[31m\e[1m================ ERRORS ================\e[0m\n");
-      for (auto it = resolver_map.Begin(); it < resolver_map.End(); ++it) {
-        const bool is_libc = it->key.ToSlice().MemMem("libc.so");
-        if (!is_libc) {
-          it->value.ShowErrors(it->key.ToSlice());
-        }
+    }
+  }
+  if (has_errors) {
+    WriteSlice("\n");
+    WriteSlice("\e[31m\e[1m================ ERRORS ================\e[0m\n");
+    for (auto it = resolver_map.Begin(); it < resolver_map.End(); ++it) {
+      const bool is_libc = it->key.ToSlice().MemMem("libc.so");
+      if (!is_libc) {
+        it->value.ShowErrors(it->key.ToSlice());
       }
     }
   }
@@ -301,6 +312,7 @@ int main() {
     pdp::MutableLine line = input.ReadLine();
     if (line.Empty()) {
       if (pdp::LockLogFile(input.GetDescriptor())) {
+        ShowResolverSummary(resolver_map);
         return 0;
       } else {
         input.WaitForLine(pdp::Milliseconds(1000));
@@ -312,8 +324,9 @@ int main() {
     if (!exe.Empty() && !addr.Empty()) {
       auto it = resolver_map.Find(exe);
       if (it == resolver_map.End()) {
-        const char *hm = exe.Data();
-        it = resolver_map.EmplaceUnchecked(exe, hm, max_function_length, enable_inlining);
+        pdp::FixedString exe_cstr(exe);
+        it = resolver_map.EmplaceUnchecked(exe, exe_cstr.Cstr(), max_function_length,
+                                           enable_inlining);
       }
       const auto &source_lines = it->value.Resolve(addr);
       pdp::StringBuilder builder;
@@ -331,5 +344,5 @@ int main() {
     }
   }
 
-  return 0;
+  return 1;
 }

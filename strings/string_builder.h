@@ -53,7 +53,7 @@ struct SmallBufferStorage {
   }
 
   void ReserveFor(size_t new_elems) {
-    auto *required_limit = begin + new_elems;
+    auto *required_limit = end + new_elems;
     if (PDP_UNLIKELY(required_limit > limit)) {
       GrowExtra(required_limit - limit);
     }

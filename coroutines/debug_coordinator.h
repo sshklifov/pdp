@@ -19,9 +19,9 @@ struct DebugCoordinator {
   void RegisterForPoll(PollTable &table);
   void OnPollResults(PollTable &table);
 
-  GdbAsyncDriver &GdbDriver();
-  VimAsyncDriver &VimDriver();
-  BreakpointTable &Breakpoints();
+  GdbAsyncDriver &GdbDriver() { return gdb_async; }
+  VimAsyncDriver &VimDriver() { return vim_async; }
+  BreakpointTable &Breakpoints() { return breakpoints; }
 
   pid_t GetInferiorPid() { return inferior_pid; }
 
@@ -49,6 +49,11 @@ struct DebugCoordinator {
   StringSlice GetHost() const { return ""; }
 
  private:
+  void OnGdbStream(const StringSlice &msg);
+  void OnGdbAsync(GdbAsyncKind kind, UniquePtr<ExprBase> expr);
+  void OnGdbResult(GdbResultKind kind, UniquePtr<ExprBase> expr);
+  void OnGdbError(const StringSlice &expr);
+
   DefaultAllocator allocator;
   SshDriver *ssh_driver;
 

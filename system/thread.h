@@ -118,6 +118,7 @@ struct Thread {
   DefaultAllocator allocator;
 };
 
+// TODO this goes against the design philosophy.
 struct StoppableThread {
   StoppableThread() : is_running(false) {}
 

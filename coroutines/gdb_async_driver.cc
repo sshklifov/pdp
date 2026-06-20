@@ -3,7 +3,10 @@
 
 namespace pdp {
 
-GdbAsyncDriver::GdbAsyncDriver(ChildReaper &reaper) { gdb_driver.Start(reaper); }
+GdbAsyncDriver::GdbAsyncDriver(ChildReaper &reaper) {
+  token = 1;
+  gdb_driver.Start(reaper);
+}
 
 void GdbAsyncDriver::RegisterForPoll(PollTable &table) {
   table.Register(gdb_driver.GetDescriptor());
@@ -57,21 +60,22 @@ void GdbAsyncDriver::DrainErrors() {
   }
 }
 
-void GdbAsyncDriver::HandleStream(const StringSlice &msg) {
-  // TODO
-  PDP_IGNORE(msg);
-}
+void GdbAsyncDriver::HandleStream(const StringSlice &msg) { stream_cb(msg); }
 
 void GdbAsyncDriver::HandleAsync(GdbAsyncKind kind, UniquePtr<ExprBase> expr) {
-  // TODO
-  PDP_IGNORE(kind);
-  PDP_IGNORE(expr);
+  async_cb(kind, std::move(expr));
 }
 
 void GdbAsyncDriver::HandleResult(GdbResultKind kind, UniquePtr<ExprBase> expr) {
-  // TODO
-  PDP_IGNORE(kind);
-  PDP_IGNORE(expr);
+  if (kind != GdbResultKind::kDone) {
+    GdbExprView dict(expr);
+    auto msg = dict["msg"];
+    if (msg) {
+      error_cb(msg.RequireStr());
+    }
+  } else {
+    result_cb(kind, std::move(expr));
+  }
 }
 
 }  // namespace pdp

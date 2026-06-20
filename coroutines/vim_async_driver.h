@@ -130,8 +130,8 @@ struct VimAsyncDriver {
   void ReadNotifyEvent();
   Coroutine HandleNewBuffer(const StringSlice &fullname, int bufnr);
 
-  Coroutine HandleBreakpointMark(const StringSlice &fullname, int bufnr, int lnum, char mark[3],
-                                 bool enabled);
+  Coroutine HandleBreakpointMark(NoSuspendRef<const StringSlice> fullname, int bufnr, int lnum,
+                                 char mark[3], bool enabled);
   IntegerRpcAwaiter PromiseBreakpointMark(char mark[3], int bufnr, int lnum, bool enabled);
   void DeleteBreakpointMark(int bufnr, int extmark);
 

@@ -3,7 +3,7 @@
 #include "data/allocator.h"
 #include "data/loop_queue.h"
 #include "data/non_copyable.h"
-#include "data/deferred_call.h"
+#include "data/callback.h"
 
 #include "strings/fixed_string.h"
 #include "system/child_reaper.h"
@@ -14,8 +14,12 @@
 
 namespace pdp {
 
+// TODO does this even work? WHO knows...
+
 struct SshDriver : public NonCopyableNonMovable {
-  using Capture = DeferredCall<FixedString>;
+  // TODO RIP
+  // using Capture = Callback<FixedString>;
+  using Capture = Callback<FixedString &&>;
 
   SshDriver(const StringSlice &host, ChildReaper &reaper);
   ~SshDriver();

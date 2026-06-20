@@ -6,7 +6,7 @@
 
 namespace pdp {
 
-Breakpoint::Breakpoint() : type(kUnknown), enabled(0), lnum(-1), extmark(0) {}
+Breakpoint::Breakpoint() : type(kUnknown), enabled(0), lnum(-1) {}
 
 BreakpointTable::BreakpointTable() : buffer(PATH_MAX + 1) {}
 
@@ -22,7 +22,7 @@ BreakpointTable::InsertResult BreakpointTable::Insert(GdbExprView bkpt, GdbExprV
   auto [it, inserted] = table.Emplace(id);
   Breakpoint *new_br = &it->value;
 
-  new_br->enabled = bkpt["enabled"].RequireInt();
+  new_br->enabled = (bkpt["enabled"].RequireStr() == "y");
   auto fullname = bkpt["fullname"];
   if (fullname) {
     new_br->lnum = bkpt["line"].RequireInt();
@@ -93,10 +93,8 @@ BreakpointAliases BreakpointTable::GetAliases(const StringSlice &id) {
   }
 }
 
-BreakpointTable::Iterator BreakpointTable::Find(const StringSlice &id) {
-  return NoSuspendIterator(table.Find(id));
-}
+BreakpointTable::Iterator BreakpointTable::Find(const StringSlice &id) { return table.Find(id); }
 
-BreakpointTable::Iterator BreakpointTable::End() { return NoSuspendIterator(table.End()); }
+BreakpointTable::Iterator BreakpointTable::End() { return table.End(); }
 
 }  // namespace pdp

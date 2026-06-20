@@ -19,13 +19,16 @@ void ApplicationMain() {
   pdp::PollTable poller;
   pdp_info("Polling until idle state is reached");
 
+  // TODO test breakpoints. it at least prints something.
+  coordinator.GdbDriver().Send("-break-insert main");
+
   pdp::Stopwatch stopwatch;
   while (g_recorder.IsTimeLess(stopwatch.Elapsed(), 5000_ms)) {
     // Poll file descriptors
+    poller.Reset();
     coordinator.RegisterForPoll(poller);
     poller.Poll(pdp::Milliseconds(100));
     coordinator.OnPollResults(poller);
-    poller.Reset();
     // Check for exited children.
     reaper.Reap();
   }

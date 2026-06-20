@@ -31,6 +31,49 @@ struct NoSuspendGuard : public NonMoveable {
   ~NoSuspendGuard() { NoSuspendLock::Unlock(); }
 };
 
+// TODO does this work? Integrate it if so.
+template <typename T>
+struct NoSuspendRef : public NonMoveable {
+  NoSuspendRef(T &ref) : ref(ref) {
+#ifdef PDP_ENABLE_ASSERT
+    is_active = true;
+#endif
+    NoSuspendLock::Lock();
+  }
+
+  NoSuspendRef(const NoSuspendRef &rhs) : NoSuspendRef(rhs.ref) {}
+
+  ~NoSuspendRef() {
+    if (PDP_UNLIKELY(is_active)) {
+      NoSuspendLock::Unlock();
+    }
+  }
+
+  T &Get() {
+    pdp_assert(is_active);
+    return ref;
+  }
+
+  const T &Get() const {
+    pdp_assert(is_active);
+    return ref;
+  }
+
+  void Release() {
+    if (PDP_LIKELY(is_active)) {
+      is_active = false;
+      NoSuspendLock::Unlock();
+    }
+  }
+
+ private:
+  T &ref;
+#ifdef PDP_ENABLE_ASSERT
+  bool is_active;
+#endif
+};
+
+#if 0
 template <typename WrapIt>
 struct NoSuspendIterator : public NonMoveable {
   explicit NoSuspendIterator(const WrapIt &it) : it(it) {}
@@ -56,5 +99,6 @@ struct NoSuspendIterator : public NonMoveable {
   WrapIt it;
   NoSuspendGuard suspend_guard;
 };
+#endif
 
 }  // namespace pdp

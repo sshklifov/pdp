@@ -1,5 +1,7 @@
 #include "debug_coordinator.h"
 
+#include "handlers.h"  // TODO?
+
 namespace pdp {
 
 DebugCoordinator::DebugCoordinator(const StringSlice &host, int vim_input_fd, int vim_output_fd,
@@ -13,6 +15,13 @@ DebugCoordinator::DebugCoordinator(const StringSlice &host, int vim_input_fd, in
     ssh_driver = Allocate<SshDriver>(allocator, 1);
     new (ssh_driver) SshDriver(host, reaper);
   }
+
+  gdb_async.SetStreamCallback([this](StringSlice msg) { OnGdbStream(msg); });
+  gdb_async.SetAsyncCallback(
+      [this](GdbAsyncKind kind, UniquePtr<ExprBase> expr) { OnGdbAsync(kind, std::move(expr)); });
+  gdb_async.SetResultCallback(
+      [this](GdbResultKind kind, UniquePtr<ExprBase> expr) { OnGdbResult(kind, std::move(expr)); });
+  gdb_async.SetErrorCallback([this](StringSlice msg) { OnGdbError(msg); });
 }
 
 DebugCoordinator::~DebugCoordinator() {
@@ -36,5 +45,27 @@ void DebugCoordinator::OnPollResults(PollTable &table) {
     ssh_driver->OnPollResults(table);
   }
 }
+
+void DebugCoordinator::OnGdbStream(const StringSlice &msg) {
+  pdp_info("Received stream message: {}", msg);
+}
+
+void DebugCoordinator::OnGdbAsync(GdbAsyncKind kind, UniquePtr<ExprBase> expr) {
+  pdp_info("Received async message with kind {}", static_cast<int>(kind));
+  PDP_IGNORE(expr);
+}
+
+void DebugCoordinator::OnGdbResult(GdbResultKind kind, UniquePtr<ExprBase> expr) {
+  pdp_info("Received result message with kind {}", static_cast<int>(kind));
+  // GdbExprView dict(expr);
+  // StringBuilder builder;
+  // dict.ToJson(builder);
+  // pdp_info(builder.ToSlice());  // TODO
+  // TODO here
+  HandleNewBreakpoint(*this, std::move(expr));
+  PDP_IGNORE(expr);
+}
+
+void DebugCoordinator::OnGdbError(const StringSlice &msg) { pdp_error("GDB error: {}", msg); }
 
 }  // namespace pdp

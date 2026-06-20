@@ -54,21 +54,18 @@ struct _SplitView {
     const char *begin;
     const char *delim;
     const char *end;
-
-    NoSuspendGuard guard;
   };
 
-  _SplitView(const char *b, const char *e) : fwd_b(b), fwd_e(e) {}
+  _SplitView(const char *b, const char *e) : _begin(b), _end(e) {}
 
-  Iterator begin() { return Iterator(fwd_b, fwd_e); }
+  Iterator begin() { return Iterator(_begin, _end); }
 
   Iterator end() { return Iterator::End(); }
 
  private:
-  const char *fwd_b;
-  const char *fwd_e;
-
-  NoSuspendGuard guard;
+  // TODO i dont like underscore naming.
+  const char *_begin;
+  const char *_end;
 };
 
 }  // namespace impl

@@ -1,5 +1,3 @@
-#pragma once
-
 #include "coroutines/handlers.h"
 
 namespace pdp {

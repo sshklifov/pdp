@@ -139,9 +139,7 @@ GdbExprView GdbExprView::operator[](const StringSlice &key) const {
   return nullptr;
 }
 
-GdbExprView GdbExprView::operator[](const char *key) const {
-  return (*this)[StringSlice(key)];
-}
+GdbExprView GdbExprView::operator[](const char *key) const { return (*this)[StringSlice(key)]; }
 
 GdbExprView GdbExprView::operator[](uint32_t index) const {
   RequireNotNull();

@@ -27,12 +27,12 @@ struct Breakpoint {
   Type type;
   bool enabled;
   int lnum;
-  int extmark;
 };
 
 template <>
 struct CanReallocate<Breakpoint> : std::true_type {};
 
+// TODO not super happy, overengineered.
 struct BreakpointAliases {
   using _Map = emhash8::StringMap<Breakpoint>;
 
@@ -85,8 +85,9 @@ struct BreakpointAliases {
   NullTerminateSplit::Iterator fwd_it;
 };
 
+// TODO: unnecessary complicated, no need for indirection / additional layer of whatever this is.
 struct BreakpointTable : public NonCopyableNonMovable {
-  using Iterator = emhash8::StringMap<Breakpoint>::Iterator;
+  using Iterator = emhash8::StringMap<Breakpoint>::Entry *;
   using InsertResult = emhash8::StringMap<Breakpoint>::EmplaceResult;
 
   BreakpointTable();

@@ -185,6 +185,7 @@ GdbRecordKind GdbDriver::PollForRecords(GdbRecord *res) {
     return GdbRecordKind::kNone;
   }
   pdp_assert(line[line.Size() - 1] == '\n');
+  pdp_trace("GDB record: {}", line.ToSlice());
 
   if (IsStreamMarker(line[0])) {
     return res->SetStream(ProcessCstringInPlace(line.Begin() + 1, line.End() - 1));

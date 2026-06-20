@@ -4,63 +4,21 @@ namespace pdp {
 
 void ClearBreakpointSign(DebugCoordinator &d, const StringSlice &in_id, bool should_delete) {
   for (auto &[id, br] : d.Breakpoints().GetAliases(in_id)) {
-    if (!br.fullname.Empty() && br.extmark > 0) {
-      d.VimDriver().DeleteBreakpointMark(br.fullname.ToSlice(), br.extmark);
-      br.extmark = 0;
+    if (!br.fullname.Empty()) {
+      d.VimDriver().DeleteBreakpointMark(br.fullname.ToSlice(), br.lnum);
     }
   }
-  // Clear logically if breakpoint was deleted
   if (should_delete) {
     d.Breakpoints().Delete(in_id);
   }
 }
 
-#if 0
-void PlaceBreakpointSign(DebugCoordinator &d, const StringSlice &id) {
-  auto it = d.Breakpoints().Find(id);
-  pdp_assert(it != d.Breakpoints().End());
-
-  const bool check_file = !it->value.fullname.Empty() && FileReadable(it->value.fullname.Cstr());
-  if (PDP_UNLIKELY(!check_file)) {
-    return;
-  }
-  const bool placed = (it->value.extmark > 0);
-  if (PDP_UNLIKELY(placed)) {
-    return;
-  }
-  // TODO
-  // awaiter = d.VimDriver().PromiseBufferNumber(it->value.fullname.ToSlice());
-
-  auto bufnr = co_await awaiter;
-  if (PDP_LIKELY(bufnr < 0)) {
-    co_return;
-  }
-
-  PDP_BLOCK() {
-    auto it = d.Breakpoints().Find(id.ToSlice());
-    const bool deleted_during_suspend = it == d.Breakpoints().End();
-    if (PDP_UNLIKELY(deleted_during_suspend)) {
-      co_return;
-    }
-    awaiter =
-        d.VimDriver().PromiseBreakpointMark(id.ToSlice(), bufnr, it->value.lnum, it->value.enabled);
-  }
-
-  auto extmark = co_await awaiter;
-  auto it = d.Breakpoints().Find(id.ToSlice());
-  if (PDP_LIKELY(it != d.Breakpoints().End())) {
-    it->value.extmark = extmark;
-  }
-}
-#endif
-
-void FormatBreakpointMessage(DebugCoordinator &d, GdbExprView bkpt,
-                             BreakpointTable::NoSuspendIterator it) {
-  const Breakpoint &br = it->value;
+void FormatBreakpointMessage(DebugCoordinator &d, GdbExprView bkpt, const Breakpoint &br,
+                             const StringSlice &id) {
   bool jumpable = false;
 
   MessageBuilder builder;
-  builder.AppendFormat("debugIdentifier", "*{}", it->key.ToSlice());
+  builder.AppendFormat("debugIdentifier", "*{}", id);
   if (br.type & Breakpoint::kWatchBit) {
     builder.Append(" when ", "Normal");
     builder.AppendFormat("Bold", "\"{}\"", bkpt["what"].RequireStr());
@@ -107,7 +65,7 @@ void FormatBreakpointMessage(DebugCoordinator &d, GdbExprView bkpt,
   }
 }
 
-Coroutine HandleNewBreakpoint(DebugCoordinator &d, UniquePtr<ExprBase> expr) {
+void HandleNewBreakpoint(DebugCoordinator &d, UniquePtr<ExprBase> expr) {
   GdbExprView dict(expr);
 
   auto bkpt = dict["bkpt"];
@@ -120,13 +78,13 @@ Coroutine HandleNewBreakpoint(DebugCoordinator &d, UniquePtr<ExprBase> expr) {
       d.VimDriver().ShowNormal("Watchpoint {} ({})", bkpt["number"].RequireStr(),
                                bkpt["what"].RequireStr());
     }
-    co_return;
+    return;
   }
 
   if (bkpt["pending"]) {
     d.VimDriver().ShowNormal("Breakpoint {} ({}) pending", bkpt["number"].RequireStr(),
                              bkpt["pending"].RequireStr());
-    co_return;
+    return;
   }
 
   ClearBreakpointSign(d, bkpt["number"].RequireStr(), false);
@@ -139,19 +97,21 @@ Coroutine HandleNewBreakpoint(DebugCoordinator &d, UniquePtr<ExprBase> expr) {
     for (size_t i = 0; i < locations.Count(); ++i) {
       auto [it, is_new] = d.Breakpoints().Insert(locations[i], bkpt);
       if (it->value.type == Breakpoint::kBreak) {
-        PlaceBreakpointSign(d, it->key.Copy());
+        d.VimDriver().SetBreakpointMark(it->key.ToSlice(), it->value.fullname.ToSlice(),
+                                        it->value.lnum, it->value.enabled);
       }
       if (is_new && check_race_condition) {
-        FormatBreakpointMessage(d, bkpt, it);
+        FormatBreakpointMessage(d, bkpt, it->value, it->key.ToSlice());
       }
     }
   } else {
     auto [it, is_new] = d.Breakpoints().Insert(bkpt, nullptr);
     if (it->value.type == Breakpoint::kBreak) {
-      PlaceBreakpointSign(d, it->key.Copy());
+      d.VimDriver().SetBreakpointMark(it->key.ToSlice(), it->value.fullname.ToSlice(),
+                                      it->value.lnum, it->value.enabled);
     }
     if (is_new && check_race_condition) {
-      FormatBreakpointMessage(d, bkpt, it);
+      FormatBreakpointMessage(d, bkpt, it->value, it->key.ToSlice());
     }
   }
 }

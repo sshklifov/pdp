@@ -29,7 +29,6 @@
 #include "ankerl_hash.h"
 
 #include "core/internals.h"
-#include "core/log.h"
 #include "data/allocator.h"
 #include "data/no_suspend_lock.h"
 
@@ -73,10 +72,8 @@ class Map3 : public pdp::NonCopyable {
     V value;
   };
 
-  using Iterator = pdp::NoSuspendIterator<Entry *>;
-
   struct EmplaceResult {
-    Iterator it;
+    Entry *it;
     bool did_emplace;
   };
 
@@ -154,13 +151,13 @@ class Map3 : public pdp::NonCopyable {
     EraseSlot(sbucket, main_bucket);
   }
 
-  [[nodiscard("Ignoring extracted key. Call Erase instead?")]]
-  K EraseAndExtractKey(const Entry *it) {
+  [[nodiscard("Ignoring result. Call Erase instead?")]]
+  Entry Extract(const Entry *it) {
     const uint32_t slot = it - _pairs;
     uint32_t main_bucket;
     const uint32_t sbucket = FindSlotBucket(slot, main_bucket);
 
-    K res(std::move(_pairs[slot].key));
+    Entry res(std::move(_pairs[slot]));
     EraseSlot(sbucket, main_bucket);
     return res;
   }
@@ -203,7 +200,7 @@ class Map3 : public pdp::NonCopyable {
     }
 
     const uint32_t slot = _index[bucket].slot & _mask;
-    return {Iterator(_pairs + slot), bempty};
+    return {_pairs + slot, bempty};
   }
 
  protected:
@@ -234,8 +231,6 @@ class Map3 : public pdp::NonCopyable {
 
   void Clearkv() {
     if constexpr (!std::is_trivially_destructible_v<Entry>) {
-      pdp_trace_once("Found non trivially destructible object in {}",
-                     pdp::StringSlice(__PRETTY_FUNCTION__));
       while (_num_filled--) _pairs[_num_filled].~Entry();
     }
   }

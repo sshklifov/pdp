@@ -21,7 +21,7 @@ struct CountCallback {
 // ------------------------------------------------------------
 
 TEST_CASE("SmallCapture: basic bind + invoke") {
-  DeferredCall<int> cap;
+  Callback<int> cap;
 
   int result = 0;
   cap.Bind<CountCallback>(&result);
@@ -31,7 +31,7 @@ TEST_CASE("SmallCapture: basic bind + invoke") {
 }
 
 TEST_CASE("SmallCapture: pointer argument") {
-  DeferredCall<uint64_t *> cap;
+  Callback<uint64_t *> cap;
 
   uint64_t value = 123;
   uint64_t out = 0;
@@ -49,7 +49,7 @@ TEST_CASE("SmallCapture: pointer argument") {
 }
 
 TEST_CASE("SmallCapture: reference capture") {
-  DeferredCall<> cap;
+  Callback<> cap;
 
   int value = 0;
 
@@ -66,7 +66,7 @@ TEST_CASE("SmallCapture: reference capture") {
 }
 
 TEST_CASE("SmallCapture: multiple arguments") {
-  DeferredCall<int, int> cap;
+  Callback<int, int> cap;
 
   int result = 0;
 
@@ -83,7 +83,7 @@ TEST_CASE("SmallCapture: multiple arguments") {
 }
 
 TEST_CASE("SmallCapture: move-only argument is forwarded") {
-  DeferredCall<UniquePtr<int>> cap;
+  Callback<UniquePtr<int>> cap;
 
   int result = 0;
 
@@ -104,7 +104,7 @@ TEST_CASE("SmallCapture: move-only argument is forwarded") {
 }
 
 TEST_CASE("SmallCapture: reuse after invoke") {
-  DeferredCall<int> cap;
+  Callback<int> cap;
 
   int a = 0;
   cap.Bind<CountCallback>(&a);
@@ -118,7 +118,7 @@ TEST_CASE("SmallCapture: reuse after invoke") {
 }
 
 TEST_CASE("SmallCapture: stress bind/invoke cycles") {
-  DeferredCall<int> cap;
+  Callback<int> cap;
 
   static constexpr int N = 10000;
   int sum = 0;
